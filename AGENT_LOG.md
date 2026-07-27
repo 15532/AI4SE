@@ -79,3 +79,19 @@
 - 决策理由：
   - 中文文档更符合用户提交和阅读习惯
   - 工程标识符保持英文可避免实现时的接口歧义
+
+### 2026-07-27 - T0 - Superpowers Writing Plans 修订 PLAN
+
+- 主 agent：Codex App
+- 触发 Superpowers skill：`writing-plans`
+- 关键上下文：
+  - 用户暂时确认中文 `SPEC.md`
+  - 当前仍处于实现前阶段，Cursor 冷启动验证尚未完成
+- Agent 动作：
+  - 将根目录 `PLAN.md` 从粗任务列表升级为可执行实现计划
+  - 写入 Superpowers 计划文件 `docs/superpowers/plans/2026-07-27-coding-agent-harness-implementation-plan.md`
+  - 为每个 task 指定文件、接口、失败测试、验证命令和提交命令
+- 人工干预：
+  - 暂无新的范围变更；沿用已确认的 Typed JSON Action Harness 设计
+- 学到的教训：
+  - PLAN 不能只列模块名；必须把相邻 task 依赖的接口签名固定下来，否则 cold-start agent 会被迫猜测。

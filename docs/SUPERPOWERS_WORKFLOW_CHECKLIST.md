@@ -5,8 +5,8 @@
 ## 实现前
 
 - [x] 确认主 agent 已安装 Superpowers。
-- [ ] 完成 `SPEC.md`。
-- [ ] 完成 `PLAN.md`。
+- [x] 完成 `SPEC.md`。
+- [x] 完成 `PLAN.md`。
 - [ ] 使用 Cursor 且仅提供 `SPEC.md` 和 `PLAN.md` 做冷启动验证。
 - [ ] 将发现和关键 diff 记录到 `SPEC_PROCESS.md`。
 - [ ] 更新 `AGENT_LOG.md`。
@@ -30,4 +30,3 @@
 - [ ] Docker 分发说明已测试。
 - [ ] WebUI URL 可访问。
 - [ ] `REFLECTION.md` 由学生本人撰写。
-

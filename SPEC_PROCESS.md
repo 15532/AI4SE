@@ -88,6 +88,14 @@
 
 原因：用户希望文件都是中文；工程标识符保留英文能避免命令和接口歧义。
 
+### Iteration 11 - Writing Plans
+
+问题：用户暂时确认中文 SPEC 后，如何把粗 PLAN 转换为可交给 subagent 执行的计划？
+
+决策：使用 `superpowers:writing-plans`，将 `PLAN.md` 升级为带文件结构、接口签名、失败测试、验证命令、提交命令的中文实现计划，并同步保存到 `docs/superpowers/plans/2026-07-27-coding-agent-harness-implementation-plan.md`。
+
+原因：课程要求每个 task 颗粒度足够小、路径明确、验证明确，且必须在实现前完成计划。
+
 ## 采纳的 AI 建议
 
 - 主要贡献聚焦 guardrail 和 feedback，而不是只写 prompt。
