@@ -7,8 +7,8 @@
 - [x] 确认主 agent 已安装 Superpowers。
 - [x] 完成 `SPEC.md`。
 - [x] 完成 `PLAN.md`。
-- [ ] 使用 Cursor 且仅提供 `SPEC.md` 和 `PLAN.md` 做冷启动验证。
-- [ ] 将发现和关键 diff 记录到 `SPEC_PROCESS.md`。
+- [x] 使用 Cursor 且仅提供 `SPEC.md` 和 `PLAN.md` 做冷启动验证。
+- [x] 将发现和关键 diff 记录到 `SPEC_PROCESS.md`。
 - [ ] 更新 `AGENT_LOG.md`。
 
 ## 实现中

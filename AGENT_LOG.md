@@ -95,3 +95,20 @@
   - 暂无新的范围变更；沿用已确认的 Typed JSON Action Harness 设计
 - 学到的教训：
   - PLAN 不能只列模块名；必须把相邻 task 依赖的接口签名固定下来，否则 cold-start agent 会被迫猜测。
+
+### 2026-07-27 - T0 - 冷启动验证反馈修订
+
+- 主 agent：Codex App
+- 触发 Superpowers skill：`verification-before-completion`
+- 关键上下文：
+  - 用户说明冷启动验证已完成，结果记录在 `SPEC_PROCESS.md`
+  - 读取后发现冷启动记录指出 SPEC/PLAN 仍有歧义，尚不能进入实现
+- Agent 动作：
+  - 修订 `SPEC.md`，固定 parser shape validation、workspace path boundary、guardrail priority
+  - 修订 `PLAN.md`，将冷启动目标改为 T1/T2，并补充 invalid action shape 测试矩阵、workspace path 测试和 guardrail 优先级说明
+  - 同步更新 `docs/superpowers/plans/2026-07-27-coding-agent-harness-implementation-plan.md`
+  - 更新 `SPEC_PROCESS.md`，记录 before/after diff 摘要
+- 人工干预：
+  - 用户已完成冷启动验证并提供记录入口
+- 学到的教训：
+  - 冷启动验证的价值在于暴露“看似合理但执行时会分叉”的计划细节，尤其是 task 依赖、错误文案和规则优先级。

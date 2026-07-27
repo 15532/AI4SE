@@ -119,6 +119,10 @@ v1 支持的 action：
 - v1 不支持 batch action。
 - 人工审批不是 LLM action；它是 `GuardrailEngine` 产生的 harness 状态。
 - action parsing、validation、rejection 必须能在没有真实 LLM 的情况下测试。
+- JSON action 必须是 object，不能是 `null`、array、string 或 number。
+- JSON 外包含自然语言前后缀时，整体视为 invalid JSON，不尝试抽取其中片段。
+- 未知 `type`、缺失必填字段、字段类型错误都返回 `invalid_action` feedback。
+- v1 默认拒绝额外字段；错误 message 固定为 `LLM action shape is invalid`，payload 至少包含 `reason` 和 `raw`。
 
 ## 6. 工具与工作区边界
 
@@ -148,6 +152,11 @@ workspaces:
 - WebUI 不能接收任意服务器路径。
 - 所有文件路径都相对于选中的 workspace root 解析。
 - 任何逃逸 workspace root 的路径都必须被 block。
+- 空路径按 `.` 处理，解析为 workspace root。
+- `.` 合法，解析为 workspace root。
+- 绝对路径只有在解析后仍位于 workspace root 内时才允许；否则 block。
+- Windows 路径和 POSIX 路径都必须经过 normalize/resolve 后再比较边界。
+- 符号链接安全属于未来增强；v1 在 README 中声明不跟随或不特殊信任符号链接。
 - shell command 必须与当前 workspace 的 `allowedCommands` 精确匹配。
 - v1 不支持 `npm test -- <pattern>` 这类任意参数。
 - 默认 TypeScript allowlist 是 `npm test`、`npm run test`、`npm run lint`、`npm run typecheck`、`npm run build`。
@@ -175,6 +184,17 @@ Project A 要求 harness 实现六个维度：决策、工具、记忆、治理�
 - `command.secret_access`：block 读取或打印 `.env`、private key、token file 或已知 secret path 的尝试。
 - `command.publish_or_deploy`：v1 block `git push`、`npm publish`、`docker push` 和部署命令。
 - `write.sensitive_file`：block 写入 `.env`、private key file 和含 secret 的配置文件。
+
+规则优先级从高到低：
+
+1. `command.destructive_delete`
+2. `command.secret_access` / `write.sensitive_file`
+3. `path.escape_workspace`
+4. `command.publish_or_deploy`
+5. `command.not_allowlisted`
+6. allow
+
+如果一个 action 同时命中多条规则，返回优先级最高的规则。例：`rm -rf .` 返回 `command.destructive_delete`；`git push` 返回 `command.publish_or_deploy`，而不是 `command.not_allowlisted`。
 
 `require_approval` 存在于数据模型和 UI 状态中，但 v1 对高风险操作默认 `block`，直到显式实现人工审批执行流程。
 

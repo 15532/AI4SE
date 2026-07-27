@@ -268,6 +268,26 @@ describe("parseAction", () => {
       }
     });
   });
+
+  it.each([
+    ["null", null],
+    ["array", []],
+    ["missing type", { command: "npm test", reason: "verify" }],
+    ["unknown type", { type: "shell", command: "npm test", reason: "verify" }],
+    ["wrong field type", { type: "run_command", command: 123, reason: "verify" }],
+    ["extra field", { type: "finish", summary: "done", unexpected: true }]
+  ])("rejects invalid action shape: %s", (_name, value) => {
+    const result = parseAction(JSON.stringify(value));
+    expect(result).toEqual({
+      ok: false,
+      feedback: {
+        source: "invalid_action",
+        severity: "error",
+        message: "LLM action shape is invalid",
+        payload: { reason: expect.any(String), raw: JSON.stringify(value) }
+      }
+    });
+  });
 });
 ```
 
@@ -279,7 +299,7 @@ describe("parseAction", () => {
 
 - [ ] **Step 3：实现最小类型与 parser**
 
-`src/core/feedback.ts` 导出固定 `Feedback` 类型。`src/core/actions.ts` 导出 `Action` union 和 `parseAction`。非法 JSON message 必须精确为 `LLM output is not valid JSON`。
+`src/core/feedback.ts` 导出固定 `Feedback` 类型。`src/core/actions.ts` 导出 `Action` union 和 `parseAction`。非法 JSON message 必须精确为 `LLM output is not valid JSON`。非法 action shape message 必须精确为 `LLM action shape is invalid`，payload 至少包含 `reason` 和 `raw`。v1 拒绝额外字段。
 
 - [ ] **Step 4：运行并确认通过**
 
@@ -347,14 +367,47 @@ describe("classifyAction", () => {
   it("blocks commands outside the workspace allowlist", () => {
     expect(classifyAction({ type: "run_command", command: "git push", reason: "publish" }, workspace)).toEqual({
       decision: "block",
-      reason: "Command is not in workspace allowlist",
-      ruleId: "command.not_allowlisted"
+      reason: "Publish and deploy commands are not allowed in v1",
+      ruleId: "command.publish_or_deploy"
     });
   });
 
   it("allows allowlisted commands", () => {
     expect(classifyAction({ type: "run_command", command: "npm test", reason: "verify" }, workspace)).toEqual({
       decision: "allow"
+    });
+  });
+});
+```
+
+`tests/runtime/workspace.test.ts`：
+
+```ts
+import { describe, expect, it } from "vitest";
+import { resolveWorkspacePath } from "../../src/runtime/workspace";
+
+const workspace = {
+  id: "demo",
+  name: "Demo",
+  root: process.cwd(),
+  allowedCommands: []
+};
+
+describe("resolveWorkspacePath", () => {
+  it("allows dot as the workspace root", () => {
+    const result = resolveWorkspacePath(workspace, ".");
+    expect(result.ok).toBe(true);
+  });
+
+  it("treats an empty path as the workspace root", () => {
+    const result = resolveWorkspacePath(workspace, "");
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects parent traversal", () => {
+    expect(resolveWorkspacePath(workspace, "../outside")).toEqual({
+      ok: false,
+      reason: "Path escapes workspace root"
     });
   });
 });
@@ -368,7 +421,7 @@ describe("classifyAction", () => {
 
 - [ ] **Step 3：实现 workspace 与 guardrail**
 
-实现 exact match allowlist、destructive delete block、publish/deploy block、secret access block、sensitive write block、path escape block。
+实现 exact match allowlist、destructive delete block、publish/deploy block、secret access block、sensitive write block、path escape block。Guardrail 规则优先级必须与 `SPEC.md` 一致：destructive delete > secret access/sensitive write > path escape > publish/deploy > not allowlisted > allow。
 
 - [ ] **Step 4：运行并确认通过**
 
@@ -979,9 +1032,9 @@ git commit -m "chore: add distribution and ci via subagent T11"
 
 ## Cursor 冷启动验证
 
-在任何实现任务开始前，用 Cursor 新开 session，仅提供 `SPEC.md` 与本 `PLAN.md`，提示：
+在任何实现任务开始前，用 Cursor 新开 session，仅提供 `SPEC.md` 与本 `PLAN.md`。冷启动验证不提交代码，不要求留下可运行实现；目标是暴露 spec/plan 歧义。为了避免 T2/T3 依赖 T1 造成误解，冷启动目标固定为 **T1 + T2**。
 
-> 你正在验证这个 AI4SE Project A 规约。请从 `PLAN.md` 中选择 T2 和 T3，并尝试用 TDD 实现它们。不要依赖任何先前对话或隐藏上下文。如果任何要求存在歧义，请停止并提问，不要猜测。请报告你遇到的所有歧义、不一致、缺失接口或非预期解读。
+> 你正在验证这个 AI4SE Project A 规约。请从 `PLAN.md` 中选择 T1 和 T2，并尝试用 TDD 实现它们。不要依赖任何先前对话或隐藏上下文。如果任何要求存在歧义，请停止并提问，不要猜测。请报告你遇到的所有歧义、不一致、缺失接口或非预期解读。冷启动验证阶段不要执行 git commit。
 
 将结果写入 `SPEC_PROCESS.md`：
 

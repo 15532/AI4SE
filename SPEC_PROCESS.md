@@ -1,6 +1,6 @@
 # SPEC_PROCESS
 
-状态：准备阶段已启动；Cursor 冷启动验证待完成。
+状态：准备阶段已启动；Cursor 冷启动验证已完成第一轮模拟，并已据此修订 SPEC/PLAN。
 
 ## 过程摘要
 
@@ -113,22 +113,75 @@
 
 ## 冷启动验证
 
-状态：待完成。
+状态：已完成第一轮模拟验证，未进入实现。
 
 计划 agent：Cursor。
 
+实际执行方式：根据用户要求，由 Codex 假装为新开的 Cursor session 执行冷启动验证；验证过程中只使用 `SPEC.md` 和 `PLAN.md` 作为任务上下文，不读取既有对话、隐藏上下文或实现代码。
+
 提供输入：仅 `SPEC.md` 和 `PLAN.md`。
 
-要求尝试的任务：T2 和 T4。
+要求尝试的任务：T2 和 T3。
 
 指令：遇到不确定之处即暂停提问，而不是猜测。
 
 发现：
 
-- 待记录。
+- Cursor 会在进入 T2 Step 1 前暂停提问：`PLAN.md` 全局约束说冷启动验证必须在 Task 1 前完成，但冷启动提示又要求尝试 T2/T3；T2/T3 依赖 T1 产物（`package.json`、Vitest、`src/core/actions.ts`、`tests/core/actions.test.ts`），所以新 session 无法判断应该先补 T1、假设 T1 已完成，还是只做静态审查。
+- `SPEC_PROCESS.md` 原记录写成“要求尝试的任务：T2 和 T4”，与 `PLAN.md` 冷启动提示和本次用户要求的 T2/T3 不一致。已在本文件修正为 T2/T3。
+- T2 中 `src/runtime/guardrails.ts` 被列为创建文件，并要求产出 `GuardrailDecision`，但 T2 的失败测试只覆盖 `parseAction`，没有测试或示例说明 `GuardrailDecision` 应从哪个模块导入。后续 T3 又修改同一文件并实现 `classifyAction`，容易让冷启动 agent 不确定 T2 是否只应创建类型空壳。
+- T2 的 parser 边界不足：SPEC 要求 invalid JSON 和 invalid action shape 都转成 `invalid_action`，但 PLAN 只给了 invalid JSON 和 valid `run_command` 两个测试。缺少对 `null`、array、缺失字段、字段类型错误、未知 action type、JSON 外自然语言、额外字段是否允许的明确规则。
+- T2 的错误反馈形状只固定了 invalid JSON message；invalid action shape 的 `message`、`payload`、是否保留原始输入没有固定，冷启动 agent 很可能自行发明不一致文案。
+- T3 的 guardrail 规则优先级不明确。例：`rm -rf .` 同时命中 destructive delete 和 not allowlisted；`git push` 同时命中 publish/deploy 和 not allowlisted。PLAN 测试期望前者返回 `command.destructive_delete`、后者返回 `command.not_allowlisted`，但 SPEC 没定义优先级，agent 可能实现出不同但看似合理的分类。
+- T3 要求实现 `resolveWorkspacePath`，但只提供了 `guardrails.test.ts` 样例，没有提供 `workspace.test.ts` 样例。路径边界细节因此不够稳定，例如绝对路径输入、Windows drive path、大小写差异、符号链接、root 自身、`.`、空路径、路径分隔符规范化如何处理。
+- T3 的 sensitive write、secret access、publish/deploy 规则列出了规则名和示例，但没有固定 reason 文案、匹配范围或测试用例。冷启动 agent 可能只实现测试中的三条规则，或自行扩展出不一致行为。
+- T2/T3 的提交步骤假定可以直接提交，但全局约束要求冷启动阶段不写实现代码；冷启动提示也要求报告问题。应明确冷启动验证不执行 git commit。
+
+非预期解读：
+
+- Cursor 可能把 T2/T3 理解为“在没有 T1 的仓库里直接实现完整脚手架 + T2/T3”，这会越过 Task 1 的边界。
+- Cursor 也可能把 T2 理解为只做 parser，不创建 `src/runtime/guardrails.ts`，导致 T3 之后缺少 `GuardrailDecision` 的稳定导出位置。
+- Cursor 可能按自己的安全直觉让 `git push` 返回 `command.publish_or_deploy`，与 PLAN 示例测试要求的 `command.not_allowlisted` 不同。
+
+产出与预期差距：
+
+- 按“有歧义就停止”的冷启动指令，本轮不能进入 TDD 实现 T2/T3，只能产出暂停问题清单。
+- 冷启动验证暴露出 PLAN 对 T1 依赖、parser 验证边界和 guardrail 优先级的说明不足。若不修订，后续不同 agent 可能写出测试能过但机制边界不一致的实现。
+
+对 `SPEC.md` / `PLAN.md` 的修订：
+
+- 已修订 `PLAN.md`：冷启动验证目标从 T2/T3 改为 T1/T2，避免 T2/T3 依赖 T1 产物导致新 agent 无法判断执行边界。
+- 已修订 `PLAN.md`：冷启动提示词明确“冷启动验证阶段不要执行 git commit”。
+- 已修订 `PLAN.md`：补充 T2 的 invalid action shape 测试矩阵，覆盖 `null`、array、missing type、unknown type、wrong field type、extra field，并固定错误文案 `LLM action shape is invalid`。
+- 已修订 `SPEC.md`：明确 parser shape validation 规则，要求 JSON action 必须是 object，未知 type、缺失字段、字段类型错误和额外字段都返回 `invalid_action`。
+- 已修订 `SPEC.md` 和 `PLAN.md`：明确 guardrail 规则优先级为 destructive delete > secret access/sensitive write > path escape > publish/deploy > not allowlisted > allow。
+- 已修订 `PLAN.md`：将 `git push` 期望分类改为 `command.publish_or_deploy`，与 guardrail 优先级一致。
+- 已修订 `SPEC.md`：明确 workspace path boundary，覆盖空路径、`.`、绝对路径、Windows/POSIX normalize/resolve 和符号链接风险说明。
+- 已修订 `PLAN.md`：为 `tests/runtime/workspace.test.ts` 添加最小失败测试，覆盖 `.`、空路径和 `..` path traversal。
+
+关键 before/after diff 摘要：
+
+```diff
+- 请从 PLAN.md 中选择 T2 和 T3，并尝试用 TDD 实现它们。
++ 请从 PLAN.md 中选择 T1 和 T2，并尝试用 TDD 实现它们。
++ 冷启动验证阶段不要执行 git commit。
+```
+
+```diff
+- T2 只测试 invalid JSON 和 valid run_command。
++ T2 增加 invalid action shape 测试矩阵：
++ null、array、missing type、unknown type、wrong field type、extra field。
++ 错误 message 固定为 "LLM action shape is invalid"。
+```
+
+```diff
+- git push 期望返回 command.not_allowlisted。
++ git push 期望返回 command.publish_or_deploy。
++ guardrail 优先级固定：
++ destructive delete > secret access/sensitive write > path escape > publish/deploy > not allowlisted > allow。
+```
 
 后续必须做：
 
-- 记录 Cursor 的问题和不一致理解。
-- 修订 `SPEC.md` 和 `PLAN.md`。
-- 在本文件中给出关键 before/after diff。
+- 用户 review 本轮修订后的 `SPEC.md` 和 `PLAN.md`。
+- 若用户确认，可进入实现阶段；执行前仍应使用 `using-git-worktrees` 和 `subagent-driven-development` / `executing-plans`。
