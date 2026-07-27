@@ -1,23 +1,23 @@
-# PLAN: Coding Agent Harness
+# PLAN：Coding Agent Harness
 
-Status: Draft implementation plan. Do not implement harness code until this plan has passed cold-start validation with Cursor.
+状态：实现计划草案。`SPEC.md` 通过用户 review，并经 Cursor 冷启动验证前，不得编写 harness 实现代码。
 
-## Workflow Gate
+## 流程门禁
 
-- Current phase: preparation and specification.
-- Implementation gate: `SPEC.md` and `PLAN.md` must be reviewed, then cold-start tested by Cursor using only those two files.
-- Required process evidence: update `SPEC_PROCESS.md` and `AGENT_LOG.md` before implementation begins.
+- 当前阶段：规约与计划准备。
+- 实现门禁：`SPEC.md` 和 `PLAN.md` 必须先 review，再由 Cursor 仅凭这两个文件冷启动验证。
+- 过程证据：实现前必须更新 `SPEC_PROCESS.md` 和 `AGENT_LOG.md`。
 
-## Task Dependency Overview
+## Task 依赖概览
 
-Sequential foundation:
+顺序基础任务：
 
-1. Repository and document baseline
-2. TypeScript project scaffold
-3. Core domain types and test harness
-4. Mock LLM driven main loop
+1. 仓库与文档基线
+2. TypeScript 项目脚手架
+3. 核心领域类型与测试基础
+4. mock LLM 驱动的主循环
 
-Parallelizable after core types:
+核心类型确定后可并行：
 
 - Guardrail engine
 - Tool dispatcher
@@ -25,196 +25,196 @@ Parallelizable after core types:
 - SQLite event store
 - Credential manager
 - WebUI demo views
-- Docker and CI
+- Docker 与 CI
 
-## Planned Tasks
+## 计划任务
 
-### T0 - Preparation Baseline
+### T0 - 准备基线
 
-Goal: create repository, documentation skeleton, ignore rules, and CI placeholders.
+目标：创建仓库、文档骨架、忽略规则和 CI 占位。
 
-Files: `SPEC.md`, `PLAN.md`, `SPEC_PROCESS.md`, `AGENT_LOG.md`, `README.md`, `.gitignore`, `.github/workflows/unit-test.yml`, `.gitlab-ci.yml`.
+涉及文件：`SPEC.md`、`PLAN.md`、`SPEC_PROCESS.md`、`AGENT_LOG.md`、`README.md`、`.gitignore`、`.github/workflows/unit-test.yml`、`.gitlab-ci.yml`。
 
-Verification: `git status --short` shows only intended baseline files. No harness implementation exists yet.
+验证：`git status --short` 只显示预期基线文件；尚无 harness 实现代码。
 
-Status: in progress.
+状态：进行中。
 
-### T1 - TypeScript Project Scaffold
+### T1 - TypeScript 项目脚手架
 
-Goal: create package, TypeScript, test, and lint/build command baseline.
+目标：创建 package、TypeScript、测试、lint/build 命令基线。
 
-Expected files: `package.json`, `tsconfig.json`, `vitest.config.ts`, `src/`, `tests/`.
+预期文件：`package.json`、`tsconfig.json`、`vitest.config.ts`、`src/`、`tests/`。
 
-Failing test first: a smoke test that imports the future core module should fail before implementation.
+先写失败测试：一个导入未来 core module 的 smoke test，应先失败。
 
-Verification: `npm test`, `npm run build`, and CI run the same test command.
+验证：`npm test`、`npm run build`，CI 使用同一测试命令。
 
-Dependencies: T0.
+依赖：T0。
 
-### T2 - Core Domain Types And Action Parser
+### T2 - 核心领域类型与 Action Parser
 
-Goal: define action, feedback, guardrail decision, run event, and LLM response interfaces.
+目标：定义 action、feedback、guardrail decision、run event、LLM response 接口。
 
-Failing tests first:
+先写失败测试：
 
-- invalid action JSON becomes an invalid-output feedback event
-- valid tool action parses into a typed action
+- invalid action JSON 转成 `invalid_action` feedback
+- valid tool action 解析为 typed action
 
-Verification: deterministic unit tests with no network.
+验证：无网络确定性单元测试。
 
-Dependencies: T1.
+依赖：T1。
 
-### T3 - Mock LLM And Main Loop Skeleton
+### T3 - Mock LLM 与主循环骨架
 
-Goal: implement the project-owned agent loop: context -> LLM -> parse action -> guardrail -> dispatch -> feedback -> stop.
+目标：实现项目自有 agent loop：context -> LLM -> parse action -> guardrail -> dispatch -> feedback -> stop。
 
-Failing tests first:
+先写失败测试：
 
-- mock LLM returns a finish action and loop stops
-- max iteration limit stops runaway loop
+- mock LLM 返回 finish action 后 loop 停止
+- max iteration limit 能停止 runaway loop
 
-Verification: unit tests assert event sequence and stop reason.
+验证：单元测试断言 event sequence 和 stop reason。
 
-Dependencies: T2.
+依赖：T2。
 
 ### T4 - Guardrail Engine
 
-Goal: implement deterministic governance classification for dangerous shell/file actions.
+目标：为危险 shell/file action 实现确定性治理分类。
 
-Failing tests first:
+先写失败测试：
 
-- recursive delete command is blocked
-- command outside allowlist is blocked or requires approval
-- safe allowlisted test command is allowed
+- recursive delete command 被 block
+- command 不在 allowlist 时被 block 或 require_approval
+- 安全的 allowlisted test command 被 allow
 
-Verification: mock LLM is not required; direct guardrail tests pass deterministically.
+验证：不需要 mock LLM；直接测试 guardrail。
 
-Dependencies: T2; can run parallel with T5/T6 after interfaces settle.
+依赖：T2；接口稳定后可与 T5/T6 并行。
 
 ### T5 - Bounded Tool Dispatcher
 
-Goal: implement workspace-bounded file tools and restricted shell execution.
+目标：实现 workspace-bounded file tools 和 restricted shell execution。
 
-Failing tests first:
+先写失败测试：
 
-- path traversal outside workspace is rejected
-- allowlisted command can execute in a temp workspace
-- blocked command is never executed
+- path traversal outside workspace 被拒绝
+- allowlisted command 可在临时 workspace 中执行
+- blocked command 永不执行
 
-Verification: tests use temp directories and no network.
+验证：测试使用临时目录且不依赖网络。
 
-Dependencies: T2, T4.
+依赖：T2、T4。
 
 ### T6 - Feedback Sensors
 
-Goal: convert command result, test output, lint/typecheck output, invalid LLM output, and guardrail block events into structured feedback.
+目标：将 command result、test output、lint/typecheck output、invalid LLM output、guardrail block event 转换为结构化 feedback。
 
-Failing tests first:
+先写失败测试：
 
-- failed test output creates actionable feedback
-- guardrail block creates safety feedback
-- feedback is included in the next loop context
+- failed test output 产生 actionable feedback
+- guardrail block 产生 safety feedback
+- feedback 被放入下一轮 loop context
 
-Verification: mock LLM changes its second action after feedback is delivered.
+验证：mock LLM 在收到 feedback 后改变第二个 action。
 
-Dependencies: T2, T3.
+依赖：T2、T3。
 
-### T7 - SQLite Event Store And Memory
+### T7 - SQLite Event Store 与 Memory
 
-Goal: persist run events, feedback, decisions, and bounded memory items.
+目标：持久化 run event、feedback、decision 和有边界的 memory item。
 
-Failing tests first:
+先写失败测试：
 
-- run events are stored in order
-- memory retrieval is scoped and bounded
-- secret values are never stored as memory or event payloads
+- run events 按顺序存储
+- memory retrieval 按 scope 且有边界
+- secret value 不会存为 memory 或 event payload
 
-Verification: SQLite-backed unit tests use temp database files.
+验证：SQLite 单测使用临时数据库文件。
 
-Dependencies: T2.
+依赖：T2。
 
 ### T8 - Credential Manager
 
-Goal: implement credential status/set/clear abstraction with OS keychain first and `.env` fallback only in development mode.
+目标：实现 credential status/set/clear 抽象，以 OS keychain 为主，`.env` 仅为 development mode fallback。
 
-Failing tests first:
+先写失败测试：
 
-- status hides secret value
-- clear removes provider key
-- `.env` fallback is disabled unless explicitly enabled
+- status 隐藏 secret value
+- clear 移除 provider key
+- `.env` fallback 未显式启用时禁用
 
-Verification: unit tests use an in-memory fake keychain adapter.
+验证：单测使用 in-memory fake keychain adapter。
 
-Dependencies: T1.
+依赖：T1。
 
 ### T9 - CLI
 
-Goal: expose mock run, mechanism demo, real-provider run, credential management, and config validation commands.
+目标：暴露 mock run、mechanism demo、real-provider run、credential management 和 config validation commands。
 
-Failing tests first:
+先写失败测试：
 
-- `demo` command returns guardrail and feedback evidence
-- credential status command never prints secret value
+- `demo` command 返回 guardrail 和 feedback 证据
+- credential status command 永不打印 secret value
 
-Verification: CLI integration tests use mock LLM and fake keychain.
+验证：CLI integration tests 使用 mock LLM 和 fake keychain。
 
-Dependencies: T3, T4, T5, T6, T8.
+依赖：T3、T4、T5、T6、T8。
 
-### T10 - WebUI Demo Mode
+### T10 - WebUI Run Control
 
-Goal: provide a WebUI that shows mock/demo run history, blocked actions, feedback transitions, and run timeline.
+目标：提供 WebUI，展示 mock/real run history、blocked actions、feedback transitions、run timeline，并允许对预注册 workspace 触发真实 run。
 
-Failing tests first:
+先写失败测试：
 
-- server exposes demo run data
-- public mode refuses real execution
+- server 暴露 demo run data
+- WebUI run API 只接受预注册 workspace id
+- WebUI real run 使用与 CLI 相同的 guardrail 和 allowlist
 
-Verification: component/API tests confirm mock-only behavior.
+验证：API/component tests 确认 workspace boundary。
 
-Dependencies: T7, T9.
+依赖：T7、T9。
 
-### T11 - Docker And Server Deployment
+### T11 - Docker 与服务器部署
 
-Goal: package the app for Docker and document deployment behind Nginx on the user's own server.
+目标：用 Docker 打包应用，并文档化在用户自有服务器上通过 Nginx 部署。
 
-Failing tests first:
+先写失败测试：
 
-- container build command succeeds in CI
-- documented environment variables are sufficient for mock WebUI
+- container build command 在 CI 中成功
+- 文档化环境变量足以启动 WebUI
 
-Verification: `docker build` and `docker run` instructions work on a fresh machine.
+验证：`docker build` 与 `docker run` 说明可在新机器运行。
 
-Dependencies: T9, T10.
+依赖：T9、T10。
 
-### T12 - CI, Review, And Final Docs
+### T12 - CI、Review 与最终文档
 
-Goal: finish README, CI, `.gitlab-ci.yml`, AGENT_LOG updates, SPEC_PROCESS cold-start evidence, and REFLECTION draft prompts.
+目标：完成 README、CI、`.gitlab-ci.yml`、AGENT_LOG、SPEC_PROCESS 冷启动证据和 REFLECTION 提纲。
 
-Verification:
+验证：
 
-- GitHub Actions passes
-- `.gitlab-ci.yml` contains a `unit-test` job
-- README includes install, run, distribution, directory structure, key configuration, and security boundaries
-- `SPEC_PROCESS.md` includes Cursor cold-start findings and SPEC/PLAN revisions
+- GitHub Actions 通过
+- `.gitlab-ci.yml` 包含 `unit-test` job
+- README 包含安装、运行、分发、目录结构、key 配置、安全边界
+- `SPEC_PROCESS.md` 包含 Cursor 冷启动发现和 SPEC/PLAN 修订记录
 
-Dependencies: all implementation tasks.
+依赖：所有实现任务。
 
-## Worktree Strategy
+## Worktree 策略
 
-- `feature/core-loop`: T1-T3
-- `feature/guardrails-tools`: T4-T5
-- `feature/feedback-memory`: T6-T7
-- `feature/credentials-cli`: T8-T9
-- `feature/webui-deploy`: T10-T11
-- `docs/finalization`: T12
+- `feature/core-loop`：T1-T3
+- `feature/guardrails-tools`：T4-T5
+- `feature/feedback-memory`：T6-T7
+- `feature/credentials-cli`：T8-T9
+- `feature/webui-deploy`：T10-T11
+- `docs/finalization`：T12
 
-Each feature branch should have a PR and commit messages naming the subagent or human reviewer.
+每个 feature branch 对应一个 PR，commit message 标注 subagent 或 human reviewer。
 
-## Cold-Start Validation Prompt
+## 冷启动验证提示词
 
-Use Cursor in a fresh session. Provide only `SPEC.md` and `PLAN.md`, then ask:
+在 Cursor 中开启全新 session。只提供 `SPEC.md` 和 `PLAN.md`，然后要求：
 
-> You are validating this project specification. Choose T2 and T4 from PLAN.md and attempt to implement them using TDD. Do not rely on any prior conversation. If any requirement is ambiguous, stop and ask instead of guessing. Report every ambiguity, mismatch, or missing interface you encounter.
+> 你正在验证这个 AI4SE Project A 规约。请从 `PLAN.md` 中选择 T2 和 T4，并尝试用 TDD 实现它们。不要依赖任何先前对话或隐藏上下文。如果任何要求存在歧义，请停止并提问，不要猜测。请报告你遇到的所有歧义、不一致、缺失接口或非预期解读。
 
-Record the result in `SPEC_PROCESS.md` before implementation.
-
+实现前将结果记录到 `SPEC_PROCESS.md`。

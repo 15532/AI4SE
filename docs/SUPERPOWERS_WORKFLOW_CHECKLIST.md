@@ -1,32 +1,33 @@
-# Superpowers Workflow Checklist
+# Superpowers 工作流检查清单
 
-Use this checklist to avoid breaking the course workflow.
+用这个清单避免偏离课程流程。
 
-## Before Implementation
+## 实现前
 
-- [x] Confirm Superpowers is installed for the chosen main agent.
-- [ ] Complete `SPEC.md`.
-- [ ] Complete `PLAN.md`.
-- [ ] Run Cursor cold-start validation using only `SPEC.md` and `PLAN.md`.
-- [ ] Record findings and key diffs in `SPEC_PROCESS.md`.
-- [ ] Update `AGENT_LOG.md`.
+- [x] 确认主 agent 已安装 Superpowers。
+- [ ] 完成 `SPEC.md`。
+- [ ] 完成 `PLAN.md`。
+- [ ] 使用 Cursor 且仅提供 `SPEC.md` 和 `PLAN.md` 做冷启动验证。
+- [ ] 将发现和关键 diff 记录到 `SPEC_PROCESS.md`。
+- [ ] 更新 `AGENT_LOG.md`。
 
-## During Implementation
+## 实现中
 
-- [ ] Use one worktree/branch per major feature.
-- [ ] Use one fresh subagent per task.
-- [ ] Start each task with a failing test.
-- [ ] Run red-green-refactor.
-- [ ] Review for spec compliance first.
-- [ ] Review for code quality second.
-- [ ] Update `PLAN.md` with completion status and commit hash.
-- [ ] Update `AGENT_LOG.md` with prompt/context, subagent output summary, and human interventions.
+- [ ] 每个大功能使用一个 worktree/branch。
+- [ ] 每个 task 使用一个新鲜 subagent。
+- [ ] 每个 task 从失败测试开始。
+- [ ] 执行 red-green-refactor。
+- [ ] 先做 spec compliance review。
+- [ ] 再做 code quality review。
+- [ ] 在 `PLAN.md` 中更新完成状态和 commit hash。
+- [ ] 在 `AGENT_LOG.md` 中记录 prompt/context、subagent 输出摘要和人工干预。
 
-## Before Submission
+## 提交前
 
-- [ ] No real credentials in files, logs, or Git history.
-- [ ] GitHub Actions final run passes.
-- [ ] `.gitlab-ci.yml` has a passing `unit-test` job.
-- [ ] Docker distribution instructions are tested.
-- [ ] WebUI URL is reachable.
-- [ ] `REFLECTION.md` is written by the student.
+- [ ] 文件、日志或 Git history 中没有真实凭据。
+- [ ] GitHub Actions 最后一次运行通过。
+- [ ] `.gitlab-ci.yml` 有通过的 `unit-test` job。
+- [ ] Docker 分发说明已测试。
+- [ ] WebUI URL 可访问。
+- [ ] `REFLECTION.md` 由学生本人撰写。
+

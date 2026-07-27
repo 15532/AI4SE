@@ -1,40 +1,40 @@
-# Coding Agent Harness Design
+# Coding Agent Harness 设计文档
 
-Date: 2026-07-27
+日期：2026-07-27
 
-Status: Approved during Superpowers brainstorming; written before implementation.
+状态：已在 Superpowers brainstorming 中确认；实现前写入。
 
-## Summary
+## 摘要
 
-This project builds a TypeScript Coding Agent Harness for AI4SE Final Project A. The chosen architecture is a Typed JSON Action Harness: the LLM outputs exactly one strict JSON action per loop iteration, while project-owned code handles parsing, guardrails, tool dispatch, feedback, memory, configuration, credentials, CLI, and WebUI.
+本项目为 AI4SE 期末项目 A 构建一个 TypeScript Coding Agent Harness。已选架构为 Typed JSON Action Harness：LLM 每轮只输出一个严格 JSON action，而项目自有代码负责 parsing、guardrail、tool dispatch、feedback、memory、configuration、credentials、CLI 和 WebUI。
 
-The main contribution is governance plus deterministic feedback. The harness must still demonstrate meaningful behavior when the real LLM is removed and replaced by a mock/stub LLM.
+主要贡献是治理 + 确定性反馈闭环。移除真实 LLM、替换为 mock/stub LLM 后，harness 仍必须能展示有意义且可单测的行为。
 
-## Design Decisions
+## 设计决策
 
-- Use TypeScript for shared core, CLI, WebUI server, and tests.
-- Use OpenAI-compatible chat API only as a single-call provider behind an injectable `LLMProvider`.
-- Use `MockLLMProvider` for all deterministic unit tests and mechanism demos.
-- Use strict JSON action output instead of XML or natural-language parsing.
-- Use pre-registered workspace ids, not arbitrary path input.
-- Use exact command allowlists per workspace.
-- Let WebUI trigger real harness runs, but only within registered workspaces and the same guardrails as CLI.
-- Do not require a WebUI password in v1 by user decision; document this as a risk and trusted-demo boundary.
+- 使用 TypeScript 覆盖 shared core、CLI、WebUI server 和 tests。
+- OpenAI-compatible chat API 只作为 `LLMProvider` 后的一次 completion call。
+- `MockLLMProvider` 用于全部确定性单测和机制演示。
+- 使用严格 JSON action output，而不是 XML 或自然语言解析。
+- 使用预注册 workspace id，而不是任意路径输入。
+- 每个 workspace 使用精确 command allowlist。
+- WebUI 可以触发真实 harness run，但只能在注册 workspace 内，并且使用与 CLI 相同的 guardrail。
+- 根据用户决定，v1 不要求 WebUI password；文档中明确这是风险，适合作为受信任环境或短期课程演示。
 
-## Core Modules
+## 核心模块
 
-The implementation is divided into six modules:
+实现分为六个模块：
 
-1. Agent Loop Core: context, provider call, action parsing, guardrail, dispatch, feedback, persistence, stop.
-2. Tool And Workspace Runtime: workspace registry, path checks, file tools, allowlisted shell.
-3. Governance Guardrail Engine: deterministic allow/block/require_approval classification.
-4. Feedback And Self-Correction Engine: objective result parsing and feedback injection.
-5. Memory And Event Store: SQLite run timeline, action, feedback, memory.
-6. Credential, CLI, And WebUI Interface: key lifecycle, local commands, WebUI run control and timeline.
+1. Agent Loop Core：context、provider call、action parsing、guardrail、dispatch、feedback、persistence、stop。
+2. 工具与工作区运行时（Tool And Workspace Runtime）：workspace registry、path check、file tools、allowlisted shell。
+3. Governance Guardrail Engine：确定性的 allow/block/require_approval 分类。
+4. Feedback And Self-Correction Engine：客观结果解析与 feedback injection。
+5. Memory And Event Store：SQLite run timeline、action、feedback、memory。
+6. Credential, CLI, And WebUI Interface：key lifecycle、本地命令、WebUI run control 和 timeline。
 
-## Action Protocol
+## Action 协议
 
-Supported v1 actions:
+v1 支持的 action：
 
 - `read_file`
 - `write_file`
@@ -43,13 +43,13 @@ Supported v1 actions:
 - `remember`
 - `finish`
 
-Each loop iteration accepts exactly one JSON object. Invalid JSON or invalid shape becomes feedback and never reaches tool execution.
+每个 loop iteration 只接受一个 JSON object。非法 JSON 或非法结构会变成 feedback，不会进入工具执行。
 
-Human approval is not an LLM action. It is a harness state produced by guardrails.
+人工审批不是 LLM action，而是 guardrail 产生的 harness 状态。
 
-## Workspace And Tool Boundary
+## 工作区与工具边界
 
-Workspaces are configured before runtime:
+工作区（workspace）在运行前配置：
 
 ```yaml
 workspaces:
@@ -63,35 +63,34 @@ workspaces:
       - npm run build
 ```
 
-CLI and WebUI select a workspace by id. Paths are resolved relative to the selected workspace root. Escapes are blocked. Shell commands must exactly match that workspace's allowlist. v1 does not allow arbitrary command arguments.
+CLI 和 WebUI 通过 workspace id 选择 workspace。路径相对于该 workspace root 解析；逃逸路径会被 block。shell command 必须与该 workspace 的 allowlist 精确匹配。v1 不允许任意命令参数。
 
-## Governance And Feedback
+## 治理与反馈
 
-Initial guardrails block workspace escapes, non-allowlisted commands, destructive deletion, secret access, publish/deploy commands, and writes to sensitive files.
+初始 guardrail 会 block workspace escape、非 allowlist command、破坏性删除、secret access、publish/deploy command，以及写入敏感文件。
 
-Feedback sensors produce structured feedback for invalid actions, guardrail blocks, command failures, test failures, static-check failures, missing credentials, and successful tool results. The next loop context includes recent feedback, allowing mock LLM tests to prove self-correction without a real LLM.
+Feedback sensor 为 invalid action、guardrail block、command failure、test failure、static-check failure、missing credential 和 tool success 产生结构化 feedback。下一轮 context 会包含最近 feedback，使 mock LLM 测试能证明 self-correction 不依赖真实 LLM。
 
-## WebUI And Security
+## WebUI 与安全
 
-WebUI can trigger mock or real provider runs. It can select only pre-registered workspaces, cannot display API keys, and must use the same runtime boundaries as CLI. Since v1 has no password by user decision, public deployment is documented as a trusted-network or short-term course-demo deployment. Future work should add `WEBUI_ADMIN_PASSWORD` or reverse-proxy authentication.
+WebUI 可以触发 mock 或 real provider run。它只能选择预注册 workspace，不能展示 API key，并且必须使用与 CLI 相同的 runtime 边界。由于用户决定 v1 不配置 password，公网部署应被记录为受信任网络或短期课程演示部署。未来应加入 `WEBUI_ADMIN_PASSWORD` 或反向代理认证。
 
-Credentials use OS keychain as primary storage. `.env` is only an explicitly enabled development fallback and is treated as plaintext risk. Secret values must not appear in Git, logs, SQLite, WebUI responses, or CI output.
+凭据以 OS keychain 为主存储。`.env` 只是显式启用的开发 fallback，并被视为明文风险。secret value 不得出现在 Git、logs、SQLite、WebUI response 或 CI output 中。
 
-## Tests And Demo
+## 测试与演示
 
-The one-command test entry is:
+一键测试入口：
 
 ```bash
 npm test
 ```
 
-Required deterministic tests cover main loop stop, invalid JSON feedback, guardrail blocking, feedback-driven action change, workspace path escapes, command allowlist rejection, memory write/retrieval, credential masking, and WebUI registered-workspace enforcement.
+必需确定性测试覆盖 main loop stop、invalid JSON feedback、guardrail block、feedback-driven action change、workspace path escape、command allowlist rejection、memory write/retrieval、credential masking 和 WebUI registered-workspace enforcement。
 
-The mechanism demo command is:
+机制演示命令：
 
 ```bash
 npm run demo:mechanisms
 ```
 
-It must deterministically show a dangerous action blocked, a failed test result fed back into the loop, and a changed next action caused by that feedback.
-
+该演示必须确定性展示：危险动作被 block、失败测试结果回灌到 loop、mock LLM 因 feedback 改变下一步 action。

@@ -1,118 +1,126 @@
 # SPEC_PROCESS
 
-Status: preparation started; cold-start validation pending.
+状态：准备阶段已启动；Cursor 冷启动验证待完成。
 
-## Process Summary
+## 过程摘要
 
-The project is being prepared for AI4SE Final Project A - Coding Agent Harness. The current main agent is Codex App. The planned cold-start validation agent is Cursor, because the course requirement asks for a different agent type from the main development agent.
+本项目正在按 AI4SE 期末项目 A - Coding Agent Harness 准备。主开发智能体是 Codex App。计划使用 Cursor 作为冷启动验证智能体，因为课程要求第二个 agent 类型必须不同于主开发 agent。
 
-## Key Brainstorming Iterations
+## Brainstorming 关键迭代
 
-### Iteration 1 - Project Direction
+### Iteration 1 - 项目方向
 
-Question: Which Coding Agent Harness capability should be the main contribution?
+问题：Coding Agent Harness 的主要贡献应该放在哪种能力上？
 
-Decision: choose governance guardrails plus deterministic feedback loop.
+决策：选择治理护栏 + 确定性反馈闭环。
 
-Reason: this direction maps directly to Project A's requirement that mechanisms be implemented in code and remain testable with mock/stub LLMs.
+原因：该方向直接对应 Project A 中“机制必须由代码实现，并能用 mock/stub LLM 测试”的要求。
 
-### Iteration 2 - Technology And Product Shape
+### Iteration 2 - 技术栈与产品形态
 
-Question: Which stack and interface should the project use?
+问题：项目应使用什么技术栈和交互形态？
 
-Decision: TypeScript, CLI plus WebUI, OpenAI-compatible LLM abstraction, SQLite state.
+决策：TypeScript、CLI + WebUI、OpenAI-compatible LLM abstraction、SQLite state。
 
-Reason: one language can cover CLI, WebUI server, tests, Docker deployment, and shared types.
+原因：同一种语言可以覆盖 CLI、WebUI server、测试、Docker 部署和共享类型。
 
-### Iteration 3 - Deployment And Safety
+### Iteration 3 - 部署与安全
 
-Question: How should the public WebUI be deployed on the user's own server?
+问题：如何在用户自有服务器上部署 public WebUI？
 
-Decision: Docker plus Nginx, public WebUI in mock/demo mode only. No authentication for the first public demo, therefore no real shell execution or real API keys in public mode.
+决策：Docker + Nginx。初始建议为 mock/demo-only，但后续根据用户选择改为 WebUI 可触发真实 run。
 
-Reason: this gives an accessible WebUI for grading while avoiding the risk of exposing a real coding agent over the internet.
+原因：Docker + Nginx 适合云服务器部署；WebUI 真实 run 能提供更强产品展示，但需要更明确边界。
 
-### Iteration 4 - CI Requirement Conflict
+### Iteration 4 - CI 要求冲突
 
-Question: The user prefers GitHub Actions, while the final checklist explicitly asks for `.gitlab-ci.yml` with a `unit-test` job.
+问题：用户偏好 GitHub Actions，但最终交付清单明确要求 `.gitlab-ci.yml` 且包含 `unit-test` job。
 
-Decision: plan for both. GitHub Actions will be the primary CI, and `.gitlab-ci.yml` will be included for checklist compatibility.
+决策：两者都配置。GitHub Actions 作为主 CI，同时保留 `.gitlab-ci.yml` 以兼容课程 checklist。
 
-Reason: this avoids losing points on a formatting requirement while preserving the preferred workflow.
+原因：避免因格式要求丢分，同时保留用户偏好的工作流。
 
-### Iteration 5 - Action Protocol
+### Iteration 5 - Action 协议
 
-Question: What action format should the LLM use so that parser, guardrails, mock LLM, and cold-start implementation are deterministic?
+问题：LLM 应使用什么 action 格式，才能让 parser、guardrail、mock LLM 和冷启动实现都具备确定性？
 
-Decision: strict JSON action object, one action per loop iteration.
+决策：严格 JSON action object，每轮一个 action。
 
-Reason: JSON gives the clearest boundary between LLM decision-making and harness code. Invalid output can be rejected deterministically and turned into feedback.
+原因：JSON 最清楚地区分 LLM 决策与 harness 代码。非法输出可被确定性拒绝并转成 feedback。
 
-### Iteration 6 - Tool Boundary
+### Iteration 6 - 工具边界
 
-Question: What shell commands should v1 allow?
+问题：v1 允许哪些 shell 命令？
 
-Decision: narrow per-workspace command allowlist. Default TypeScript commands are `npm test`, `npm run test`, `npm run lint`, `npm run typecheck`, and `npm run build`.
+决策：使用每个 workspace 自己的窄 command allowlist。默认 TypeScript 命令为 `npm test`、`npm run test`、`npm run lint`、`npm run typecheck`、`npm run build`。
 
-Reason: exact allowlists keep the scope testable and prevent the shell tool from becoming an unbounded remote command interface.
+原因：精确 allowlist 让范围可测试，也避免 shell tool 变成无边界远程命令接口。
 
-### Iteration 7 - WebUI Execution Boundary
+### Iteration 7 - WebUI 执行边界
 
-Question: Should WebUI only show mock/demo runs, or also trigger real harness runs?
+问题：WebUI 只展示 mock/demo run，还是也触发真实 harness run？
 
-Decision: WebUI may trigger real runs, but only for pre-registered workspaces selected by id.
+决策：WebUI 可以触发真实 run，但只能选择预注册 workspace id。
 
-Reason: this gives a stronger product demonstration while still making the filesystem and command boundary explicit.
+原因：该选择提供更强产品演示，同时保留明确 filesystem 和 command 边界。
 
-### Iteration 8 - WebUI Authentication
+### Iteration 8 - WebUI 认证
 
-Question: Should v1 require a WebUI administrator password?
+问题：v1 是否要求 WebUI 管理员密码？
 
-Decision: no password in v1 by user decision. The SPEC documents this as a known risk and constrains WebUI real runs through workspace registration, path boundaries, command allowlists, and guardrails.
+决策：根据用户决定，v1 不设置 password。SPEC 将其记录为已知风险，并通过 workspace registry、path boundary、command allowlist、guardrail 限制真实 run。
 
-Reason: the user prefers not to configure a password yet. The design records the trade-off instead of hiding it.
+原因：用户暂时不想配置口令。设计应记录该 trade-off，而不是隐藏它。
 
-### Iteration 9 - Module And Test Coverage
+### Iteration 9 - 模块与测试覆盖
 
-Question: Does the design explicitly satisfy the requirement for at least three clear functional modules and one-command tests?
+问题：设计是否显式满足“至少 3 个职责清晰功能模块”和“一键运行测试”？
 
-Decision: SPEC now names six functional modules and `npm test` as the one-command test entry.
+决策：SPEC 明确列出六个功能模块，并将 `npm test` 作为一键测试入口。
 
-Reason: the requirement was already structurally covered, but making it explicit reduces grading ambiguity.
+原因：结构上已经覆盖要求，但显式写入可减少评分歧义。
 
-## Adopted AI Suggestions
+### Iteration 10 - 文档语言
 
-- Main contribution should focus on guardrails and feedback, not only prompt design.
-- Strict JSON action protocol should be used instead of natural-language parsing.
-- Memory should be exposed as a `remember` action to prove the memory mechanism is code-backed.
-- Formal cold-start validation should use Cursor rather than a new Codex chat.
-- Workspaces should be pre-registered and selected by id.
+问题：项目文件应使用什么语言？
 
-## Rejected Or Modified Suggestions
+决策：项目 Markdown 文档改为中文；代码标识符、命令、配置键保留英文。
 
-- A pure CLI was rejected because the final checklist requires an accessible WebUI.
-- A mock/demo-only WebUI was rejected because the user wants WebUI to trigger real harness runs.
-- WebUI password protection was recommended but deferred by user decision.
-- `.env` as primary credential storage was rejected because the requirement asks for safer storage and explicit threat modeling.
+原因：用户希望文件都是中文；工程标识符保留英文能避免命令和接口歧义。
 
-## Cold-Start Validation
+## 采纳的 AI 建议
 
-Status: pending.
+- 主要贡献聚焦 guardrail 和 feedback，而不是只写 prompt。
+- 使用严格 JSON action 协议，而不是自然语言解析。
+- 增加 `remember` action，证明 memory 机制由代码支撑。
+- 正式冷启动验证使用 Cursor，而不是新开 Codex chat。
+- 工作区（workspace）应预注册并通过 id 选择。
 
-Planned agent: Cursor.
+## 被拒绝或修改的建议
 
-Input to provide: only `SPEC.md` and `PLAN.md`.
+- 纯 CLI 被拒绝，因为最终清单要求可访问 WebUI。
+- mock/demo-only WebUI 被拒绝，因为用户希望 WebUI 触发真实 harness run。
+- WebUI password protection 被推荐但根据用户决定延后。
+- `.env` 作为主凭据存储被拒绝，因为要求更安全的凭据管理和威胁模型。
 
-Tasks to ask it to attempt: T2 and T4.
+## 冷启动验证
 
-Instructions: stop and ask on ambiguity rather than guessing.
+状态：待完成。
 
-Findings:
+计划 agent：Cursor。
 
-- Pending.
+提供输入：仅 `SPEC.md` 和 `PLAN.md`。
 
-Required follow-up:
+要求尝试的任务：T2 和 T4。
 
-- Record Cursor questions and mismatches.
-- Revise `SPEC.md` and `PLAN.md`.
-- Include key before/after diffs in this file.
+指令：遇到不确定之处即暂停提问，而不是猜测。
+
+发现：
+
+- 待记录。
+
+后续必须做：
+
+- 记录 Cursor 的问题和不一致理解。
+- 修订 `SPEC.md` 和 `PLAN.md`。
+- 在本文件中给出关键 before/after diff。

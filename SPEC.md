@@ -1,62 +1,62 @@
-# SPEC: Coding Agent Harness
+# SPEC：Coding Agent Harness
 
-Status: Superpowers brainstorming design approved; ready for user review before writing implementation plan.
+状态：已通过 Superpowers brainstorming 设计确认；等待用户 review 后再进入实现计划阶段。
 
-## 1. Problem Statement
+## 1. 问题陈述
 
-Raw LLM output is not a reliable coding agent by itself. A useful coding agent needs a harness: deterministic code that controls what the model may see, what actions it may request, which tools actually run, how dangerous operations are blocked, how objective feedback is returned, how memory is persisted, and how credentials are protected.
+原始 LLM 输出本身并不是可靠的 coding agent。一个真正可用的 coding agent 需要 harness：由确定性代码控制模型能看到什么、能请求什么动作、哪些工具会被真正执行、危险操作如何被拦截、客观反馈如何回灌、记忆如何持久化、凭据如何保护。
 
-This project builds a TypeScript Coding Agent Harness for students, reviewers, and developers who want to inspect how agentic software engineering can be made safer and more verifiable. The project is not a wrapper around an existing agent runner. The delivered harness kernel implements its own loop, tool dispatch, guardrails, feedback sensors, memory, configuration, CLI, and WebUI.
+本项目将实现一个 TypeScript 版 Coding Agent Harness，面向软件工程学生、评审者和开发者，用于观察 agentic software engineering 如何被工程化得更安全、更可验证。它不是对现成 agent runner 的简单封装；交付物中的 harness 内核必须自己实现主循环、工具分发、治理护栏、反馈传感器、记忆、配置、CLI 和 WebUI。
 
-## 2. Chosen Direction
+## 2. 已确认方向
 
-- Project type: A - Coding Agent Harness
-- Product name: Coding Agent Harness
-- Main contribution: governance guardrails plus deterministic feedback loop
-- Architecture: Typed JSON Action Harness
-- Product shape: TypeScript CLI plus WebUI
-- LLM interface: OpenAI-compatible chat API behind an injectable LLM abstraction
-- Test strategy: mock/stub LLM deterministic tests before real LLM integration
-- Distribution: Docker image and Docker Compose deployment behind Nginx
-- State storage: SQLite
-- Credential storage: operating-system keychain first; `.env` only as explicitly enabled development fallback
-- WebUI policy: WebUI can trigger real harness runs, but only against pre-registered workspaces and the same guardrails/allowlists as CLI runs
+- 项目类型：A - Coding Agent Harness
+- 产品名称：Coding Agent Harness
+- 主要贡献：治理护栏 + 确定性反馈闭环
+- 架构：Typed JSON Action Harness
+- 产品形态：TypeScript CLI + WebUI
+- LLM 接口：OpenAI-compatible chat API，位于可注入的 `LLMProvider` 抽象之后
+- 测试策略：先用 mock/stub LLM 做确定性测试，再接真实 LLM
+- 分发方式：Docker 镜像 + Docker Compose，通过 Nginx 部署到云服务器
+- 状态存储：SQLite
+- 凭据存储：优先使用操作系统钥匙串；`.env` 仅作为显式启用的开发 fallback
+- WebUI 策略：WebUI 可以触发真实 harness run，但只能针对预注册 workspace，并且必须使用与 CLI 相同的 guardrail 和 allowlist
 
-## 3. User Stories
+## 3. 用户故事
 
-1. As a developer, I want the harness to run a coding task inside a bounded workspace so that agent actions cannot silently affect unrelated files.
-2. As a reviewer, I want dangerous shell and file actions to be blocked before execution so that unsafe behavior is governed by code rather than prompt wording.
-3. As a developer, I want test/lint/build feedback to be fed back into the agent loop so that failed attempts can drive a revised next action.
-4. As a teaching assistant, I want a mock LLM demonstration that deterministically reproduces guardrail blocking and feedback correction so that mechanisms can be graded without network access.
-5. As an operator, I want API keys stored outside the repository and never printed in logs or WebUI responses so that the project can be safely distributed.
-6. As a visitor, I want a WebUI that can trigger runs for pre-registered workspaces and show the full timeline of actions, guardrails, tool results, feedback, and stop reasons.
+1. 作为开发者，我希望 harness 在受限 workspace 内执行 coding task，以避免 agent 静默影响无关文件。
+2. 作为 reviewer，我希望危险 shell/file action 在执行前被代码拦截，而不是依赖提示词提醒模型注意安全。
+3. 作为开发者，我希望 test/lint/build 反馈能回灌到 agent loop，让失败尝试驱动下一步修正。
+4. 作为助教，我希望 mock LLM 机制演示能确定性复现 guardrail block 和 feedback correction，从而不依赖网络也能评分。
+5. 作为运维者，我希望 API key 存储在仓库外，且永不出现在日志或 WebUI 响应中。
+6. 作为访问者，我希望 WebUI 能对预注册 workspace 触发 run，并展示 action、guardrail、tool result、feedback 和 stop reason 的完整 timeline。
 
-## 4. Functional Modules
+## 4. 功能模块
 
-The project has six responsibilities, each implemented as a distinct module with tests.
+项目明确划分为六个职责模块，每个模块都要有测试覆盖。
 
 ### 4.1 Agent Loop Core
 
-Owns the harness main loop:
+负责 harness 主循环：
 
-1. Build bounded context from task, workspace configuration, recent feedback, and selected memory.
-2. Call an injected `LLMProvider`.
-3. Parse exactly one JSON action.
-4. Send the action through guardrails.
-5. Dispatch approved actions to tools.
-6. Convert results into feedback.
-7. Persist events.
-8. Continue or stop.
+1. 根据 task、workspace 配置、最近 feedback 和选择性 memory 构造上下文。
+2. 调用注入的 `LLMProvider`。
+3. 解析严格的一轮一个 JSON action。
+4. 将 action 送入 guardrail。
+5. 将允许执行的 action 分发给工具。
+6. 将结果转换为 feedback。
+7. 持久化事件。
+8. 决定继续或停止。
 
-This loop is project code. It must not delegate the loop to LangChain `AgentExecutor`, AutoGen, CrewAI, LlamaIndex agent runners, or a host coding-agent SDK.
+该循环必须由本项目代码实现，不得委托给 LangChain `AgentExecutor`、AutoGen、CrewAI、LlamaIndex agent runner 或宿主 coding-agent SDK。
 
-### 4.2 Tool And Workspace Runtime
+### 4.2 工具与工作区运行时（Tool And Workspace Runtime）
 
-Owns workspace registration, path boundary checks, file tools, and allowlisted shell execution. CLI and WebUI must both select workspaces by configured workspace id, not arbitrary path input.
+负责工作区（workspace）注册、路径边界检查、文件工具和 allowlist shell 执行。CLI 和 WebUI 都必须通过配置好的 workspace id 选择 workspace，不能输入任意服务器路径。
 
 ### 4.3 Governance Guardrail Engine
 
-Owns deterministic action classification before execution. The result is:
+负责在执行前用确定性代码分类 action。结果类型为：
 
 ```ts
 type GuardrailDecision =
@@ -67,21 +67,21 @@ type GuardrailDecision =
 
 ### 4.4 Feedback And Self-Correction Engine
 
-Owns deterministic sensors that convert parser errors, guardrail decisions, command results, and test/lint/typecheck output into structured feedback for the next loop iteration.
+负责把 parser error、guardrail decision、command result、test/lint/typecheck output 转换为结构化 feedback，并送入下一轮 loop。
 
 ### 4.5 Memory And Event Store
 
-Owns SQLite persistence for runs, events, actions, feedback, and bounded memory. Memory retrieval is explicit and scoped; the harness must not blindly load all historical data into context.
+负责用 SQLite 持久化 run、event、action、feedback 和有边界的 memory。记忆检索必须显式且按 scope 限制；harness 不得把全部历史盲目塞进 LLM 上下文。
 
 ### 4.6 Credential, CLI, And WebUI Interface
 
-Owns credential status/set/clear flows, CLI commands, WebUI run controls, timeline display, and deployment-facing behavior. It must never print or persist secret values.
+负责凭据 status/set/clear 流程、CLI 命令、WebUI run 控制、timeline 展示和部署相关行为。该模块不得打印或持久化 secret 明文。
 
-## 5. JSON Action Protocol
+## 5. JSON Action 协议
 
-The LLM must output exactly one strict JSON action object per loop iteration. Natural language outside the JSON object is invalid. Invalid JSON is not executed and becomes `invalid_action` feedback.
+LLM 每轮必须输出且只能输出一个严格 JSON action 对象。JSON 外的自然语言视为非法。非法 JSON 不会被执行，而是转换为 `invalid_action` feedback。
 
-Supported v1 actions:
+v1 支持的 action：
 
 ```json
 { "type": "read_file", "path": "src/index.ts", "reason": "inspect entrypoint" }
@@ -113,16 +113,16 @@ Supported v1 actions:
 { "type": "finish", "summary": "Requested change is complete" }
 ```
 
-Constraints:
+约束：
 
-- One loop iteration executes at most one action.
-- There is no batch action in v1.
-- Human approval is not an LLM action. Approval is a harness state created by `GuardrailEngine`.
-- Action parsing, validation, and rejection must be testable without a real LLM.
+- 每轮最多执行一个 action。
+- v1 不支持 batch action。
+- 人工审批不是 LLM action；它是 `GuardrailEngine` 产生的 harness 状态。
+- action parsing、validation、rejection 必须能在没有真实 LLM 的情况下测试。
 
-## 6. Tools And Workspace Boundaries
+## 6. 工具与工作区边界
 
-Workspaces are pre-registered in configuration:
+工作区（workspace）通过配置文件预注册：
 
 ```yaml
 workspaces:
@@ -142,211 +142,210 @@ workspaces:
       - npm run build
 ```
 
-Rules:
+规则：
 
-- CLI and WebUI select a workspace by id.
-- WebUI cannot accept arbitrary server paths.
-- All file paths are resolved relative to the selected workspace root.
-- Any path that escapes the workspace root is blocked.
-- Shell commands must exactly match the selected workspace's `allowedCommands`.
-- v1 does not allow arbitrary parameters such as `npm test -- <pattern>`.
-- The default TypeScript allowlist is `npm test`, `npm run test`, `npm run lint`, `npm run typecheck`, and `npm run build`.
+- CLI 和 WebUI 只能通过 workspace id 选择 workspace。
+- WebUI 不能接收任意服务器路径。
+- 所有文件路径都相对于选中的 workspace root 解析。
+- 任何逃逸 workspace root 的路径都必须被 block。
+- shell command 必须与当前 workspace 的 `allowedCommands` 精确匹配。
+- v1 不支持 `npm test -- <pattern>` 这类任意参数。
+- 默认 TypeScript allowlist 是 `npm test`、`npm run test`、`npm run lint`、`npm run typecheck`、`npm run build`。
 
-## 7. Domain And Mechanism Design
+## 7. 领域与机制设计
 
-Project A requires the harness to implement six dimensions: decision, tools, memory, governance, feedback, and configuration. This design maps them as follows:
+Project A 要求 harness 实现六个维度：决策、工具、记忆、治理、反馈、配置。本设计的对应关系如下：
 
-- Decision: `AgentLoop` owns context assembly, provider calls, action parsing, dispatch, feedback, and stop conditions.
-- Tools: `ToolDispatcher` owns file tools and allowlisted shell execution.
-- Memory: `remember` action writes scoped memory to SQLite; context building retrieves bounded memory by workspace scope.
-- Governance: `GuardrailEngine` classifies actions before execution using deterministic rules.
-- Feedback: `FeedbackSensors` parse objective results into structured feedback that affects the next LLM call.
-- Configuration: workspace registry, command allowlists, provider profiles, max iterations, and WebUI execution mode are declarative config loaded by project code.
+- 决策：`AgentLoop` 负责上下文组装、provider 调用、action 解析、dispatch、feedback 和停机条件。
+- 工具：`ToolDispatcher` 负责文件工具与 allowlist shell 执行。
+- 记忆：`remember` action 将 scoped memory 写入 SQLite；context builder 按 workspace scope 有边界地检索。
+- 治理：`GuardrailEngine` 在执行前使用确定性规则分类 action。
+- 反馈：`FeedbackSensors` 将客观结果解析成结构化 feedback，影响下一轮 LLM 调用。
+- 配置：workspace registry、command allowlist、provider profile、max iterations、WebUI execution mode 都由配置文件声明，并由项目代码加载。
 
-Main contribution: governance plus feedback loop. These mechanisms must remain meaningful after removing the real LLM and replacing it with a mock/stub LLM.
+主要贡献是治理 + 反馈闭环。这些机制在移除真实 LLM、替换为 mock/stub LLM 后仍必须有意义且可单测。
 
-## 8. Guardrail Rules
+## 8. Guardrail 规则
 
-Initial deterministic rules:
+初始确定性规则：
 
-- `path.escape_workspace`: block any file action whose resolved path is outside the selected workspace root.
-- `command.not_allowlisted`: block any command that does not exactly match the current workspace allowlist.
-- `command.destructive_delete`: block destructive delete commands such as `rm -rf`, `del /s`, and `Remove-Item -Recurse`.
-- `command.secret_access`: block attempts to read or print `.env`, private keys, token files, or known secret paths.
-- `command.publish_or_deploy`: block `git push`, `npm publish`, `docker push`, and deployment commands in v1.
-- `write.sensitive_file`: block writes to `.env`, private key files, and secret-bearing configuration files.
+- `path.escape_workspace`：任何解析后位于 workspace root 外的文件 action 都 block。
+- `command.not_allowlisted`：任何不精确匹配当前 workspace allowlist 的 command 都 block。
+- `command.destructive_delete`：识别并 block `rm -rf`、`del /s`、`Remove-Item -Recurse` 等破坏性删除命令。
+- `command.secret_access`：block 读取或打印 `.env`、private key、token file 或已知 secret path 的尝试。
+- `command.publish_or_deploy`：v1 block `git push`、`npm publish`、`docker push` 和部署命令。
+- `write.sensitive_file`：block 写入 `.env`、private key file 和含 secret 的配置文件。
 
-`require_approval` exists in the data model and UI state, but v1 defaults high-risk operations to `block` until an explicit human approval implementation is added.
+`require_approval` 存在于数据模型和 UI 状态中，但 v1 对高风险操作默认 `block`，直到显式实现人工审批执行流程。
 
-## 9. Feedback Loop
+## 9. 反馈闭环
 
-Feedback sensors produce structured feedback:
+Feedback sensor 产生以下结构化 feedback：
 
-- invalid JSON or invalid action shape -> `invalid_action`
+- invalid JSON 或 invalid action shape -> `invalid_action`
 - guardrail block -> `safety_blocked`
-- nonzero command exit -> `command_failed`
+- command exit code 非 0 -> `command_failed`
 - test failure output -> `test_failed`
 - lint/typecheck failure output -> `static_check_failed`
-- successful tool result -> `tool_succeeded`
-- missing credential -> `credential_missing`
+- tool 成功 -> `tool_succeeded`
+- 缺少凭据 -> `credential_missing`
 
-The next LLM context includes recent feedback entries with source, severity, concise message, and relevant payload. The mock mechanism demo must prove that feedback changes the next mock LLM action.
+下一轮 LLM context 包含最近 feedback 的 source、severity、简短 message 和相关 payload。机制演示必须证明 feedback 会改变 mock LLM 的下一步 action。
 
-## 10. LLM Providers
+## 10. LLM Provider
 
-`LLMProvider` is an injectable abstraction. Required providers:
+`LLMProvider` 是可注入抽象。必需 provider：
 
-- `MockLLMProvider`: deterministic scripted responses for tests and demos; no network.
-- `OpenAICompatibleProvider`: real provider mode using an OpenAI-compatible chat completion endpoint.
+- `MockLLMProvider`：为测试和 demo 提供确定性 scripted responses；不依赖网络。
+- `OpenAICompatibleProvider`：真实 provider mode，使用 OpenAI-compatible chat completion endpoint。
 
-The provider layer performs a single completion call only. It does not provide an agent loop or tool runner.
+Provider 层只执行单次 completion call，不提供 agent loop 或 tool runner。
 
 ## 11. WebUI
 
-WebUI capabilities:
+WebUI 能力：
 
-- list pre-registered workspaces
-- choose workspace id
-- enter task description
-- choose mock or real provider profile
-- trigger a harness run
-- show run timeline
-- show action JSON, guardrail decisions, tool results, feedback, memory events, and stop reason
-- show pending approval states when they occur
+- 列出预注册 workspace
+- 选择 workspace id
+- 输入 task 描述
+- 选择 mock 或 real provider profile
+- 触发 harness run
+- 展示 run timeline
+- 展示 action JSON、guardrail decision、tool result、feedback、memory event 和 stop reason
+- 在出现 pending approval 时展示该状态
 
-Security boundary:
+安全边界：
 
-- The WebUI may trigger real runs.
-- It cannot choose arbitrary filesystem paths.
-- It cannot display API keys.
-- It uses the same workspace registry, allowlist, guardrails, and feedback sensors as CLI.
-- No password is required in v1 by user decision. This is a known risk. Public deployments should be treated as trusted-network or short-term course-demo deployments until authentication is added.
+- WebUI 可以触发真实 run。
+- WebUI 不能选择任意 filesystem path。
+- WebUI 不能展示 API key。
+- WebUI 使用与 CLI 相同的 workspace registry、allowlist、guardrail 和 feedback sensor。
+- 根据用户决定，v1 不要求 password。这是已知风险。公网部署应被视为受信任网络或短期课程演示部署，直到加入认证。
 
-Future improvement: add `WEBUI_ADMIN_PASSWORD` or reverse-proxy authentication before any long-lived public deployment.
+未来改进：在长期公网部署前加入 `WEBUI_ADMIN_PASSWORD` 或反向代理认证。
 
-## 12. Credentials And Threat Model
+## 12. 凭据与威胁模型
 
-Threats:
+威胁：
 
-- real API key committed to Git
-- real key printed in logs or terminal output
-- real key returned to WebUI
-- `.env` accidentally deployed or committed
-- key stored in SQLite event payloads
+- 真实 API key 被提交进 Git
+- 真实 key 被打印到日志或终端输出
+- 真实 key 被 WebUI 返回
+- `.env` 被意外部署或提交
+- key 被存入 SQLite event payload
 
-Controls:
+对策：
 
-- OS keychain is the primary credential store.
-- CLI supports `credentials status`, `credentials set`, and `credentials clear`.
-- `credentials status` shows only provider and existence, never secret value.
-- `.env` is a development fallback only when explicitly enabled.
-- `.env` and common secret files are ignored by Git.
-- Event store and WebUI responses must redact secret-like values.
-- Real provider run fails with structured `credential_missing` feedback when no key is available.
+- OS keychain 是主凭据存储。
+- CLI 支持 `credentials status`、`credentials set`、`credentials clear`。
+- `credentials status` 只显示 provider 和是否存在 key，不显示 secret value。
+- `.env` 只是显式启用的开发 fallback。
+- `.env` 和常见 secret files 被 Git ignore。
+- Event store 和 WebUI response 必须 redact secret-like values。
+- 真实 provider run 在缺少 key 时失败为结构化 `credential_missing` feedback。
 
-## 13. Data Model
+## 13. 数据模型
 
-Main SQLite entities:
+主要 SQLite 实体：
 
-- Run: id, mode, provider_profile, workspace_id, task, status, started_at, ended_at, stop_reason
-- Event: id, run_id, sequence, kind, payload_json, created_at
-- Action: id, run_id, sequence, action_type, payload_json, guardrail_decision, created_at
-- Feedback: id, run_id, sequence, source, severity, message, payload_json, created_at
-- MemoryItem: id, workspace_id, scope, key, value_json, created_at, updated_at
-- WorkspaceConfigSnapshot: id, run_id, workspace_id, root, allowed_commands_json, created_at
+- Run：id、mode、provider_profile、workspace_id、task、status、started_at、ended_at、stop_reason
+- Event：id、run_id、sequence、kind、payload_json、created_at
+- Action：id、run_id、sequence、action_type、payload_json、guardrail_decision、created_at
+- Feedback：id、run_id、sequence、source、severity、message、payload_json、created_at
+- MemoryItem：id、workspace_id、scope、key、value_json、created_at、updated_at
+- WorkspaceConfigSnapshot：id、run_id、workspace_id、root、allowed_commands_json、created_at
 
-Secret values must never be stored in SQLite.
+Secret values 不得存入 SQLite。
 
-## 14. Non-Functional Requirements
+## 14. 非功能性需求
 
-Security:
+安全：
 
-- No real key may be committed, logged, printed, or stored in SQLite.
-- All file actions are workspace-bounded.
-- All shell actions are allowlist-bounded.
-- WebUI real runs are limited to pre-registered workspaces.
+- 真实 key 不得被提交、记录、打印或存入 SQLite。
+- 所有 file action 都受 workspace 边界限制。
+- 所有 shell action 都受 allowlist 限制。
+- WebUI 真实 run 限制在预注册 workspace 内。
 
-Reliability:
+可靠性：
 
-- Max iterations prevents infinite loops.
-- Tool failures become structured feedback.
-- Invalid LLM output never triggers tool execution.
-- Event logs explain each action decision.
+- max iterations 防止无限循环。
+- 工具失败会转换为结构化 feedback。
+- 非法 LLM 输出不会触发工具执行。
+- Event log 能解释每个 action decision。
 
-Performance:
+性能：
 
-- Mock mechanism demo completes in under 5 seconds on a typical laptop.
-- Real provider calls use configurable timeout.
+- mock 机制演示在普通笔记本上 5 秒内完成。
+- 真实 provider call 使用可配置 timeout。
 
-Observability:
+可观测性：
 
-- Each run records action, guardrail decision, tool result, feedback, memory event, and stop reason.
+- 每次 run 记录 action、guardrail decision、tool result、feedback、memory event 和 stop reason。
 
-## 15. Testing And Mechanism Demo
+## 15. 测试与机制演示
 
-One-command test entry:
+一键测试入口：
 
 ```bash
 npm test
 ```
 
-Required deterministic tests:
+必需确定性测试：
 
-- mock LLM returns `finish`; loop stops normally
-- invalid JSON becomes `invalid_action` feedback
-- dangerous `run_command` is blocked by guardrail
-- failed test feedback causes mock LLM's next action to change
-- workspace path traversal is rejected
-- non-allowlisted command is rejected
-- allowlisted command dispatch can run in a temp workspace
-- `remember` writes scoped memory and context builder retrieves it
-- credential status never reveals secret value
-- WebUI run API accepts only registered workspace ids
-- WebUI real run path uses the same guardrail and allowlist as CLI
+- mock LLM 返回 `finish`，loop 正常停止
+- invalid JSON 转成 `invalid_action` feedback
+- 危险 `run_command` 被 guardrail block
+- failed test feedback 导致 mock LLM 下一步 action 改变
+- workspace path traversal 被拒绝
+- 非 allowlist command 被拒绝
+- allowlist command dispatch 可在临时 workspace 中运行
+- `remember` 写入 scoped memory，context builder 能取回
+- credential status 不泄露 secret value
+- WebUI run API 只接受已注册 workspace id
+- WebUI real run 使用与 CLI 相同的 guardrail 和 allowlist
 
-Mechanism demo command:
+机制演示命令：
 
 ```bash
 npm run demo:mechanisms
 ```
 
-The demo must deterministically show:
+演示必须确定性展示：
 
-1. mock LLM attempts a dangerous command and guardrail blocks it
-2. injected test failure becomes feedback
-3. mock LLM changes its next action because of that feedback
-4. final timeline shows governance plus feedback as the main contribution
+1. mock LLM 尝试危险命令，guardrail 拦截。
+2. 注入的 test failure 转成 feedback。
+3. mock LLM 因该 feedback 改变下一步 action。
+4. 最终 timeline 展示治理 + 反馈闭环这一主要贡献。
 
-## 16. Technology Choices
+## 16. 技术选型
 
-- TypeScript: shared language for core, CLI, WebUI server, and tests
-- Node.js: practical runtime for CLI, server, SQLite, keychain integration, and Docker
-- Vitest or equivalent: deterministic unit testing
-- SQLite: local persistent run history, memory, and WebUI timeline
-- OpenAI-compatible API: flexible real LLM provider path
-- Docker and Docker Compose: reproducible distribution and cloud-server deployment
-- GitHub Actions plus `.gitlab-ci.yml`: user preference plus course checklist compatibility
+- TypeScript：core、CLI、WebUI server 和 tests 共用语言
+- Node.js：适合 CLI、server、SQLite、keychain integration 和 Docker
+- Vitest 或等价工具：确定性单元测试
+- SQLite：本地持久化 run history、memory 和 WebUI timeline
+- OpenAI-compatible API：灵活接入真实 LLM provider
+- Docker 和 Docker Compose：可复现分发与云服务器部署
+- GitHub Actions + `.gitlab-ci.yml`：兼顾用户偏好和课程 checklist
 
-## 17. Acceptance Criteria
+## 17. 验收标准
 
-- `npm test` runs all core mechanism tests with no network.
-- The harness main loop is project-owned code.
-- A mock LLM run completes without a real LLM.
-- A dangerous action is blocked before execution.
-- A failure feedback event changes the next mock LLM action.
-- `remember` action persists scoped memory and context retrieval is bounded.
-- CLI can manage credential status/set/clear without printing secrets.
-- WebUI can trigger runs only for pre-registered workspaces.
-- WebUI displays action, guardrail, feedback, and stop reason timelines.
-- Docker deployment instructions run the WebUI on a fresh server.
-- CI passes with a job named `unit-test`; `.gitlab-ci.yml` also contains `unit-test`.
-- README documents install, run, distribution, key configuration, directory structure, and security boundaries.
-- No real credentials appear in source, logs, docs, SQLite, or Git history.
+- `npm test` 能在无网络情况下运行全部核心机制测试。
+- harness main loop 是项目自有代码。
+- mock LLM run 不依赖真实 LLM 即可完成。
+- 危险 action 在执行前被 block。
+- failure feedback event 会改变 mock LLM 的下一步 action。
+- `remember` action 能持久化 scoped memory，context retrieval 有边界。
+- CLI 能管理 credential status/set/clear 且不打印 secret。
+- WebUI 只能对预注册 workspace 触发 run。
+- WebUI 展示 action、guardrail、feedback 和 stop reason timeline。
+- Docker 部署说明能在新服务器上启动 WebUI。
+- CI 通过，且 job 名为 `unit-test`；`.gitlab-ci.yml` 也包含 `unit-test`。
+- README 说明安装、运行、分发、key 配置、目录结构和安全边界。
+- source、logs、docs、SQLite、Git history 中均无真实凭据。
 
-## 18. Risks And Open Questions
+## 18. 风险与未决问题
 
-- WebUI has no password in v1 by user decision; public real-run deployment is a known risk and should be treated as trusted-network or short-term demo only.
-- OS keychain behavior differs between Windows, Linux, and Docker; tests must use fake keychain adapters.
-- Exact output parsing for test/lint/typecheck failures must start simple and deterministic.
-- Cursor cold-start validation is still pending and may reveal missing interfaces or unclear task boundaries.
-
+- 根据用户决定，v1 WebUI 不设置 password；公网 real-run 部署是已知风险，应视为受信任网络或短期演示环境。
+- OS keychain 在 Windows、Linux、Docker 中行为不同；测试必须使用 fake keychain adapter。
+- test/lint/typecheck failure output parsing 首版应保持简单、确定。
+- Cursor 冷启动验证尚未完成，可能暴露缺失接口或 task 边界不清的问题。

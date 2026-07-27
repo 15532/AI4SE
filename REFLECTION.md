@@ -1,19 +1,19 @@
 # REFLECTION
 
-Status: scaffold only. The final reflection must be written by the student personally. AI may assist with polishing only if that assistance is disclosed.
+状态：仅为提纲。最终反思报告必须由学生本人撰写。AI 可辅助润色，但需要标注。
 
-Target length: 1500-2500 Chinese characters.
+目标长度：1500-2500 个中文字符。
 
-## Suggested Questions To Answer
+## 建议回答的问题
 
-1. Which Superpowers skills were most useful, and which parts felt more formal than substantive?
-2. Did TDD slow down or amplify AI-assisted development? Give one concrete example.
-3. How long could subagents work autonomously before drifting away from the task?
-4. What task granularity worked best?
-5. How did SPEC/PLAN quality affect implementation quality?
-6. Give one example where unclear specification caused a subagent or cold-start agent to diverge.
-7. What prompt/context strategy worked best, and why?
-8. How did credential and distribution requirements force better engineering decisions?
-9. If restarting, what would you change?
-10. What assumptions does Superpowers make, and did those assumptions hold in this project?
+1. 哪些 Superpowers skills 最有用？哪些部分形式大于实质？
+2. TDD 在 AI 协作中是阻碍还是放大器？请给出具体例子。
+3. Subagent 能在多久内自主推进而不偏离主题？
+4. 什么样的 task 颗粒度最有效？
+5. SPEC/PLAN 质量如何影响实现质量？
+6. 举一个“规约不清导致 subagent 或冷启动 agent 偏离”的例子。
+7. 哪种 prompt/context 策略最有效？为什么？
+8. 凭据与分发要求迫使你想清楚了哪些原本会忽略的问题？
+9. 如果重做一次，你会改变什么？
+10. Superpowers 这套方法论隐含了哪些假设？这些假设在本项目中成立吗？
 

@@ -1,6 +1,5 @@
-# Scripts
+# 脚本
 
-Helper scripts will be added after the TypeScript scaffold is created.
+后续辅助脚本会在 TypeScript 脚手架创建后添加。
 
-Do not add implementation scripts before the SPEC/PLAN cold-start validation gate is complete.
-
+在 SPEC/PLAN 冷启动验证门禁完成前，不要添加实现脚本。

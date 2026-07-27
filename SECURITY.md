@@ -1,27 +1,29 @@
-# Security Policy
+# 安全策略
 
-## Credential Rules
+## 凭据规则
 
-- Never commit real API keys or provider tokens.
-- Never print key values in logs, terminal output, WebUI responses, CI logs, or SQLite records.
-- Store production credentials in the operating-system keychain.
-- Use `.env` only as an explicit local-development fallback and document that it is plaintext.
+- 不得提交真实 API key 或 provider token。
+- 不得在日志、终端输出、WebUI response、CI logs 或 SQLite records 中打印 key value。
+- 生产凭据应存入操作系统钥匙串。
+- `.env` 只能作为显式启用的本地开发 fallback，并必须说明其明文风险。
 
-## Public WebUI Boundary
+## WebUI 边界
 
-The first public WebUI deployment is mock/demo-only:
+WebUI v1 可以触发真实 harness run，但必须受以下边界约束：
 
-- no real LLM API key use
-- no real shell execution
-- no real repository modification
-- no credential management endpoint exposed for public demo
+- 只能选择预注册 workspace id
+- 不能输入任意服务器路径
+- 所有 file action 必须留在 workspace root 内
+- 所有 shell action 必须匹配 workspace allowlist
+- 所有 action 必须经过 guardrail
+- 不得展示或返回 API key 明文
 
-If real execution is later enabled, authentication, workspace sandboxing, command allowlists, and audit logs must be implemented first.
+根据用户决定，v1 暂不配置 WebUI password。因此公网部署应仅用于受信任网络或短期课程演示。长期公网部署前应加入应用口令或反向代理认证。
 
-## Pre-Commit Checklist
+## 提交前检查
 
-- `git status --short` has no `.env` or secret files.
-- Search for accidental key material before publishing.
-- CI logs do not include provider tokens.
-- Demo data contains only mock values.
+- `git status --short` 中没有 `.env` 或 secret files。
+- 发布前搜索意外 key material。
+- CI logs 不包含 provider tokens。
+- Demo data 只包含 mock values。
 

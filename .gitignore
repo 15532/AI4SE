@@ -1,13 +1,13 @@
-# Dependencies
+# 依赖
 node_modules/
 
-# Build and coverage
+# 构建产物与覆盖率
 dist/
 build/
 coverage/
 .nyc_output/
 
-# Runtime data
+# 运行时数据
 *.sqlite
 *.sqlite3
 *.db
@@ -15,7 +15,7 @@ data/
 logs/
 *.log
 
-# Environment and secrets
+# 环境变量与密钥
 .env
 .env.*
 !.env.example
@@ -25,14 +25,13 @@ logs/
 *.pfx
 secrets/
 
-# OS and editor files
+# 操作系统与编辑器文件
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
 
-# Temporary files
+# 临时文件
 tmp/
 temp/
 .cache/
-

@@ -1,68 +1,68 @@
 # Coding Agent Harness
 
-AI4SE Final Project A preparation repository.
+AI4SE 期末项目 A 准备仓库。
 
-## Project Status
+## 项目状态
 
-This repository is currently in the pre-implementation stage. The course requirement forbids writing harness implementation code before `SPEC.md` and `PLAN.md` are complete and cold-start validated by a different agent.
+本仓库当前处于实现前阶段。课程要求在 `SPEC.md` 和 `PLAN.md` 完成并通过不同 agent 的冷启动验证前，不得编写 harness 实现代码。
 
-## Project Summary
+## 项目简介
 
-Coding Agent Harness is planned as a TypeScript CLI plus WebUI project. It will implement a project-owned coding agent harness with:
+Coding Agent Harness 计划实现为 TypeScript CLI + WebUI 项目。它将交付一个自己实现内核的 coding agent harness，包含：
 
-- deterministic governance guardrails
-- feedback loops driven by test/lint/build signals
-- injectable mock and real OpenAI-compatible LLM providers
-- bounded file and shell tools
-- SQLite run history and memory
-- OS keychain credential management
-- Docker deployment with a mock/demo-only public WebUI
+- 确定性治理护栏
+- 基于 test/lint/build 信号的反馈闭环
+- 可注入的 mock 和 OpenAI-compatible LLM provider
+- 有边界的文件工具与受限 shell 工具
+- SQLite run history 和 memory
+- OS keychain 凭据管理
+- Docker 部署与 WebUI
 
-## Required Preparation Documents
+## 必需准备文档
 
-- `SPEC.md`: project specification
-- `PLAN.md`: implementation plan
-- `SPEC_PROCESS.md`: brainstorming and cold-start validation evidence
-- `AGENT_LOG.md`: chronological agent workflow log
-- `REFLECTION.md`: student-authored reflection draft scaffold
+- `SPEC.md`：项目规约
+- `PLAN.md`：实现计划
+- `SPEC_PROCESS.md`：brainstorming 与冷启动验证证据
+- `AGENT_LOG.md`：按时间顺序记录 agent 工作流
+- `REFLECTION.md`：学生本人撰写的反思报告提纲
 
-## Installation
+## 安装
 
-Implementation has not started yet. Installation instructions will be completed after the TypeScript scaffold is created.
+实现尚未开始。TypeScript 脚手架创建后会补充安装命令。
 
-## Running
+## 运行
 
-No runtime command exists yet. The first implementation task will create the project scaffold and test command.
+当前还没有 runtime command。第一个实现任务将创建项目脚手架和测试命令。
 
-## Distribution
+## 分发
 
-Planned distribution is Docker. Final README will include:
+计划使用 Docker 分发。最终 README 将包含：
 
-- `docker build` command
-- `docker run` or Docker Compose command
-- cloud server deployment behind Nginx
-- known platform and architecture limits
+- `docker build` 命令
+- `docker run` 或 Docker Compose 命令
+- 云服务器 + Nginx 部署说明
+- 已知平台和架构限制
 
-## Key Configuration
+## Key 配置
 
-Planned credential storage:
+计划凭据存储：
 
-- Primary: operating-system keychain
-- Development fallback: `.env`, only when explicitly enabled
+- 主存储：操作系统钥匙串
+- 开发 fallback：`.env`，仅在显式启用时使用
 
-Security rule: real API keys must never be committed, printed, or stored in run logs.
+安全规则：真实 API key 不得提交、打印或存储在 run logs 中。
 
-## Security Boundary
+## 安全边界
 
-The public WebUI will run in mock/demo mode only until authentication and stronger sandboxing are implemented. Public mode must not execute real shell commands, read real user repositories, or use real LLM API keys.
+WebUI v1 可以触发真实 harness run，但只能选择预注册 workspace id，并使用与 CLI 相同的 path boundary、command allowlist 和 guardrail。根据用户决定，v1 暂不配置 WebUI password；公网部署应视为受信任网络或短期课程演示环境。
 
-## Directory Structure
+## 目录结构
 
-- `.github/workflows/`: GitHub Actions CI
-- `docs/`: additional process notes
-- `scripts/`: future helper scripts
-- `SPEC.md`: specification
-- `PLAN.md`: implementation plan
-- `SPEC_PROCESS.md`: process evidence
-- `AGENT_LOG.md`: agent workflow log
+- `.github/workflows/`：GitHub Actions CI
+- `docs/`：过程说明和 Superpowers 设计文档
+- `scripts/`：后续辅助脚本
+- `SPEC.md`：规约
+- `PLAN.md`：实现计划
+- `SPEC_PROCESS.md`：过程证据
+- `AGENT_LOG.md`：agent 工作日志
 
