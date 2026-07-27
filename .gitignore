@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build and coverage
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Runtime data
+*.sqlite
+*.sqlite3
+*.db
+data/
+logs/
+*.log
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Temporary files
+tmp/
+temp/
+.cache/
+

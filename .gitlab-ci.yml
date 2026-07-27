@@ -1,0 +1,15 @@
+stages:
+  - test
+
+unit-test:
+  stage: test
+  image: alpine:3.20
+  script:
+    - test -f SPEC.md
+    - test -f PLAN.md
+    - test -f SPEC_PROCESS.md
+    - test -f AGENT_LOG.md
+    - test -f README.md
+    - test -f SECURITY.md
+    - test ! -f .env
+
