@@ -35,3 +35,28 @@ This log records process evidence for the AI4SE Final Project A workflow.
   - Confirmed the plugin is available to this Codex session
 - Lesson:
   - Formal SPEC/PLAN work can now proceed under the required Superpowers workflow.
+
+### 2026-07-27 - T0 - Superpowers Brainstorming SPEC Revision
+
+- Main agent: Codex App
+- Triggered Superpowers skill: `brainstorming`
+- Key prompt/context:
+  - User explicitly invoked Superpowers and requested formal review/revision of `SPEC.md`
+  - Context included Project A requirements, existing `SPEC.md`, `PLAN.md`, `SPEC_PROCESS.md`, and prior choices
+- Key decisions confirmed by human:
+  - Use Typed JSON Action Harness architecture
+  - LLM action protocol is strict JSON, one action per loop iteration
+  - v1 shell execution uses a narrow per-workspace allowlist
+  - WebUI may trigger real harness runs
+  - WebUI has no password in v1 by user decision
+  - WebUI can choose only pre-registered workspace ids, not arbitrary server paths
+  - Add `remember` action to make memory a code-backed mechanism
+- Agent action:
+  - Wrote Superpowers design document under `docs/superpowers/specs/`
+  - Revised `SPEC.md` to make action protocol, modules, guardrails, feedback, WebUI boundaries, tests, and risks explicit
+  - Updated `SPEC_PROCESS.md` with additional brainstorming iterations
+- Human intervention:
+  - Rejected mock/demo-only WebUI in favor of real WebUI-triggered runs
+  - Deferred WebUI password/authentication for v1
+- Lesson:
+  - A real-run WebUI strengthens the product demo, but the SPEC must state the unauthenticated deployment risk plainly.
