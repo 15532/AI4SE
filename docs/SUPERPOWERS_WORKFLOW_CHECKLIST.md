@@ -4,7 +4,7 @@ Use this checklist to avoid breaking the course workflow.
 
 ## Before Implementation
 
-- [ ] Confirm Superpowers is installed for the chosen main agent.
+- [x] Confirm Superpowers is installed for the chosen main agent.
 - [ ] Complete `SPEC.md`.
 - [ ] Complete `PLAN.md`.
 - [ ] Run Cursor cold-start validation using only `SPEC.md` and `PLAN.md`.
@@ -30,4 +30,3 @@ Use this checklist to avoid breaking the course workflow.
 - [ ] Docker distribution instructions are tested.
 - [ ] WebUI URL is reachable.
 - [ ] `REFLECTION.md` is written by the student.
-

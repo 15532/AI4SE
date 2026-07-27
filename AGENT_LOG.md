@@ -21,3 +21,17 @@ This log records process evidence for the AI4SE Final Project A workflow.
 - Lesson:
   - The project should keep a sharp boundary between the host coding agent used for development and the delivered harness kernel implemented by project code.
 
+### 2026-07-27 - T0 - Superpowers Installation Verified
+
+- Main agent: Codex App
+- Triggered Superpowers skill: `using-superpowers`
+- Verification evidence:
+  - Local plugin cache contains `C:\Users\sm\.codex\plugins\cache\openai-curated-remote\superpowers\6.2.0\skills\using-superpowers\SKILL.md`
+  - Current session exposes Superpowers skills including `brainstorming`, `writing-plans`, `using-git-worktrees`, `subagent-driven-development`, `test-driven-development`, `requesting-code-review`, and `verification-before-completion`
+- Human action:
+  - User manually downloaded/installed the Superpowers plugin after the attempted assisted install was interrupted
+- Agent action:
+  - Read `using-superpowers` and Codex-specific reference instructions
+  - Confirmed the plugin is available to this Codex session
+- Lesson:
+  - Formal SPEC/PLAN work can now proceed under the required Superpowers workflow.
