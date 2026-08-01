@@ -5,7 +5,13 @@ import { MockLLMProvider, type LLMProvider } from "../core/providers";
 import type { WorkspaceConfig } from "../runtime/workspace";
 import { renderIndex, type PublicWorkspace } from "./views";
 
-type InjectInput = { method: string; url: string; payload?: unknown };
+type InjectInput = {
+  method: string;
+  url: string;
+  payload?: unknown;
+  headers?: Record<string, string | undefined>;
+  body?: string;
+};
 type InjectResponse = { statusCode: number; body: string; json(): unknown };
 type RunRecord = {
   id: string;
@@ -104,10 +110,14 @@ export function createServer(input: {
   };
 
   return {
-    inject: async (request) => handle(request.method.toUpperCase(), request.url, request.payload),
+    inject: async (request) => handle(
+      request.method.toUpperCase(),
+      request.url,
+      request.body === undefined ? request.payload : parseBody(request.headers?.["content-type"], request.body)
+    ),
     listen: (port, host) => new Promise((resolve, reject) => {
       const server = createHttpServer(async (request, serverResponse) => {
-        const payload = await readJson(request);
+        const payload = await readBody(request);
         const result = await handle(request.method?.toUpperCase() ?? "GET", request.url ?? "/", payload);
         writeResponse(serverResponse, result);
       });
@@ -120,11 +130,18 @@ export function createServer(input: {
   };
 }
 
-async function readJson(request: IncomingMessage): Promise<unknown> {
+async function readBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.from(chunk));
   const body = Buffer.concat(chunks).toString("utf8");
+  return parseBody(request.headers["content-type"], body);
+}
+
+function parseBody(contentType: string | string[] | undefined, body: string): unknown {
   if (body === "") return undefined;
+  if (contentType?.includes("application/x-www-form-urlencoded")) {
+    return Object.fromEntries(new URLSearchParams(body));
+  }
   try { return JSON.parse(body); } catch { return undefined; }
 }
 

@@ -77,6 +77,33 @@ describe("web server", () => {
     expect(run.body).not.toContain("attacker-controlled");
   });
 
+  it("accepts browser-style urlencoded form submissions", async () => {
+    let completeCalls = 0;
+    const app = createServer({
+      workspaces,
+      providerFactory: () => ({
+        async complete() {
+          completeCalls += 1;
+          return JSON.stringify({ type: "finish", summary: "done" });
+        }
+      })
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "workspaceId=demo-ts&provider=mock&task=run+tests&root=C%3A%5Cattacker&allowedCommands=anything"
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(completeCalls).toBe(1);
+    const { id } = response.json() as { id: string };
+    const run = await app.inject({ method: "GET", url: `/api/runs/${id}` });
+    expect(run.json()).toEqual(expect.objectContaining({ workspaceId: "demo-ts" }));
+    expect(run.body).not.toContain("attacker");
+  });
+
   it("rejects non-mock providers", async () => {
     const app = createServer({ workspaces });
     const response = await app.inject({
