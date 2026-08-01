@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createServer } from "../../src/web/server";
+import { createDefaultServer, createServer } from "../../src/web/server";
 import type { LLMProvider } from "../../src/core/providers";
 
 const workspaces = [
@@ -8,6 +8,18 @@ const workspaces = [
 ];
 
 describe("web server", () => {
+  it("registers the Docker WebUI default workspace without exposing its root", async () => {
+    const app = createDefaultServer("/app");
+    const response = await app.inject({ method: "GET", url: "/api/workspaces" });
+
+    expect(response.json()).toEqual([{
+      id: "demo-ts",
+      name: "Demo TypeScript workspace",
+      allowedCommands: ["npm test", "npm run test", "npm run lint", "npm run typecheck", "npm run build"]
+    }]);
+    expect(response.body).not.toContain("/app");
+  });
+
   it("rejects unregistered workspace ids", async () => {
     const app = createServer({ workspaces });
     const response = await app.inject({

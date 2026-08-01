@@ -1,68 +1,61 @@
 # Coding Agent Harness
 
-AI4SE 期末项目 A 准备仓库。
-
-## 项目状态
-
-本仓库当前处于实现前阶段。课程要求在 `SPEC.md` 和 `PLAN.md` 完成并通过不同 agent 的冷启动验证前，不得编写 harness 实现代码。
-
-## 项目简介
-
-Coding Agent Harness 计划实现为 TypeScript CLI + WebUI 项目。它将交付一个自己实现内核的 coding agent harness，包含：
-
-- 确定性治理护栏
-- 基于 test/lint/build 信号的反馈闭环
-- 可注入的 mock 和 OpenAI-compatible LLM provider
-- 有边界的文件工具与受限 shell 工具
-- SQLite run history 和 memory
-- OS keychain 凭据管理
-- Docker 部署与 WebUI
-
-## 必需准备文档
-
-- `SPEC.md`：项目规约
-- `PLAN.md`：实现计划
-- `SPEC_PROCESS.md`：brainstorming 与冷启动验证证据
-- `AGENT_LOG.md`：按时间顺序记录 agent 工作流
-- `REFLECTION.md`：学生本人撰写的反思报告提纲
+这是 AI4SE Project A 的 TypeScript coding-agent harness。它提供带治理边界的 CLI 与 WebUI：代理循环使用 mock provider，文件操作受 workspace path boundary 约束，shell 命令受 allowlist 与 guardrail 约束，并可记录运行历史。
 
 ## 安装
 
-实现尚未开始。TypeScript 脚手架创建后会补充安装命令。
+需要 Node.js 22。安装依赖：
 
-## 运行
+```bash
+npm ci
+```
 
-当前还没有 runtime command。第一个实现任务将创建项目脚手架和测试命令。
+## 运行与验证
 
-## 分发
+```bash
+npm test
+npm run demo:mechanisms
+npm run build
+npx tsx src/cli/main.ts demo
+```
 
-计划使用 Docker 分发。最终 README 将包含：
+`npm run build` 是 TypeScript 类型检查与构建验证入口。当前 ESM 源码使用 Bundler 解析约定，因此运行 CLI 或 WebUI 时使用项目提供的 `tsx` 入口。
 
-- `docker build` 命令
-- `docker run` 或 Docker Compose 命令
-- 云服务器 + Nginx 部署说明
-- 已知平台和架构限制
+启动 WebUI：
 
-## Key 配置
+```bash
+npm run build
+npx tsx src/web/server.ts
+```
 
-计划凭据存储：
+WebUI 默认监听 `0.0.0.0:3000`；可用 `PORT` 修改端口。它只预注册 `demo-ts` workspace，其根目录由部署时的 `HARNESS_WORKSPACE_ROOT` 或进程当前目录决定。页面和 API 不接受任意服务器路径，real-run 也只能选择该预注册 workspace id。
 
-- 主存储：操作系统钥匙串
-- 开发 fallback：`.env`，仅在显式启用时使用
+## Docker 分发
 
-安全规则：真实 API key 不得提交、打印或存储在 run logs 中。
+```bash
+docker build -t coding-agent-harness .
+docker run --rm -p 3000:3000 coding-agent-harness
+docker compose up --build
+```
 
-## 安全边界
+Compose 将 `/app/data` 挂载为 `harness-data` named volume，便于未来 SQLite 数据持久化；镜像构建不会复制 `.env`、本地 SQLite 数据、logs 或本地 `node_modules`。容器默认启动 WebUI。
 
-WebUI v1 可以触发真实 harness run，但只能选择预注册 workspace id，并使用与 CLI 相同的 path boundary、command allowlist 和 guardrail。根据用户决定，v1 暂不配置 WebUI password；公网部署应视为受信任网络或短期课程演示环境。
+### Docker 与 Nginx 部署
+
+将容器放在 Nginx 反向代理之后，并由 Nginx 转发到 `127.0.0.1:3000`。WebUI v1 **没有 password**，仅适合受信任网络或短期课程演示。长期公网部署必须先在 Nginx 或其他边界层配置 basic auth、SSO、VPN 或等效认证与访问控制；不要把容器端口直接暴露到公网。
+
+## Key 安全配置
+
+当前 v1 默认使用 mock provider，不实现真实 OpenAI provider，也不实现真实 OS keychain。`CredentialManager` 使用测试用内存 adapter；环境变量 fallback 仅在显式开启时使用。真实 API key 绝不能提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。`.env.example` 只给出非敏感示例，真实凭据应保存在受管控的部署环境中。
 
 ## 目录结构
 
-- `.github/workflows/`：GitHub Actions CI
-- `docs/`：过程说明和 Superpowers 设计文档
-- `scripts/`：后续辅助脚本
-- `SPEC.md`：规约
-- `PLAN.md`：实现计划
-- `SPEC_PROCESS.md`：过程证据
-- `AGENT_LOG.md`：agent 工作日志
+- `src/core/`：代理循环、provider 抽象和治理逻辑。
+- `src/runtime/`：workspace、文件与 shell 执行边界。
+- `src/web/`：WebUI HTTP server 与页面。
+- `src/cli/`：命令行入口。
+- `tests/`：Vitest 单元测试。
+- `.github/workflows/`、`.gitlab-ci.yml`：持续集成。
+- `Dockerfile`、`docker-compose.yml`：容器分发。
 
+更多安全边界和发布前检查请见 [SECURITY.md](SECURITY.md)。

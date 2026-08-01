@@ -1,5 +1,7 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { runAgentLoop } from "../core/loop";
 import { MockLLMProvider, type LLMProvider } from "../core/providers";
 import type { WorkspaceConfig } from "../runtime/workspace";
@@ -130,6 +132,26 @@ export function createServer(input: {
   };
 }
 
+export function createDefaultServer(workspaceRoot = process.env.HARNESS_WORKSPACE_ROOT ?? process.cwd()) {
+  return createServer({
+    workspaces: [{
+      id: "demo-ts",
+      name: "Demo TypeScript workspace",
+      root: workspaceRoot,
+      allowedCommands: ["npm test", "npm run test", "npm run lint", "npm run typecheck", "npm run build"]
+    }]
+  });
+}
+
+export async function startStandaloneWebServer(): Promise<void> {
+  const port = Number(process.env.PORT ?? 3000);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("PORT must be an integer between 1 and 65535");
+  }
+  await createDefaultServer().listen(port, "0.0.0.0");
+  console.log(`WebUI is listening on http://0.0.0.0:${port}`);
+}
+
 async function readBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.from(chunk));
@@ -148,4 +170,11 @@ function parseBody(contentType: string | string[] | undefined, body: string): un
 function writeResponse(serverResponse: ServerResponse, result: InjectResponse): void {
   serverResponse.writeHead(result.statusCode, { "content-type": result.body.startsWith("<!doctype") ? "text/html; charset=utf-8" : "application/json; charset=utf-8" });
   serverResponse.end(result.body);
+}
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  startStandaloneWebServer().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }
