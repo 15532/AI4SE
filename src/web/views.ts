@@ -9,6 +9,22 @@ export type PublicWorkspaceChange = {
   path: string;
   status: string;
 };
+export type PublicSessionRun = {
+  id: string;
+  task: string;
+  workspaceId: string;
+  status: string;
+  summary?: string;
+};
+export type PublicSession = {
+  id: string;
+  workspaceId: string;
+  provider: string;
+  title: string;
+  runs: PublicSessionRun[];
+  memories?: Array<{ key: string; value: string }>;
+  changes?: PublicWorkspaceChange[];
+};
 export type PublicProvider = { id: string };
 
 function escapeHtml(value: string): string {
@@ -36,7 +52,7 @@ const baseStyles = `
       .status-pill { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 7px 9px; font-size: 13px; color: var(--muted); }
       .ide-shell { display: grid; grid-template-columns: minmax(230px, 300px) minmax(360px, 1fr) minmax(260px, 340px); gap: 14px; align-items: start; }
       .panel, .event { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; box-shadow: 0 1px 2px rgba(23, 32, 42, 0.05); }
-      .workspace-rail, .task-composer, .run-inspector { display: grid; gap: 12px; }
+      .workspace-rail, .task-composer, .session-composer, .run-inspector { display: grid; gap: 12px; }
       .workspace-list { display: grid; gap: 10px; }
       .workspace-card { display: grid; gap: 9px; }
       .workspace-card header { display: flex; gap: 8px; justify-content: space-between; align-items: baseline; }
@@ -79,11 +95,16 @@ const baseStyles = `
       .file-link-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
       .file-link-list code { font-size: 12px; color: var(--blue); }
       .diff-inspector { margin: 18px 0; display: grid; gap: 10px; }
+      .interactive-session { display: grid; gap: 14px; }
+      .session-dashboard { display: grid; grid-template-columns: minmax(300px, 420px) minmax(0, 1fr); gap: 14px; align-items: start; }
+      .session-run-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+      .session-run-list li { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--soft); min-width: 0; }
+      .session-run-list a { color: var(--blue); font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
       .change-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
       .change-list li { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--soft); min-width: 0; }
       .change-list code { color: var(--blue); overflow-wrap: anywhere; }
       @media (max-width: 1060px) { .ide-shell { grid-template-columns: 1fr 1fr; } .run-inspector { grid-column: 1 / -1; } .run-meta { grid-template-columns: 1fr 1fr; } }
-      @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta, .session-panels { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } }
+      @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta, .session-panels, .session-dashboard { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } }
 `;
 
 function eventLabel(kind: string): string {
@@ -177,6 +198,15 @@ export function renderIndex(workspaces: PublicWorkspace[], providers: PublicProv
         </aside>
       </section>
       <section class="session-panels">
+        <form class="panel session-composer" method="post" action="/api/sessions">
+          <h2>Interactive Session</h2>
+          <div class="composer-grid">
+            <label>工作区 <select name="workspaceId">${options}</select></label>
+            <label>Provider <select name="provider">${providerOptions}</select></label>
+          </div>
+          <label>标题 <input name="title" required placeholder="例如：修复登录模块"></label>
+          <button type="submit">创建 Session</button>
+        </form>
         <aside class="panel code-viewer">
           <h2>Code Viewer</h2>
           <p class="muted">只读文件查看入口，路径仍受 workspace boundary 约束。</p>
@@ -257,6 +287,77 @@ export function renderRun(input: {
         </aside>
         <ol class="timeline event-detail-stack">${events}
         </ol>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+export function renderSession(input: PublicSession): string {
+  const runItems = input.runs.map((run) => `
+              <li>
+                <a href="/runs/${escapeHtml(encodeURIComponent(run.id))}">${escapeHtml(run.task)}</a>
+                <span>${escapeHtml(run.status)}${run.summary === undefined ? "" : ` - ${escapeHtml(run.summary)}`}</span>
+              </li>`).join("");
+  const memoryItems = (input.memories ?? [])
+    .map((memory) => `<li><strong>${escapeHtml(memory.key)}</strong><span>${escapeHtml(memory.value)}</span></li>`)
+    .join("");
+  const changeItems = (input.changes ?? []).map((change) => `
+              <li>
+                <strong>${escapeHtml(change.status)}</strong>
+                <code>${escapeHtml(change.path)}</code>
+              </li>`).join("");
+
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>Interactive Session</title>
+    <style>${baseStyles}</style>
+  </head>
+  <body>
+    <main class="interactive-session">
+      <p><a href="/">返回运行控制</a></p>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Interactive Session</p>
+          <h1>${escapeHtml(input.title)}</h1>
+        </div>
+        <div class="status-strip">
+          <span class="status-pill">Workspace: ${escapeHtml(input.workspaceId)}</span>
+          <span class="status-pill">Provider: ${escapeHtml(input.provider)}</span>
+          <span class="status-pill">${input.runs.length} runs</span>
+        </div>
+      </header>
+      <section class="session-dashboard">
+        <section class="panel task-composer">
+          <h2>继续指令</h2>
+          <form method="post" action="/api/sessions/${escapeHtml(input.id)}/runs">
+            <label>任务 <input class="task-input" name="task" required placeholder="继续描述你希望 agent 完成的代码开发任务"></label>
+            <button type="submit">继续运行</button>
+          </form>
+        </section>
+        <section class="panel">
+          <h2>Session Runs</h2>
+          <ol class="session-run-list">${runItems || "<li><strong>None</strong><span>这个 session 还没有 run</span></li>"}</ol>
+        </section>
+      </section>
+      <section class="session-panels">
+        <aside class="panel memory-panel">
+          <h2>Workspace Memory</h2>
+          <ul class="signal-list">${memoryItems || "<li><strong>None</strong><span>还没有 workspace memory</span></li>"}</ul>
+        </aside>
+        <aside class="panel diff-inspector">
+          <h2>Diff Inspector</h2>
+          <ul class="change-list">${changeItems || "<li><strong>clean</strong><span class=\"muted\">当前工作区没有可展示的 git 变更</span></li>"}</ul>
+        </aside>
+        <aside class="panel recent-runs">
+          <h2>Session Context</h2>
+          <ul class="signal-list">
+            <li><strong>${escapeHtml(input.workspaceId)}</strong><span>后续指令会继续使用这个 workspace</span></li>
+            <li><strong>${escapeHtml(input.provider)}</strong><span>后续 run 会继续使用这个 provider</span></li>
+          </ul>
+        </aside>
       </section>
     </main>
   </body>

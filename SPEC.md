@@ -1,6 +1,6 @@
 # SPEC：Coding Agent Harness
 
-状态：核心 harness、DeepSeek provider、方案 A 可用代码开发链路、方案 B 轻量智能 IDE 壳层、Workspace Session V1 与 Diff Inspector V1 已实现；后续增强可继续扩展交互式 run、浏览器内编辑器和审批流。
+状态：核心 harness、DeepSeek provider、方案 A 可用代码开发链路、方案 B 轻量智能 IDE 壳层、Workspace Session V1、Diff Inspector V1 与 Interactive Run V1 已实现；后续增强可继续扩展审批流和浏览器内编辑器。
 
 ## 1. 问题陈述
 
@@ -26,7 +26,8 @@
 - 方案 B 当前目标：轻量智能 IDE 壳层，包含 workspace rail、task composer、run inspector、timeline navigator 和 event detail stack
 - Workspace Session V1：包含只读文件列表/文件内容 API、workspace memory 面板、recent runs 面板，以及后续 run 对同 workspace 历史摘要的 context 继承
 - Diff Inspector V1：包含只读 git 变更列表 API、单文件 unified diff API，以及运行详情页的 diff inspector 区块
-- 方案 B 后续目标：基于 Open Design 继续设计交互式 run、浏览器内编辑器和审批流
+- Interactive Run V1：包含 SQLite session、session-run 关联、session 页面和继续运行 API
+- 方案 B 后续目标：基于 Open Design 继续设计审批流、浏览器内编辑器和更完整视觉系统
 
 ## 3. 用户故事
 
@@ -257,6 +258,8 @@ WebUI v1 能力：
 - 首页展示只读 code viewer 入口、workspace memory 与 recent runs
 - 文件查看 API 只能读取预注册 workspace 内文件，不能写文件
 - 变更查看 API 只能读取 workspace git diff，不能写文件、回滚或审批变更
+- 创建持久化 interactive session，并在同一 session 下继续触发真实 harness run
+- Session 页面展示后续指令入口、历史 run 摘要、workspace memory 和 diff inspector
 
 安全边界：
 
@@ -264,13 +267,15 @@ WebUI v1 能力：
 - WebUI 不能选择任意 filesystem path。
 - WebUI 不能展示 API key。
 - WebUI 使用与 CLI 相同的 workspace registry、allowlist、guardrail 和 feedback sensor。
+- Session 绑定 workspace id 和 provider id；继续运行时不能从请求体覆盖 root、workspace 或 provider。
+- Session 持久化在 SQLite 中，服务器部署必须持久化 `HARNESS_DB_PATH` 所在目录。
 - 根据用户决定，v1 不要求 password。这是已知风险。公网部署应被视为受信任网络或短期课程演示部署，直到加入认证。
 
 未来改进：
 
 - 在长期公网部署前加入 `WEBUI_ADMIN_PASSWORD` 或反向代理认证。
 - 增加更友好的凭据状态提示。
-- 在功能稳定后使用 Open Design 继续设计交互式 run、浏览器内编辑器和审批状态界面。
+- 在功能稳定后使用 Open Design 继续设计审批状态、浏览器内编辑器和更完整视觉系统。
 
 ## 12. 凭据与威胁模型
 
@@ -400,6 +405,7 @@ npm run demo:coding-task
 - WebUI 运行详情页展示 timeline navigator 与 event detail stack。
 - WebUI 提供只读代码查看 API，路径逃逸会返回错误。
 - WebUI 提供只读 git diff API，路径逃逸会返回错误，响应不包含 workspace 绝对路径。
+- WebUI 提供 interactive session API，可连续触发同 workspace/provider 下的真实 harness run。
 - 后续 run 的 provider context 包含同 workspace 的 memory 与最近 run 摘要。
 - `npm run demo:coding-task` 能在临时 workspace 中完成读文件、写修复、运行测试并 finish。
 - Docker 部署说明能在新服务器上启动 WebUI。
@@ -412,5 +418,5 @@ npm run demo:coding-task
 - 根据用户决定，v1 WebUI 不设置 password；公网 real-run 部署是已知风险，应视为受信任网络或短期演示环境。
 - OS keychain 在 Windows、Linux、Docker 中行为不同；测试必须使用 fake keychain adapter。
 - test/lint/typecheck failure output parsing 首版应保持简单、确定。
-- 当前 WebUI 是轻量智能 IDE 壳层，适合演示 harness 机制；若要升级为完整智能 IDE，还需要继续实现交互式 run、浏览器内编辑器、审批流和更完整的 Open Design 视觉系统。
+- 当前 WebUI 是轻量智能 IDE 壳层，适合演示 harness 机制；若要升级为完整智能 IDE，还需要继续实现审批流、浏览器内编辑器和更完整的 Open Design 视觉系统。
 - DeepSeek provider 已可接入真实模型，但真实 API key 仍依赖环境变量；OS keychain 持久化留作后续增强。

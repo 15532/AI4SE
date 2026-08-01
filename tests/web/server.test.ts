@@ -203,6 +203,178 @@ workspaces:
     ]);
   });
 
+  it("creates persistent interactive sessions without exposing workspace roots", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-session-"));
+    const dbPath = join(dir, "harness.sqlite");
+    const app = createServer({ workspaces, dbPath });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { workspaceId: "demo-ts", provider: "mock", title: "debug password=session-secret" }
+    });
+
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json() as { id: string };
+    const session = await app.inject({ method: "GET", url: `/api/sessions/${id}` });
+    expect(session.statusCode).toBe(200);
+    expect(session.json()).toEqual({
+      id,
+      workspaceId: "demo-ts",
+      provider: "mock",
+      title: "debug password=[REDACTED]",
+      runs: []
+    });
+    expect(session.body).not.toContain("session-secret");
+    expect(session.body).not.toContain(process.cwd());
+  });
+
+  it("continues an interactive session by creating real harness runs under the session workspace", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-session-"));
+    const dbPath = join(dir, "harness.sqlite");
+    let providerName = "";
+    const app = createServer({
+      workspaces,
+      dbPath,
+      providerFactory: (name) => {
+        providerName = name;
+        return {
+          async complete() {
+            return JSON.stringify({ type: "finish", summary: "continued safely" });
+          }
+        };
+      }
+    });
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { workspaceId: "docs", provider: "mock", title: "Docs session" }
+    });
+    const { id: sessionId } = created.json() as { id: string };
+
+    const continued = await app.inject({
+      method: "POST",
+      url: `/api/sessions/${sessionId}/runs`,
+      payload: {
+        task: "continue task",
+        workspaceId: "demo-ts",
+        provider: "deepseek",
+        root: "C:\\attacker-controlled"
+      }
+    });
+
+    expect(continued.statusCode).toBe(201);
+    expect(providerName).toBe("mock");
+    const { id: runId } = continued.json() as { id: string };
+    const session = await app.inject({ method: "GET", url: `/api/sessions/${sessionId}` });
+    expect(session.json()).toEqual({
+      id: sessionId,
+      workspaceId: "docs",
+      provider: "mock",
+      title: "Docs session",
+      runs: [{
+        id: runId,
+        task: "continue task",
+        workspaceId: "docs",
+        status: "finished",
+        summary: "continued safely"
+      }]
+    });
+    expect(session.body).not.toContain("attacker-controlled");
+  });
+
+  it("accepts browser-style form submissions for interactive sessions", async () => {
+    let completeCalls = 0;
+    const app = createServer({
+      workspaces,
+      providerFactory: () => ({
+        async complete() {
+          completeCalls += 1;
+          return JSON.stringify({ type: "finish", summary: "done" });
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "workspaceId=demo-ts&provider=mock&title=Interactive"
+    });
+
+    expect(created.statusCode).toBe(303);
+    expect(created.headers.location).toMatch(/^\/sessions\/[0-9a-f-]+$/);
+    const sessionId = created.headers.location.slice("/sessions/".length);
+    const continued = await app.inject({
+      method: "POST",
+      url: `/api/sessions/${sessionId}/runs`,
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "task=follow+up&provider=deepseek&root=C%3A%5Cattacker"
+    });
+
+    expect(continued.statusCode).toBe(303);
+    expect(continued.headers.location).toBe(`/sessions/${sessionId}`);
+    expect(completeCalls).toBe(1);
+  });
+
+  it("returns 404 for unknown interactive sessions", async () => {
+    const app = createServer({ workspaces });
+
+    const session = await app.inject({ method: "GET", url: "/api/sessions/missing" });
+    const continued = await app.inject({
+      method: "POST",
+      url: "/api/sessions/missing/runs",
+      payload: { task: "continue" }
+    });
+
+    expect(session.statusCode).toBe(404);
+    expect(session.json()).toEqual({ error: "Unknown session id" });
+    expect(continued.statusCode).toBe(404);
+    expect(continued.json()).toEqual({ error: "Unknown session id" });
+  });
+
+  it("renders an interactive session page with continuation form and session context", async () => {
+    const responses = [
+      JSON.stringify({ type: "remember", key: "project.testCommand", value: "npm test", scope: "workspace", reason: "remember command" }),
+      JSON.stringify({ type: "finish", summary: "session step done" })
+    ];
+    let responseIndex = 0;
+    const app = createServer({
+      workspaces,
+      providerFactory: () => ({
+        async complete() {
+          const response = responses[responseIndex];
+          responseIndex += 1;
+          return response;
+        }
+      })
+    });
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { workspaceId: "demo-ts", provider: "mock", title: "Interactive Demo" }
+    });
+    const { id: sessionId } = created.json() as { id: string };
+    await app.inject({
+      method: "POST",
+      url: `/api/sessions/${sessionId}/runs`,
+      payload: { task: "remember and finish" }
+    });
+
+    const page = await app.inject({ method: "GET", url: `/sessions/${sessionId}` });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("interactive-session");
+    expect(page.body).toContain(`action="/api/sessions/${sessionId}/runs"`);
+    expect(page.body).toContain("session-run-list");
+    expect(page.body).toContain("remember and finish");
+    expect(page.body).toContain("session step done");
+    expect(page.body).toContain("memory-panel");
+    expect(page.body).toContain("project.testCommand");
+    expect(page.body).toContain("diff-inspector");
+    expect(page.body).not.toContain(process.cwd());
+  });
+
   it("rejects non-mock providers", async () => {
     const app = createServer({ workspaces });
     const response = await app.inject({
@@ -231,6 +403,8 @@ workspaces:
     expect(response.body).toContain("智能 IDE 工作台");
     expect(response.body).toContain("workspace-rail");
     expect(response.body).toContain("task-composer");
+    expect(response.body).toContain("session-composer");
+    expect(response.body).toContain('action="/api/sessions"');
     expect(response.body).toContain("run-inspector");
     expect(response.body).toContain("code-viewer");
     expect(response.body).toContain("memory-panel");

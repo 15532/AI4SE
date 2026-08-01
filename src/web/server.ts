@@ -10,7 +10,7 @@ import { listWorkspaceFiles, readWorkspaceTextFile } from "../runtime/workspace-
 import type { WorkspaceConfig } from "../runtime/workspace.js";
 import { EventStore } from "../store/event-store.js";
 import { MemoryStore } from "../store/memory-store.js";
-import { renderIndex, renderRun, type PublicProvider, type PublicWorkspace } from "./views.js";
+import { renderIndex, renderRun, renderSession, type PublicProvider, type PublicWorkspace } from "./views.js";
 
 type InjectInput = {
   method: string;
@@ -26,7 +26,10 @@ const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;
 
 function redactString(value: string): string {
   return value
-    .replace(credentialAssignmentPattern, (match) => `${match.slice(0, Math.max(match.indexOf("="), match.indexOf(":")) + 1)}[REDACTED]`)
+    .replace(credentialAssignmentPattern, (match) => {
+      if (match.includes("[REDACTED")) return match;
+      return `${match.slice(0, Math.max(match.indexOf("="), match.indexOf(":")) + 1)}[REDACTED]`;
+    })
     .replace(apiKeyPattern, "[REDACTED]");
 }
 
@@ -68,6 +71,21 @@ function isRunRequest(value: unknown): value is { workspaceId: string; provider:
   return typeof request.workspaceId === "string"
     && typeof request.provider === "string"
     && typeof request.task === "string";
+}
+
+function isSessionRequest(value: unknown): value is { workspaceId: string; provider: string; title?: string } {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const request = value as Record<string, unknown>;
+  return typeof request.workspaceId === "string"
+    && typeof request.provider === "string"
+    && (request.title === undefined || typeof request.title === "string");
+}
+
+function isSessionRunRequest(value: unknown): value is { task: string } {
+  return typeof value === "object"
+    && value !== null
+    && !Array.isArray(value)
+    && typeof (value as Record<string, unknown>).task === "string";
 }
 
 function response(statusCode: number, value: unknown, contentType = "application/json; charset=utf-8"): InjectResponse {
@@ -133,6 +151,39 @@ export function createServer(input: {
     return result.ok ? result.changes : [];
   };
 
+  const publicSession = (sessionId: string) => {
+    const session = eventStore.getSession(sessionId);
+    if (session === undefined) return undefined;
+    const runs = eventStore.listSessionRuns(session.id, 20)
+      .map((run) => eventStore.summarizeRun(run.id))
+      .filter((summary): summary is NonNullable<typeof summary> => summary !== undefined)
+      .map((summary) => ({
+        id: summary.id,
+        task: summary.task,
+        workspaceId: summary.workspaceId,
+        status: summary.status,
+        ...(summary.summary === undefined ? {} : { summary: summary.summary })
+      }));
+    return redactValue({
+      id: session.id,
+      workspaceId: session.workspaceId,
+      provider: session.provider,
+      title: session.title,
+      runs
+    });
+  };
+
+  const sessionRuns = (sessionId: string) => eventStore.listSessionRuns(sessionId, 20)
+    .map((run) => eventStore.summarizeRun(run.id))
+    .filter((summary): summary is NonNullable<typeof summary> => summary !== undefined)
+    .map((summary) => ({
+      id: summary.id,
+      task: summary.task,
+      workspaceId: summary.workspaceId,
+      status: summary.status,
+      ...(summary.summary === undefined ? {} : { summary: summary.summary })
+    }));
+
   const handle = async (
     method: string,
     requestUrl: string,
@@ -145,6 +196,61 @@ export function createServer(input: {
     }
     if (method === "GET" && url.pathname === "/api/workspaces") {
       return response(200, publicWorkspaces());
+    }
+    if (method === "POST" && url.pathname === "/api/sessions") {
+      if (!isSessionRequest(payload)) return response(400, { error: "Invalid session request" });
+      if (registry.getWorkspace(payload.workspaceId) === undefined) return response(400, { error: "Unknown workspace id" });
+      if (registry.getProvider(payload.provider) === undefined) return response(400, { error: "Unsupported provider" });
+      const sessionId = eventStore.createSession({
+        workspaceId: payload.workspaceId,
+        provider: payload.provider,
+        title: payload.title
+      });
+      if (String(headers["content-type"] ?? "").includes("application/x-www-form-urlencoded")) {
+        return redirect(`/sessions/${encodeURIComponent(sessionId)}`);
+      }
+      return response(201, { id: sessionId });
+    }
+    if (method === "POST" && url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/runs")) {
+      const sessionId = decodeURIComponent(url.pathname.slice("/api/sessions/".length, -"/runs".length));
+      const session = eventStore.getSession(sessionId);
+      if (session === undefined) return response(404, { error: "Unknown session id" });
+      if (!isSessionRunRequest(payload)) return response(400, { error: "Invalid session run request" });
+      const workspace = registry.getWorkspace(session.workspaceId);
+      if (workspace === undefined) return response(400, { error: "Unknown workspace id" });
+      const providerConfig = registry.getProvider(session.provider);
+      if (providerConfig === undefined) return response(400, { error: "Unsupported provider" });
+
+      let result: Awaited<ReturnType<typeof runAgentLoop>>;
+      try {
+        const provider = input.providerFactory?.(session.provider) ?? createProvider(providerConfig);
+        result = await runAgentLoop({
+          task: payload.task,
+          workspace,
+          provider,
+          maxIterations: registry.maxIterations,
+          mode: registry.mode,
+          eventStore,
+          memoryStore,
+          sessionId: session.id
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Provider request failed";
+        if (message.startsWith("Missing API key for provider ")) return response(400, { error: message });
+        return response(502, { error: "Provider request failed" });
+      }
+      if (result.runId === undefined) throw new Error("Persisted run did not return an id");
+      if (String(headers["content-type"] ?? "").includes("application/x-www-form-urlencoded")) {
+        return redirect(`/sessions/${encodeURIComponent(session.id)}`);
+      }
+      return response(201, { id: result.runId, sessionId: session.id });
+    }
+    if (method === "GET" && url.pathname.startsWith("/api/sessions/")) {
+      const sessionId = decodeURIComponent(url.pathname.slice("/api/sessions/".length));
+      const session = publicSession(sessionId);
+      return session === undefined
+        ? response(404, { error: "Unknown session id" })
+        : response(200, session);
     }
     const workspaceApiPrefix = "/api/workspaces/";
     if (method === "GET" && url.pathname.startsWith(workspaceApiPrefix) && url.pathname.endsWith("/changes")) {
@@ -228,6 +334,21 @@ export function createServer(input: {
       return run === undefined
         ? response(404, "运行不存在", "text/html; charset=utf-8")
         : response(200, renderRun({ ...run, changes: await changesForWorkspace(run.workspaceId) }), "text/html; charset=utf-8");
+    }
+    if (method === "GET" && url.pathname.startsWith("/sessions/")) {
+      const sessionId = decodeURIComponent(url.pathname.slice("/sessions/".length));
+      const session = eventStore.getSession(sessionId);
+      if (session === undefined) return response(404, "Session 不存在", "text/html; charset=utf-8");
+      const memories = memoryStore.recall({ workspaceId: session.workspaceId, scope: "workspace", limit: 10 });
+      return response(200, renderSession(redactValue({
+        id: session.id,
+        workspaceId: session.workspaceId,
+        provider: session.provider,
+        title: session.title,
+        runs: sessionRuns(session.id),
+        memories,
+        changes: await changesForWorkspace(session.workspaceId)
+      }) as Parameters<typeof renderSession>[0]), "text/html; charset=utf-8");
     }
     return response(404, { error: "Not found" });
   };

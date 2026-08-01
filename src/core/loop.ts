@@ -17,6 +17,7 @@ const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;
 function redactString(value: string): string {
   return value
     .replace(credentialAssignmentPattern, (match) => {
+      if (match.includes("[REDACTED")) return match;
       const separatorIndex = Math.max(match.indexOf("="), match.indexOf(":"));
       return `${match.slice(0, separatorIndex + 1)}[REDACTED]`;
     })
@@ -48,6 +49,7 @@ export async function runAgentLoop(input: {
   eventStore?: EventStore;
   memoryStore?: MemoryStore;
   mode?: string;
+  sessionId?: string;
 }): Promise<{ runId?: string; status: AgentStatus; events: AgentEvent[] }> {
   const events: AgentEvent[] = [];
   const feedback: Feedback[] = [];
@@ -60,7 +62,8 @@ export async function runAgentLoop(input: {
   const runId = input.eventStore?.createRun({
     task: input.task,
     workspaceId: input.workspace.id,
-    mode: input.mode ?? "default"
+    mode: input.mode ?? "default",
+    sessionId: input.sessionId
   });
   const recentRuns = input.eventStore === undefined
     ? []

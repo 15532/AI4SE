@@ -11,6 +11,7 @@ export function redactSensitiveString(value: string): string {
   return value
     .replace(credentialAssignmentPattern, (match, prefix: string) => {
       const secretValue = match.slice(prefix.length);
+      if (secretValue.startsWith("[REDACTED")) return match;
       const quote = secretValue[0] === "\"" || secretValue[0] === "'" ? secretValue[0] : "";
       return `${prefix}${quote}[REDACTED]${quote}`;
     })

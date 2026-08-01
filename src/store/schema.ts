@@ -7,6 +7,24 @@ export const schemaSql = `
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS session_runs (
+    session_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (session_id, run_id),
+    FOREIGN KEY (session_id) REFERENCES sessions(id),
+    FOREIGN KEY (run_id) REFERENCES runs(id)
+  );
+
   CREATE TABLE IF NOT EXISTS events (
     run_id TEXT NOT NULL,
     sequence INTEGER NOT NULL,

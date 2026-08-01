@@ -21,6 +21,14 @@ export type RunSummary = {
   status: string;
   summary?: string;
 };
+export type StoredSession = {
+  id: string;
+  workspaceId: string;
+  provider: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export class EventStore {
   private readonly db: Database.Database;
@@ -31,10 +39,85 @@ export class EventStore {
     this.db.exec(schemaSql);
   }
 
-  createRun(input: { task: string; workspaceId: string; mode: string }): string {
+  createSession(input: { workspaceId: string; provider: string; title?: string }): string {
     const id = randomUUID();
-    this.db.prepare("INSERT INTO runs (id, task, workspace_id, mode) VALUES (?, ?, ?, ?)")
-      .run(id, redactSensitiveString(input.task), input.workspaceId, input.mode);
+    const title = redactSensitiveString(input.title?.trim() || "Untitled session");
+    this.db.prepare("INSERT INTO sessions (id, workspace_id, provider, title) VALUES (?, ?, ?, ?)")
+      .run(id, input.workspaceId, input.provider, title);
+    return id;
+  }
+
+  getSession(sessionId: string): StoredSession | undefined {
+    const row = this.db.prepare(`
+      SELECT id, workspace_id, provider, title, created_at, updated_at
+      FROM sessions
+      WHERE id = ?
+    `).get(sessionId) as {
+      id: string;
+      workspace_id: string;
+      provider: string;
+      title: string;
+      created_at: string;
+      updated_at: string;
+    } | undefined;
+
+    return row === undefined ? undefined : {
+      id: row.id,
+      workspaceId: row.workspace_id,
+      provider: row.provider,
+      title: row.title,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+
+  listSessions(input: { workspaceId?: string; limit?: number } = {}): StoredSession[] {
+    const limit = input.limit ?? 20;
+    const rows = input.workspaceId === undefined
+      ? this.db.prepare(`
+        SELECT id, workspace_id, provider, title, created_at, updated_at
+        FROM sessions
+        ORDER BY rowid DESC
+        LIMIT ?
+      `).all(limit)
+      : this.db.prepare(`
+        SELECT id, workspace_id, provider, title, created_at, updated_at
+        FROM sessions
+        WHERE workspace_id = ?
+        ORDER BY rowid DESC
+        LIMIT ?
+      `).all(input.workspaceId, limit);
+
+    return (rows as Array<{
+      id: string;
+      workspace_id: string;
+      provider: string;
+      title: string;
+      created_at: string;
+      updated_at: string;
+    }>).map((row) => ({
+      id: row.id,
+      workspaceId: row.workspace_id,
+      provider: row.provider,
+      title: row.title,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  }
+
+  createRun(input: { task: string; workspaceId: string; mode: string; sessionId?: string }): string {
+    const id = randomUUID();
+    const create = this.db.transaction(() => {
+      this.db.prepare("INSERT INTO runs (id, task, workspace_id, mode) VALUES (?, ?, ?, ?)")
+        .run(id, redactSensitiveString(input.task), input.workspaceId, input.mode);
+      if (input.sessionId !== undefined) {
+        this.db.prepare("INSERT INTO session_runs (session_id, run_id) VALUES (?, ?)")
+          .run(input.sessionId, id);
+        this.db.prepare("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+          .run(input.sessionId);
+      }
+    });
+    create();
     return id;
   }
 
@@ -68,6 +151,31 @@ export class EventStore {
       ORDER BY rowid DESC
       LIMIT ?
     `).all(workspaceId, limit) as Array<{
+      id: string;
+      task: string;
+      workspace_id: string;
+      mode: string;
+      created_at: string;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      task: row.task,
+      workspaceId: row.workspace_id,
+      mode: row.mode,
+      createdAt: row.created_at
+    }));
+  }
+
+  listSessionRuns(sessionId: string, limit: number): RecentRun[] {
+    const rows = this.db.prepare(`
+      SELECT runs.id, runs.task, runs.workspace_id, runs.mode, runs.created_at
+      FROM session_runs
+      INNER JOIN runs ON runs.id = session_runs.run_id
+      WHERE session_runs.session_id = ?
+      ORDER BY session_runs.rowid DESC
+      LIMIT ?
+    `).all(sessionId, limit) as Array<{
       id: string;
       task: string;
       workspace_id: string;

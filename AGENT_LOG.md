@@ -337,3 +337,34 @@
 - 学到的教训：
   - diff 能力看似只是调用 git，但安全边界必须明确，否则临时目录或子目录可能被父级 repo 误识别。
   - 对课程演示来说，先展示“agent 改了哪些文件”比立刻做浏览器编辑器更能补齐可用工具的信任链路。
+
+### 2026-08-01 - Interactive Run V1：持久化 Session 与连续指令
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `writing-plans`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 关键上下文：
+  - 用户确认进入 Interactive Run V1，并说明未来会部署到服务器。
+  - 因服务器部署需求，本轮明确避免进程内 session、WebSocket 和长连接，改用 SQLite 持久化 session 与普通 HTTP 表单/API。
+- Agent 动作：
+  - 新增 `docs/superpowers/specs/2026-08-01-interactive-run-v1-design.md`。
+  - 新增 `docs/superpowers/plans/2026-08-01-interactive-run-v1.md`。
+  - 扩展 SQLite schema，新增 `sessions` 和 `session_runs`。
+  - 扩展 `EventStore`，支持 `createSession`、`getSession`、`listSessions`、`listSessionRuns`，以及 `createRun(..., sessionId)`。
+  - 扩展 `runAgentLoop`，支持可选 `sessionId`，使真实 run 能被挂到 session 下。
+  - 扩展 WebUI API：`POST /api/sessions`、`GET /api/sessions/:id`、`POST /api/sessions/:id/runs`。
+  - 新增 `/sessions/:id` 页面，包含继续指令表单、session run 列表、workspace memory 和 diff inspector。
+  - 首页新增 `session-composer`，用户可从浏览器创建 interactive session。
+  - 修复 redaction 幂等性，避免已经是 `[REDACTED]` 的内容再次经过响应过滤后变形。
+- TDD 证据：
+  - EventStore session 测试先因 `store.createSession is not a function` 失败，实现 schema/store 后通过。
+  - Web session API 测试先因 `/api/sessions` 404 失败，实现 API 后通过。
+  - Session 页面测试先因 `/sessions/:id` 404 失败，实现 `renderSession` 后通过。
+  - 首页入口测试先因缺少 `session-composer` 失败，补充表单后通过。
+- 学到的教训：
+  - “接近 Codex”不一定要一次性实现流式长生命周期 run；先把同 workspace 的连续意图、历史 run、memory 和 diff 串成 session，就能显著提升可用性。
+  - 未来服务器部署时，session、run、event、memory 都必须依赖持久化 SQLite volume；否则重启服务会破坏用户的连续工作上下文。
+  - WebUI 无认证叠加真实 provider 与 interactive session 会放大风险，公网前必须补认证或反向代理访问控制。

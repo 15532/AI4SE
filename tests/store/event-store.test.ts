@@ -126,4 +126,52 @@ describe("EventStore", () => {
       summary: "fixed and verified"
     });
   });
+
+  it("creates persistent sessions without leaking secret-like titles", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const dbPath = join(dir, "test.sqlite");
+    const store = new EventStore(dbPath);
+
+    const sessionId = store.createSession({
+      workspaceId: "demo",
+      provider: "deepseek",
+      title: "debug api_key=secret-value"
+    });
+    const reopened = new EventStore(dbPath);
+
+    expect(reopened.getSession(sessionId)).toEqual({
+      id: sessionId,
+      workspaceId: "demo",
+      provider: "deepseek",
+      title: "debug api_key=[REDACTED]",
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String)
+    });
+    expect(JSON.stringify(reopened.getSession(sessionId))).not.toContain("secret-value");
+  });
+
+  it("attaches runs to sessions and lists session runs newest first", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const sessionId = store.createSession({ workspaceId: "demo", provider: "mock", title: "Demo session" });
+    const first = store.createRun({ task: "first", workspaceId: "demo", mode: "webui", sessionId });
+    const second = store.createRun({ task: "second", workspaceId: "demo", mode: "webui", sessionId });
+    store.createRun({ task: "outside", workspaceId: "demo", mode: "webui" });
+
+    expect(store.listSessionRuns(sessionId, 5).map((run) => run.id)).toEqual([second, first]);
+    expect(store.listSessionRuns(sessionId, 1)).toEqual([
+      expect.objectContaining({ id: second, task: "second", workspaceId: "demo" })
+    ]);
+  });
+
+  it("lists recent sessions newest first with optional workspace filtering", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const first = store.createSession({ workspaceId: "demo", provider: "mock", title: "First" });
+    const second = store.createSession({ workspaceId: "demo", provider: "mock", title: "Second" });
+    store.createSession({ workspaceId: "docs", provider: "mock", title: "Docs" });
+
+    expect(store.listSessions({ workspaceId: "demo", limit: 5 }).map((session) => session.id)).toEqual([second, first]);
+    expect(store.listSessions({ limit: 1 })).toHaveLength(1);
+  });
 });

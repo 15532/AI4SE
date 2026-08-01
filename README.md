@@ -1,6 +1,6 @@
 # Coding Agent Harness
 
-这是 AI4SE Project A 的 TypeScript coding-agent harness。项目提供一个带安全边界的代理运行环境：CLI 和 WebUI 都可以触发真实 harness run，代理循环可通过 mock 或 DeepSeek provider 决策，文件操作受 workspace path boundary 约束，shell 命令受 allowlist 与 guardrail 约束，运行过程会写入 SQLite timeline 和 memory。当前方案 A 已补强为可用代码开发链路：agent 会拿到工具协议、工作区、允许命令和反馈，按“查看 -> 修改 -> 验证 -> 完成”的路径执行小型代码任务。
+这是 AI4SE Project A 的 TypeScript coding-agent harness。项目提供一个带安全边界的代理运行环境：CLI 和 WebUI 都可以触发真实 harness run，代理循环可通过 mock 或 DeepSeek provider 决策，文件操作受 workspace path boundary 约束，shell 命令受 allowlist 与 guardrail 约束，运行过程会写入 SQLite timeline、memory 和 interactive session。当前方案 A 已补强为可用代码开发链路：agent 会拿到工具协议、工作区、允许命令和反馈，按“查看 -> 修改 -> 验证 -> 完成”的路径执行小型代码任务。
 
 ## 功能概览
 
@@ -8,13 +8,13 @@
 - Workspace 注册与边界控制：只能访问配置中注册的 workspace，阻止路径逃逸和符号链接逃逸。
 - 受限工具分发器：文件工具和 shell 工具统一经过 allowlist、路径归一化和敏感信息脱敏。
 - Agent 主循环：provider 输出 Action，harness 执行动作并回灌观察结果；`invalid_action` 和被护栏拦截的动作会作为反馈进入下一轮，直到 `finish` 或达到最大迭代次数。
-- 事件与记忆存储：run、event、timeline、memory 持久化到 SQLite。
-- CLI 与 WebUI：命令行和浏览器都能创建 run，并查看运行结果、工作区文件和 git diff。
+- 事件与记忆存储：run、event、timeline、memory、interactive session 持久化到 SQLite。
+- CLI 与 WebUI：命令行和浏览器都能创建 run；WebUI 可创建 session、继续提交后续指令，并查看运行结果、工作区文件和 git diff。
 - Docker 分发：支持镜像构建和 compose 启动。
 
 ## 当前前端定位
 
-当前 WebUI 已从功能性“简单模型前端”升级为方案 B 第一版轻量智能 IDE 壳层：左侧是 workspace rail，中间是任务编排区，右侧是 Run Inspector。运行详情页提供 timeline navigator、event detail stack 与 Diff Inspector，用于查看 action / guardrail / tool result / feedback / stop reason，以及当前 workspace 的 git 文件变更。Workspace Session V1 还加入了只读代码查看入口、workspace memory 面板和 recent runs 面板，让后续任务能继承同一工作区的上下文。
+当前 WebUI 已从功能性“简单模型前端”升级为方案 B 第一版轻量智能 IDE 壳层：左侧是 workspace rail，中间是任务编排区，右侧是 Run Inspector。运行详情页提供 timeline navigator、event detail stack 与 Diff Inspector，用于查看 action / guardrail / tool result / feedback / stop reason，以及当前 workspace 的 git 文件变更。Workspace Session V1 还加入了只读代码查看入口、workspace memory 面板和 recent runs 面板；Interactive Run V1 支持创建持久化 session，并在同一 workspace/provider 下连续提交后续指令。
 
 它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 已作为方案 B 的设计参考写入 SPEC；本轮选择低依赖、可测试的 server-rendered IDE 壳层，后续若继续增强视觉系统或交互原型，再正式引入 Open Design 生成/审查设计系统。
 
@@ -226,6 +226,20 @@ node dist/src/web/server.js
 
 WebUI 首页是三栏智能 IDE 工作台：左侧列出已注册 workspace 与可用命令，中间选择 workspace/provider 并提交任务，右侧展示 Run Inspector 的机制摘要。选择 `mock` 不需要 key；选择 `deepseek` 前必须配置 `DEEPSEEK_API_KEY`。提交任务后会创建 harness run，并跳转到 `/runs/:id` 查看 timeline navigator 与事件详情。
 
+Interactive Run V1 推荐使用 session 入口：
+
+```powershell
+Invoke-RestMethod -Method Post -ContentType "application/json" `
+  -Uri "http://127.0.0.1:3000/api/sessions" `
+  -Body '{"workspaceId":"demo-ts","provider":"mock","title":"Demo session"}'
+
+Invoke-RestMethod -Method Post -ContentType "application/json" `
+  -Uri "http://127.0.0.1:3000/api/sessions/<session-id>/runs" `
+  -Body '{"task":"继续修复并运行测试"}'
+```
+
+浏览器中创建 session 后会进入 `/sessions/:id`，可以继续提交后续指令。Session、runs、events、memory 都写入 `HARNESS_DB_PATH` 指向的 SQLite，因此服务器部署时应把 `data/` 作为持久化 volume 或宿主机目录挂载。
+
 Workspace Session V1 提供只读文件 API：
 
 ```powershell
@@ -331,11 +345,11 @@ docker run --rm -p 3000:3000 coding-agent-harness
 docker compose up --build
 ```
 
-Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` 挂载为 `harness-data` named volume，用于持久化运行历史、timeline 和 memory。镜像构建不会复制 `.env`、本地 SQLite 数据、logs 或本地 `node_modules`。容器默认启动 WebUI。
+Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` 挂载为 `harness-data` named volume，用于持久化运行历史、timeline、memory 和 interactive session。镜像构建不会复制 `.env`、本地 SQLite 数据、logs 或本地 `node_modules`。容器默认启动 WebUI。
 
 ## 安全说明
 
-WebUI v1 不配置 password，仅适合受信任网络或短期课程演示。长期公网部署必须先在 Nginx、VPN、SSO、basic auth 或其他边界层配置认证与访问控制；不要把容器端口直接暴露到公网。启用 DeepSeek provider 后，公网无认证风险更高。
+WebUI v1 不配置 password，仅适合受信任网络或短期课程演示。长期公网部署必须先在 Nginx、VPN、SSO、basic auth 或其他边界层配置认证与访问控制；不要把容器端口直接暴露到公网。启用 DeepSeek provider 或 interactive session 后，公网无认证风险更高，因为攻击者可以持续触发真实 harness run。
 
 当前 v1 已支持 DeepSeek OpenAI-compatible provider，并保留 mock provider 用于离线测试。`CredentialManager` 使用测试用内存 adapter；真实 OS keychain 留作后续增强。真实 API key 绝不能提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。
 
