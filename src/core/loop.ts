@@ -91,7 +91,7 @@ export async function runAgentLoop(input: {
     events.push({ kind: "parsed_action", iteration, ok: true, action: redactValue(action) });
 
     if (action.type === "finish") {
-      events.push({ kind: "stop", iteration, reason: "finish", summary: action.summary });
+      events.push({ kind: "stop", iteration, reason: "finish", summary: redactString(action.summary) });
       return { status: "finished", events };
     }
 

@@ -19,6 +19,22 @@ describe("runAgentLoop", () => {
     expect(result.status).toBe("finished");
   });
 
+  it("redacts secret-like finish summaries from returned events", async () => {
+    const provider = new MockLLMProvider([
+      JSON.stringify({ type: "finish", summary: "OPENAI_API_KEY=sk-finish123" })
+    ]);
+    const result = await runAgentLoop({
+      task: "finish safely",
+      workspace: { id: "demo", name: "Demo", root: process.cwd(), allowedCommands: [] },
+      provider,
+      maxIterations: 1
+    });
+
+    const eventsJson = JSON.stringify(result.events);
+    expect(eventsJson).not.toContain("sk-finish123");
+    expect(eventsJson).toContain("[REDACTED]");
+  });
+
   it("stops at max_iterations", async () => {
     const provider = new MockLLMProvider([
       JSON.stringify({ type: "list_files", path: ".", reason: "inspect" }),
