@@ -12,11 +12,11 @@ export type WorkspacePathResolution =
   | { ok: false; reason: string };
 
 function pathApiFor(root: string): typeof path.win32 | typeof path.posix {
-  return /^[a-zA-Z]:[\\/]|^\\\\/.test(root) ? path.win32 : path.posix;
+  return isWindowsAbsolutePath(root) ? path.win32 : path.posix;
 }
 
 function isWindowsAbsolutePath(value: string): boolean {
-  return /^[a-zA-Z]:[\\/]|^\\\\/.test(value);
+  return /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith("\\");
 }
 
 function isPosixAbsolutePath(value: string): boolean {

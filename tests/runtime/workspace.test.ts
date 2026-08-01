@@ -39,4 +39,11 @@ describe("resolveWorkspacePath", () => {
       reason: "Path escapes workspace root"
     });
   });
+
+  it("rejects Windows rooted paths from a POSIX workspace root", () => {
+    expect(resolveWorkspacePath({ ...workspace, root: "/workspace" }, "\\Windows\\System32")).toEqual({
+      ok: false,
+      reason: "Path escapes workspace root"
+    });
+  });
 });
