@@ -1,6 +1,6 @@
 import { exec } from "node:child_process";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { mkdir, readdir, readFile, realpath, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { promisify } from "node:util";
 import type { Action } from "../core/actions";
 import { resolveWorkspacePath, type WorkspaceConfig } from "./workspace";
@@ -15,13 +15,49 @@ export type ToolResult = {
   error?: string;
 };
 
-function resolvePath(action: Action, workspace: WorkspaceConfig): ToolResult | string {
+function isWithinPath(root: string, target: string): boolean {
+  const relative = path.relative(root, target);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+}
+
+async function realpathExistingAncestor(target: string): Promise<string> {
+  let candidate = target;
+
+  while (true) {
+    try {
+      return await realpath(candidate);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTDIR") {
+        throw error;
+      }
+
+      const parent = path.dirname(candidate);
+      if (parent === candidate) {
+        throw error;
+      }
+      candidate = parent;
+    }
+  }
+}
+
+async function resolvePath(action: Action, workspace: WorkspaceConfig): Promise<ToolResult | string> {
   if (action.type !== "read_file" && action.type !== "write_file" && action.type !== "list_files") {
     throw new Error("Only file actions can resolve a workspace path");
   }
 
   const resolution = resolveWorkspacePath(workspace, action.path);
-  return resolution.ok ? resolution.absolutePath : { ok: false, error: resolution.reason };
+  if (!resolution.ok) {
+    return { ok: false, error: resolution.reason };
+  }
+
+  const [canonicalRoot, canonicalAncestor] = await Promise.all([
+    realpath(workspace.root),
+    realpathExistingAncestor(resolution.absolutePath)
+  ]);
+  return isWithinPath(canonicalRoot, canonicalAncestor)
+    ? resolution.absolutePath
+    : { ok: false, error: "Path escapes workspace root" };
 }
 
 function errorResult(error: unknown): ToolResult {
@@ -52,23 +88,23 @@ export async function dispatchTool(action: Action, workspace: WorkspaceConfig): 
   try {
     switch (action.type) {
       case "read_file": {
-        const target = resolvePath(action, workspace);
+        const target = await resolvePath(action, workspace);
         return typeof target === "string"
           ? { ok: true, stdout: await readFile(target, "utf8") }
           : target;
       }
       case "write_file": {
-        const target = resolvePath(action, workspace);
+        const target = await resolvePath(action, workspace);
         if (typeof target !== "string") {
           return target;
         }
 
-        await mkdir(dirname(target), { recursive: true });
+        await mkdir(path.dirname(target), { recursive: true });
         await writeFile(target, action.content, "utf8");
         return { ok: true };
       }
       case "list_files": {
-        const target = resolvePath(action, workspace);
+        const target = await resolvePath(action, workspace);
         return typeof target === "string"
           ? { ok: true, stdout: (await readdir(target)).join("\n") }
           : target;

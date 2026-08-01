@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -75,5 +75,40 @@ describe("dispatchTool", () => {
     const workspace = { id: "tmp", name: "Tmp", root, allowedCommands: [] };
 
     await expect(dispatchTool({ type: "finish", summary: "done" }, workspace)).resolves.toEqual({ ok: true });
+  });
+
+  it("rejects reading outside the workspace through a junction", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-tools-"));
+    const outside = await mkdtemp(join(tmpdir(), "harness-tools-outside-"));
+    const workspace = { id: "tmp", name: "Tmp", root, allowedCommands: [] };
+    await writeFile(join(outside, "secret.txt"), "secret", "utf8");
+    await symlink(outside, join(root, "escape"), "junction");
+
+    await expect(
+      dispatchTool({ type: "read_file", path: "escape/secret.txt", reason: "read" }, workspace)
+    ).resolves.toEqual({ ok: false, error: "Path escapes workspace root" });
+  });
+
+  it("rejects listing outside the workspace through a junction", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-tools-"));
+    const outside = await mkdtemp(join(tmpdir(), "harness-tools-outside-"));
+    const workspace = { id: "tmp", name: "Tmp", root, allowedCommands: [] };
+    await writeFile(join(outside, "secret.txt"), "secret", "utf8");
+    await symlink(outside, join(root, "escape"), "junction");
+
+    await expect(
+      dispatchTool({ type: "list_files", path: "escape", reason: "list" }, workspace)
+    ).resolves.toEqual({ ok: false, error: "Path escapes workspace root" });
+  });
+
+  it("rejects writing outside the workspace through a junction", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-tools-"));
+    const outside = await mkdtemp(join(tmpdir(), "harness-tools-outside-"));
+    const workspace = { id: "tmp", name: "Tmp", root, allowedCommands: [] };
+    await symlink(outside, join(root, "escape"), "junction");
+
+    await expect(
+      dispatchTool({ type: "write_file", path: "escape/written.txt", content: "blocked", reason: "write" }, workspace)
+    ).resolves.toEqual({ ok: false, error: "Path escapes workspace root" });
   });
 });
