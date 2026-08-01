@@ -1,11 +1,13 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { HarnessRegistry, loadHarnessRegistry } from "../config/harness-config.js";
 import { runAgentLoop } from "../core/loop.js";
 import { MockLLMProvider, type LLMProvider } from "../core/providers.js";
 import type { WorkspaceConfig } from "../runtime/workspace.js";
-import { renderIndex, type PublicWorkspace } from "./views.js";
+import { EventStore } from "../store/event-store.js";
+import { MemoryStore } from "../store/memory-store.js";
+import { renderIndex, renderRun, type PublicWorkspace } from "./views.js";
 
 type InjectInput = {
   method: string;
@@ -14,13 +16,7 @@ type InjectInput = {
   headers?: Record<string, string | undefined>;
   body?: string;
 };
-type InjectResponse = { statusCode: number; body: string; json(): unknown };
-type RunRecord = {
-  id: string;
-  workspaceId: string;
-  status: string;
-  timeline: Record<string, unknown>[];
-};
+type InjectResponse = { statusCode: number; body: string; headers: Record<string, string>; json(): unknown };
 
 const credentialAssignmentPattern = /\b(?:openai_api_key|api[_-]?key|secret|token|password|private[_-]?key)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,}\]]+)/gi;
 const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;
@@ -58,55 +54,108 @@ function isRunRequest(value: unknown): value is { workspaceId: string; provider:
 
 function response(statusCode: number, value: unknown, contentType = "application/json; charset=utf-8"): InjectResponse {
   const body = contentType.startsWith("application/json") ? JSON.stringify(redactValue(value)) : String(value);
-  return { statusCode, body, json: () => JSON.parse(body) };
+  return { statusCode, body, headers: { "content-type": contentType }, json: () => JSON.parse(body) };
+}
+
+function redirect(location: string): InjectResponse {
+  return {
+    statusCode: 303,
+    body: "",
+    headers: { location, "content-type": "text/plain; charset=utf-8" },
+    json: () => JSON.parse("")
+  };
+}
+
+function statusFromTimeline(timeline: Array<{ payload: Record<string, unknown> }>): string {
+  const stop = [...timeline].reverse().find((event) => event.payload.kind === "stop");
+  switch (stop?.payload.reason) {
+    case "finish": return "finished";
+    case "max_iterations": return "max_iterations";
+    default: return stop === undefined ? "unknown" : "blocked";
+  }
 }
 
 export function createServer(input: {
-  workspaces: WorkspaceConfig[];
+  workspaces?: WorkspaceConfig[];
+  registry?: HarnessRegistry;
+  dbPath?: string;
   providerFactory?: (provider: string) => LLMProvider;
 }): {
   inject(input: InjectInput): Promise<InjectResponse>;
   listen(port: number, host?: string): Promise<{ close(): Promise<void> }>;
 } {
-  const workspaceById = new Map(input.workspaces.map((workspace) => [workspace.id, workspace]));
-  const runs = new Map<string, RunRecord>();
-  const workspaces = input.workspaces.map(publicWorkspace);
+  const registry = input.registry ?? new HarnessRegistry({
+    mode: "webui",
+    maxIterations: 10,
+    workspaces: input.workspaces ?? [],
+    providers: [{ id: "mock", type: "mock" }]
+  });
+  const eventStore = new EventStore(input.dbPath ?? ":memory:");
+  const memoryStore = new MemoryStore(input.dbPath ?? ":memory:");
+  const workspaces = registry.listWorkspaces().map(publicWorkspace);
 
-  const handle = async (method: string, requestUrl: string, payload?: unknown): Promise<InjectResponse> => {
+  const storedRun = (id: string) => {
+    const run = eventStore.getRun(id);
+    if (run === undefined) return undefined;
+    const timeline = eventStore.listEvents(id);
+    return {
+      id: run.id,
+      task: run.task,
+      workspaceId: run.workspaceId,
+      status: statusFromTimeline(timeline),
+      timeline
+    };
+  };
+
+  const handle = async (
+    method: string,
+    requestUrl: string,
+    payload?: unknown,
+    headers: Record<string, string | string[] | undefined> = {}
+  ): Promise<InjectResponse> => {
     const url = new URL(requestUrl, "http://localhost");
     if (method === "GET" && url.pathname === "/") {
-      return response(200, renderIndex(workspaces), "text/html; charset=utf-8");
+      return response(200, renderIndex(workspaces, registry.listProviders()[0]?.id ?? ""), "text/html; charset=utf-8");
     }
     if (method === "GET" && url.pathname === "/api/workspaces") {
       return response(200, workspaces);
     }
     if (method === "POST" && url.pathname === "/api/runs") {
       if (!isRunRequest(payload)) return response(400, { error: "Invalid run request" });
-      const workspace = workspaceById.get(payload.workspaceId);
+      const workspace = registry.getWorkspace(payload.workspaceId);
       if (workspace === undefined) return response(400, { error: "Unknown workspace id" });
-      if (payload.provider !== "mock") return response(400, { error: "Unsupported provider" });
+      const providerConfig = registry.getProvider(payload.provider);
+      if (providerConfig === undefined || providerConfig.type !== "mock") return response(400, { error: "Unsupported provider" });
 
-      const provider = input.providerFactory?.("mock") ?? new MockLLMProvider([]);
+      const provider = input.providerFactory?.(payload.provider) ?? new MockLLMProvider([]);
       const result = await runAgentLoop({
         task: payload.task,
         workspace,
         provider,
-        maxIterations: 10,
-        mode: "webui"
+        maxIterations: registry.maxIterations,
+        mode: registry.mode,
+        eventStore,
+        memoryStore
       });
-      const id = randomUUID();
-      runs.set(id, {
-        id,
-        workspaceId: workspace.id,
-        status: result.status,
-        timeline: redactValue(result.events) as Record<string, unknown>[]
-      });
-      return response(201, { id });
+      if (result.runId === undefined) throw new Error("Persisted run did not return an id");
+      if (String(headers["content-type"] ?? "").includes("application/x-www-form-urlencoded")) {
+        return redirect(`/runs/${encodeURIComponent(result.runId)}`);
+      }
+      return response(201, { id: result.runId });
     }
     if (method === "GET" && url.pathname.startsWith("/api/runs/")) {
       const id = decodeURIComponent(url.pathname.slice("/api/runs/".length));
-      const run = runs.get(id);
-      return run === undefined ? response(404, { error: "Unknown run id" }) : response(200, run);
+      const run = storedRun(id);
+      if (run === undefined) return response(404, { error: "Unknown run id" });
+      const { task: _task, ...publicRun } = run;
+      return response(200, publicRun);
+    }
+    if (method === "GET" && url.pathname.startsWith("/runs/")) {
+      const id = decodeURIComponent(url.pathname.slice("/runs/".length));
+      const run = storedRun(id);
+      return run === undefined
+        ? response(404, "运行不存在", "text/html; charset=utf-8")
+        : response(200, renderRun(run), "text/html; charset=utf-8");
     }
     return response(404, { error: "Not found" });
   };
@@ -115,12 +164,13 @@ export function createServer(input: {
     inject: async (request) => handle(
       request.method.toUpperCase(),
       request.url,
-      request.body === undefined ? request.payload : parseBody(request.headers?.["content-type"], request.body)
+      request.body === undefined ? request.payload : parseBody(request.headers?.["content-type"], request.body),
+      request.headers
     ),
     listen: (port, host) => new Promise((resolve, reject) => {
       const server = createHttpServer(async (request, serverResponse) => {
         const payload = await readBody(request);
-        const result = await handle(request.method?.toUpperCase() ?? "GET", request.url ?? "/", payload);
+        const result = await handle(request.method?.toUpperCase() ?? "GET", request.url ?? "/", payload, request.headers);
         writeResponse(serverResponse, result);
       });
       server.once("error", reject);
@@ -132,14 +182,13 @@ export function createServer(input: {
   };
 }
 
-export function createDefaultServer(workspaceRoot = process.env.HARNESS_WORKSPACE_ROOT ?? process.cwd()) {
+export function createDefaultServer(options: { configPath?: string; dbPath?: string } = {}) {
+  const registry = loadHarnessRegistry(
+    options.configPath ?? process.env.HARNESS_CONFIG_PATH ?? "config/harness.example.yaml"
+  );
   return createServer({
-    workspaces: [{
-      id: "demo-ts",
-      name: "Demo TypeScript workspace",
-      root: workspaceRoot,
-      allowedCommands: ["npm test", "npm run test", "npm run lint", "npm run typecheck", "npm run build"]
-    }]
+    registry,
+    dbPath: options.dbPath ?? process.env.HARNESS_DB_PATH ?? "data/harness.sqlite"
   });
 }
 
@@ -168,7 +217,7 @@ function parseBody(contentType: string | string[] | undefined, body: string): un
 }
 
 function writeResponse(serverResponse: ServerResponse, result: InjectResponse): void {
-  serverResponse.writeHead(result.statusCode, { "content-type": result.body.startsWith("<!doctype") ? "text/html; charset=utf-8" : "application/json; charset=utf-8" });
+  serverResponse.writeHead(result.statusCode, result.headers);
   serverResponse.end(result.body);
 }
 

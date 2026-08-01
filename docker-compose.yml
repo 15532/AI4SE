@@ -4,6 +4,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      HARNESS_CONFIG_PATH: /app/config/harness.example.yaml
+      HARNESS_DB_PATH: /app/data/harness.sqlite
     ports:
       - "3000:3000"
     volumes:

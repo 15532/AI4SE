@@ -23,6 +23,7 @@ ENV PORT=3000
 COPY package.json package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY config ./config
 
 EXPOSE 3000
 CMD ["node", "dist/src/web/server.js"]

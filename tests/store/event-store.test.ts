@@ -50,4 +50,51 @@ describe("EventStore", () => {
       { sequence: 1, kind: "provider", payload: { note: "[REDACTED]" } }
     ]);
   });
+
+  it("redacts secret assignments in run tasks before persistence", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const runId = store.createRun({
+      task: "debug password=plain-secret api_key=also-secret credential=third-secret",
+      workspaceId: "demo",
+      mode: "default"
+    });
+
+    const runJson = JSON.stringify(store.getRun(runId));
+    expect(runJson).not.toContain("plain-secret");
+    expect(runJson).not.toContain("also-secret");
+    expect(runJson).not.toContain("third-secret");
+    expect(runJson).toContain("[REDACTED]");
+  });
+
+  it("redacts JSON-shaped secret assignments in run tasks", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const runId = store.createRun({
+      task: 'debug {"password":"json-secret","api_key":"second-secret"}',
+      workspaceId: "demo",
+      mode: "default"
+    });
+
+    const runJson = JSON.stringify(store.getRun(runId));
+    expect(runJson).not.toContain("json-secret");
+    expect(runJson).not.toContain("second-secret");
+  });
+
+  it("redacts password api_key and credential event fields", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const runId = store.createRun({ task: "inspect", workspaceId: "demo", mode: "default" });
+
+    store.appendEvent(runId, "provider", {
+      password: "plain-secret",
+      api_key: "also-secret",
+      credential: "third-secret"
+    });
+
+    const eventsJson = JSON.stringify(store.listEvents(runId));
+    expect(eventsJson).not.toContain("plain-secret");
+    expect(eventsJson).not.toContain("also-secret");
+    expect(eventsJson).not.toContain("third-secret");
+  });
 });

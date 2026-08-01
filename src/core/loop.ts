@@ -48,7 +48,7 @@ export async function runAgentLoop(input: {
   eventStore?: EventStore;
   memoryStore?: MemoryStore;
   mode?: string;
-}): Promise<{ status: AgentStatus; events: AgentEvent[] }> {
+}): Promise<{ runId?: string; status: AgentStatus; events: AgentEvent[] }> {
   const events: AgentEvent[] = [];
   const feedback: Feedback[] = [];
   const memories = input.memoryStore === undefined
@@ -82,7 +82,7 @@ export async function runAgentLoop(input: {
       record({ kind: "parsed_action", iteration, ok: false });
       record({ kind: "feedback", iteration, feedback: invalidFeedback });
       record({ kind: "stop", iteration, reason: "invalid_action" });
-      return { status: "blocked", events };
+      return { runId, status: "blocked", events };
     }
 
     const { action } = parsed;
@@ -90,7 +90,7 @@ export async function runAgentLoop(input: {
 
     if (action.type === "finish") {
       record({ kind: "stop", iteration, reason: "finish", summary: redactString(action.summary) });
-      return { status: "finished", events };
+      return { runId, status: "finished", events };
     }
 
     const guardrail = classifyAction(action, input.workspace);
@@ -100,7 +100,7 @@ export async function runAgentLoop(input: {
       feedback.push(blockedFeedback);
       record({ kind: "feedback", iteration, feedback: blockedFeedback });
       record({ kind: "stop", iteration, reason: "guardrail_blocked" });
-      return { status: "blocked", events };
+      return { runId, status: "blocked", events };
     }
 
     if (action.type === "remember" && input.memoryStore !== undefined) {
@@ -126,5 +126,5 @@ export async function runAgentLoop(input: {
   }
 
   record({ kind: "stop", reason: "max_iterations" });
-  return { status: "max_iterations", events };
+  return { runId, status: "max_iterations", events };
 }

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAgentLoop } from "../core/loop.js";
-import { MockLLMProvider } from "../core/providers.js";
+import { MockLLMProvider, type LLMProvider } from "../core/providers.js";
 
 type DemoEvent = Record<string, unknown>;
 
@@ -24,7 +24,10 @@ function timelineFrom(events: DemoEvent[]): DemoEvent[] {
   });
 }
 
-export async function runMechanismDemo(): Promise<{ events: Array<Record<string, unknown>> }> {
+export async function runMechanismDemo(): Promise<{
+  events: Array<Record<string, unknown>>;
+  correctionContextObserved: boolean;
+}> {
   const root = await mkdtemp(path.join(tmpdir(), "harness-mechanisms-"));
   try {
     await writeFile(
@@ -39,36 +42,44 @@ export async function runMechanismDemo(): Promise<{ events: Array<Record<string,
       root,
       allowedCommands: defaultAllowedCommands
     };
-    const phases = await Promise.all([
-      runAgentLoop({
-        task: "Demonstrate guardrail blocking",
-        workspace,
-        provider: new MockLLMProvider([
-          JSON.stringify({ type: "run_command", command: "rm -rf .", reason: "dangerous command demonstration" })
-        ]),
-        maxIterations: 1
-      }),
-      runAgentLoop({
-        task: "Demonstrate test failure feedback",
-        workspace,
-        provider: new MockLLMProvider([
-          JSON.stringify({ type: "run_command", command: "npm test", reason: "run tests" }),
-          JSON.stringify({ type: "finish", summary: "Test feedback observed" })
-        ]),
-        maxIterations: 2
-      }),
-      runAgentLoop({
-        task: "Demonstrate corrective file action",
-        workspace,
-        provider: new MockLLMProvider([
-          JSON.stringify({ type: "write_file", path: "fixed.txt", content: "fixed", reason: "apply correction" }),
-          JSON.stringify({ type: "finish", summary: "Correction completed" })
-        ]),
-        maxIterations: 2
-      })
-    ]);
+    const guardrailPhase = await runAgentLoop({
+      task: "Demonstrate guardrail blocking",
+      workspace,
+      provider: new MockLLMProvider([
+        JSON.stringify({ type: "run_command", command: "rm -rf .", reason: "dangerous command demonstration" })
+      ]),
+      maxIterations: 1
+    });
 
-    return { events: timelineFrom(phases.flatMap((phase) => phase.events)) };
+    let providerCall = 0;
+    let correctionContextObserved = false;
+    const correctionProvider: LLMProvider = {
+      async complete(input) {
+        providerCall += 1;
+        if (providerCall === 1) {
+          return JSON.stringify({ type: "run_command", command: "npm test", reason: "run tests" });
+        }
+        if (providerCall === 2) {
+          const context = JSON.parse(input.context) as { feedback?: Array<{ source?: string }> };
+          correctionContextObserved = context.feedback?.some((item) => item.source === "test_failed") ?? false;
+          return correctionContextObserved
+            ? JSON.stringify({ type: "write_file", path: "fixed.txt", content: "fixed", reason: "apply correction from test feedback" })
+            : JSON.stringify({ type: "finish", summary: "No test failure feedback was available" });
+        }
+        return JSON.stringify({ type: "finish", summary: "Correction completed" });
+      }
+    };
+    const correctionPhase = await runAgentLoop({
+      task: "Run tests and correct the failure",
+      workspace,
+      provider: correctionProvider,
+      maxIterations: 3
+    });
+
+    return {
+      events: timelineFrom([...guardrailPhase.events, ...correctionPhase.events]),
+      correctionContextObserved
+    };
   } finally {
     await rm(root, { recursive: true, force: true });
   }

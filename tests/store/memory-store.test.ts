@@ -54,4 +54,32 @@ describe("MemoryStore", () => {
       { key: "note", value: "[REDACTED]" }
     ]);
   });
+
+  it.each(["password", "api_key", "credential"])("redacts values stored under the %s key", async (key) => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-memory-"));
+    const store = new MemoryStore(join(dir, "test.sqlite"));
+
+    store.remember({ workspaceId: "demo", scope: "workspace", key, value: `${key}-plain-secret` });
+
+    expect(store.recall({ workspaceId: "demo", scope: "workspace", limit: 5 })).toEqual([
+      { key, value: "[REDACTED]" }
+    ]);
+  });
+
+  it("redacts secret assignments embedded in memory keys and values", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-memory-"));
+    const store = new MemoryStore(join(dir, "test.sqlite"));
+
+    store.remember({
+      workspaceId: "demo",
+      scope: "workspace",
+      key: "note password=key-secret",
+      value: "credential=value-secret"
+    });
+
+    const memoriesJson = JSON.stringify(store.recall({ workspaceId: "demo", scope: "workspace", limit: 5 }));
+    expect(memoriesJson).not.toContain("key-secret");
+    expect(memoriesJson).not.toContain("value-secret");
+    expect(memoriesJson).toContain("[REDACTED]");
+  });
 });

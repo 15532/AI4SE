@@ -1,13 +1,21 @@
 # WebUI v1 不设 password，仅用于受信任网络或短期课程演示。
+mode: default
+maxIterations: 10
+providers:
+  - id: mock
+    type: mock
 workspaces:
   - id: demo-ts
     name: TypeScript Demo
-    root: ./examples/demo-ts
+    root: ..
     allowedCommands:
       - npm test
+      - npm run test
+      - npm run lint
+      - npm run typecheck
       - npm run build
   - id: docs
     name: Documentation Demo
-    root: ./examples/docs
+    root: ..
     allowedCommands:
       - npm run build

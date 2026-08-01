@@ -1,9 +1,14 @@
+#!/usr/bin/env node
+
 import { Command } from "commander";
+import { loadHarnessRegistry } from "../config/harness-config.js";
 import { CredentialManager } from "../credentials/credential-manager.js";
 import { InMemoryKeychainAdapter } from "../credentials/keychain-adapter.js";
 import { runMechanismDemo } from "../demo/mechanisms.js";
 import { runAgentLoop } from "../core/loop.js";
 import { MockLLMProvider } from "../core/providers.js";
+import { EventStore } from "../store/event-store.js";
+import { MemoryStore } from "../store/memory-store.js";
 
 type Output = { write(chunk: string): unknown };
 type CliOptions = {
@@ -11,8 +16,6 @@ type CliOptions = {
   stderr?: Output;
   env?: NodeJS.ProcessEnv;
 };
-
-const defaultAllowedCommands = ["npm test", "npm run test", "npm run lint", "npm run typecheck", "npm run build"];
 
 function writeJson(output: Output, value: unknown): void {
   output.write(`${JSON.stringify(value)}\n`);
@@ -54,17 +57,24 @@ export function createProgram(options: CliOptions = {}): Command {
     .requiredOption("--provider <name>")
     .requiredOption("--task <text>")
     .action(async (commandOptions: { workspace: string; provider: string; task: string }) => {
-      if (commandOptions.workspace !== "demo-ts") {
-        throw new Error(`Unknown workspace: ${commandOptions.workspace}`);
-      }
-      if (commandOptions.provider !== "mock") {
+      const registry = loadHarnessRegistry(process.env.HARNESS_CONFIG_PATH ?? "config/harness.example.yaml");
+      const workspace = registry.getWorkspace(commandOptions.workspace);
+      if (workspace === undefined) throw new Error(`Unknown workspace: ${commandOptions.workspace}`);
+      const providerConfig = registry.getProvider(commandOptions.provider);
+      if (providerConfig === undefined || providerConfig.type !== "mock") {
         throw new Error(`Unsupported provider: ${commandOptions.provider}`);
       }
+      const dbPath = process.env.HARNESS_DB_PATH ?? "data/harness.sqlite";
+      const eventStore = new EventStore(dbPath);
+      const memoryStore = new MemoryStore(dbPath);
       const result = await runAgentLoop({
         task: commandOptions.task,
-        workspace: { id: "demo-ts", name: "Demo TypeScript workspace", root: process.cwd(), allowedCommands: defaultAllowedCommands },
+        workspace,
         provider: new MockLLMProvider([JSON.stringify({ type: "finish", summary: "Mock run completed" })]),
-        maxIterations: 1
+        maxIterations: registry.maxIterations,
+        mode: registry.mode,
+        eventStore,
+        memoryStore
       });
       writeJson(stdout, result);
     });

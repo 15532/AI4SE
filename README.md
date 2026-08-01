@@ -28,7 +28,9 @@ npm run build
 node dist/src/web/server.js
 ```
 
-WebUI 默认监听 `0.0.0.0:3000`；可用 `PORT` 修改端口。它只预注册 `demo-ts` workspace，其根目录由部署时的 `HARNESS_WORKSPACE_ROOT` 或进程当前目录决定。页面和 API 不接受任意服务器路径，real-run 也只能选择该预注册 workspace id。
+WebUI 默认监听 `0.0.0.0:3000`；可用 `PORT` 修改端口。CLI 与 WebUI 共用 `config/harness.example.yaml`，并从中加载预注册 workspace、mock provider、运行 mode 和最大迭代次数。可用 `HARNESS_CONFIG_PATH` 指向其他 YAML 配置。请求体只能选择已注册 workspace id，不能传入或覆盖服务器 root。
+
+浏览器提交任务后会跳转到 `/runs/:id` 展示持久化 timeline；JSON 客户端仍可通过 `POST /api/runs` 创建运行并用 `GET /api/runs/:id` 查询。CLI 与 WebUI 默认将 run、event 和 memory 写入 `data/harness.sqlite`，可用 `HARNESS_DB_PATH` 修改位置。
 
 ## Docker 分发
 
@@ -38,7 +40,7 @@ docker run --rm -p 3000:3000 coding-agent-harness
 docker compose up --build
 ```
 
-Compose 将 `/app/data` 挂载为 `harness-data` named volume，便于未来 SQLite 数据持久化；镜像构建不会复制 `.env`、本地 SQLite 数据、logs 或本地 `node_modules`。容器默认启动 WebUI。
+Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` 挂载为 `harness-data` named volume，用于持久化运行历史、timeline 和 memory；镜像构建不会复制 `.env`、本地 SQLite 数据、logs 或本地 `node_modules`。容器默认启动 WebUI。
 
 ### Docker 与 Nginx 部署
 
@@ -51,6 +53,8 @@ Compose 将 `/app/data` 挂载为 `harness-data` named volume，便于未来 SQL
 ## 目录结构
 
 - `src/core/`：代理循环、provider 抽象和治理逻辑。
+- `src/config/`：共享 YAML 配置加载器与 registry。
+- `src/store/`：SQLite run、event、timeline 与 memory 持久化。
 - `src/runtime/`：workspace、文件与 shell 执行边界。
 - `src/web/`：WebUI HTTP server 与页面。
 - `src/cli/`：命令行入口。
