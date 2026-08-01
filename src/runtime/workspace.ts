@@ -12,7 +12,15 @@ export type WorkspacePathResolution =
   | { ok: false; reason: string };
 
 function pathApiFor(root: string): typeof path.win32 | typeof path.posix {
-  return path.win32.isAbsolute(root) || /^[a-zA-Z]:/.test(root) ? path.win32 : path.posix;
+  return /^[a-zA-Z]:[\\/]|^\\\\/.test(root) ? path.win32 : path.posix;
+}
+
+function isWindowsAbsolutePath(value: string): boolean {
+  return /^[a-zA-Z]:[\\/]|^\\\\/.test(value);
+}
+
+function isPosixAbsolutePath(value: string): boolean {
+  return value.startsWith("/");
 }
 
 export function resolveWorkspacePath(
@@ -21,7 +29,16 @@ export function resolveWorkspacePath(
 ): WorkspacePathResolution {
   const pathApi = pathApiFor(workspace.root);
   const root = pathApi.resolve(workspace.root);
-  const target = pathApi.resolve(root, relativePath || ".");
+  const input = relativePath || ".";
+
+  if (
+    (pathApi === path.posix && isWindowsAbsolutePath(input))
+    || (pathApi === path.win32 && isPosixAbsolutePath(input))
+  ) {
+    return { ok: false, reason: "Path escapes workspace root" };
+  }
+
+  const target = pathApi.resolve(root, input);
   const comparableRoot = pathApi === path.win32 ? root.toLowerCase() : root;
   const comparableTarget = pathApi === path.win32 ? target.toLowerCase() : target;
 
