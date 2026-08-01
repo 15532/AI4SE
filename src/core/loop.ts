@@ -1,6 +1,6 @@
 import { parseAction } from "./actions";
 import { buildContext } from "./context";
-import type { Feedback } from "./feedback";
+import { feedbackFromCommandResult, feedbackFromGuardrail, type Feedback } from "./feedback";
 import type { LLMProvider } from "./providers";
 import { classifyAction } from "../runtime/guardrails";
 import { dispatchTool } from "../runtime/tools";
@@ -36,30 +36,6 @@ function redactValue(value: unknown): unknown {
 
 function redactFeedback(feedback: Feedback): Feedback {
   return redactValue(feedback) as Feedback;
-}
-
-function toolFeedback(actionType: string, result: Awaited<ReturnType<typeof dispatchTool>>): Feedback {
-  const payload = redactValue({
-    action: actionType,
-    stdout: result.stdout,
-    stderr: result.stderr,
-    exitCode: result.exitCode,
-    error: result.error
-  }) as Record<string, unknown>;
-
-  return result.ok
-    ? {
-        source: "tool_succeeded",
-        severity: "info",
-        message: "Tool completed successfully",
-        payload
-      }
-    : {
-        source: "command_failed",
-        severity: "error",
-        message: redactString(result.error ?? "Tool failed"),
-        payload
-      };
 }
 
 export async function runAgentLoop(input: {
@@ -98,12 +74,7 @@ export async function runAgentLoop(input: {
     const guardrail = classifyAction(action, input.workspace);
     events.push({ kind: "guardrail", iteration, decision: guardrail });
     if (guardrail.decision !== "allow") {
-      const blockedFeedback: Feedback = {
-        source: "safety_blocked",
-        severity: "error",
-        message: guardrail.reason,
-        payload: { ruleId: guardrail.ruleId }
-      };
+      const blockedFeedback = redactFeedback(feedbackFromGuardrail(guardrail));
       feedback.push(blockedFeedback);
       events.push({ kind: "feedback", iteration, feedback: blockedFeedback });
       events.push({ kind: "stop", iteration, reason: "guardrail_blocked" });
@@ -112,7 +83,7 @@ export async function runAgentLoop(input: {
 
     const result = await dispatchTool(action, input.workspace);
     events.push({ kind: "tool_result", iteration, action: redactValue(action), result: redactValue(result) });
-    const nextFeedback = toolFeedback(action.type, result);
+    const nextFeedback = redactFeedback(feedbackFromCommandResult(result));
     feedback.push(nextFeedback);
     events.push({ kind: "feedback", iteration, feedback: nextFeedback });
   }
