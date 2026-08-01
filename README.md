@@ -14,9 +14,9 @@
 
 ## 当前前端定位
 
-当前 WebUI 是功能性“简单模型前端”，用于演示和调试 harness 机制：选择预注册 workspace、选择 mock 或 DeepSeek provider、输入任务、触发 harness run、查看 action / guardrail / tool result / feedback / stop reason timeline。
+当前 WebUI 已从功能性“简单模型前端”升级为方案 B 第一版轻量智能 IDE 壳层：左侧是 workspace rail，中间是任务编排区，右侧是 Run Inspector。运行详情页提供 timeline navigator 与 event detail stack，用于查看 action / guardrail / tool result / feedback / stop reason。
 
-它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 会在核心 harness 功能完善后用于方案 B 的 UI 增强阶段；方案 B 目标是更像智能 IDE 的文件树、任务面板、diff/结果面板和 timeline 面板。
+它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 已作为方案 B 的设计参考写入 SPEC；本轮选择低依赖、可测试的 server-rendered IDE 壳层，后续若继续增强视觉系统或交互原型，再正式引入 Open Design 生成/审查设计系统。
 
 ## 环境准备
 
@@ -224,7 +224,7 @@ $env:PORT = "3100"
 node dist/src/web/server.js
 ```
 
-WebUI 首页会列出已注册 workspace、每个 workspace 的可用命令和 provider 下拉框。选择 `mock` 不需要 key；选择 `deepseek` 前必须配置 `DEEPSEEK_API_KEY`。提交任务后会创建 harness run，并跳转到 `/runs/:id` 查看按机制分区的 timeline。
+WebUI 首页是三栏智能 IDE 工作台：左侧列出已注册 workspace 与可用命令，中间选择 workspace/provider 并提交任务，右侧展示 Run Inspector 的机制摘要。选择 `mock` 不需要 key；选择 `deepseek` 前必须配置 `DEEPSEEK_API_KEY`。提交任务后会创建 harness run，并跳转到 `/runs/:id` 查看 timeline navigator 与事件详情。
 
 ## API 调试
 

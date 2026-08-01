@@ -209,7 +209,10 @@ workspaces:
     const response = await app.inject({ method: "GET", url: "/" });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body).toContain("简单模型前端");
+    expect(response.body).toContain("智能 IDE 工作台");
+    expect(response.body).toContain("workspace-rail");
+    expect(response.body).toContain("task-composer");
+    expect(response.body).toContain("run-inspector");
     expect(response.body).toContain("可用命令");
     expect(response.body).toContain("demo-ts");
     expect(response.body).toContain("docs");
@@ -295,6 +298,9 @@ workspaces:
     const page = await app.inject({ method: "GET", url: `/runs/${id}` });
 
     expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("Run Inspector");
+    expect(page.body).toContain("timeline-navigator");
+    expect(page.body).toContain("event-detail-stack");
     expect(page.body).toContain("动作 Action");
     expect(page.body).toContain("护栏 Guardrail");
     expect(page.body).toContain("反馈 Feedback");

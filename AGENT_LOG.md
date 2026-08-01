@@ -256,3 +256,30 @@
 - 学到的教训：
   - “真实可用”不等于做一个大 UI；先要证明 harness 能完整控制模型决策、工具执行、安全反馈和验证闭环。
   - 可用 loop 的核心证据应是能在临时项目中真实改文件并跑测试，而不是只展示模型返回文本。
+
+### 2026-08-01 - 方案 B：轻量智能 IDE 壳层 V1
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `writing-plans`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 关键上下文：
+  - 用户要求按推荐方案推进，并一次完成所有任务后再询问。
+  - 方案 B 第一版选择轻量智能 IDE 壳层，而不是直接实现完整 VS Code 替代品。
+- Agent 动作：
+  - 新增 `docs/superpowers/specs/2026-08-01-ide-shell-design.md`。
+  - 新增 `docs/superpowers/plans/2026-08-01-ide-shell-v1.md`。
+  - 将首页从简单表单升级为三栏工作台：`workspace-rail`、`task-composer`、`run-inspector`。
+  - 将运行详情页升级为 `Run Inspector`，包含 `timeline-navigator` 与 `event-detail-stack`。
+  - 保持 `/api/runs`、`/api/workspaces`、`/runs/:id` 行为不变，不暴露 workspace root 或 API key。
+- Open Design 处理：
+  - 课程推荐 Open Design 用于 UI。本轮不直接引入 Open Design runtime，选择低依赖、可测试的 server-rendered IDE 壳层。
+  - `SPEC.md` 已说明 Open Design 作为后续文件预览、diff、浏览器内编辑器和视觉系统增强的设计参考。
+- TDD 证据：
+  - 首页布局测试先因缺少 `智能 IDE 工作台`、`workspace-rail`、`task-composer`、`run-inspector` 失败，更新 `renderIndex` 后通过。
+  - 运行详情测试先因缺少 `Run Inspector`、`timeline-navigator`、`event-detail-stack` 失败，更新 `renderRun` 后通过。
+- 学到的教训：
+  - 对课程项目来说，UI 的价值是帮助评审者看清 harness 的工程链路，而不是提前堆复杂编辑器。
+  - Server-rendered UI 仍然可以做出清晰的 IDE 信息架构，并保持测试简单可靠。

@@ -11,7 +11,7 @@
 - `SPEC_PROCESS.md`：已记录 brainstorming、关键迭代和冷启动验证反馈。
 - Harness 内核：已实现 action parser、agent loop、mock provider、DeepSeek provider、workspace boundary、guardrail、tool dispatcher、feedback、SQLite event/memory store。
 - 可用代码开发链路：方案 A 已支持上下文工具协议、allowed commands、invalid_action / safety_blocked 自修正反馈、以及临时 workspace 内的 inspect -> edit -> verify -> finish 演示。
-- WebUI：已实现功能性简单模型前端，可选择预注册 workspace 与 mock/DeepSeek provider，触发真实 harness run，查看机制分区 timeline。
+- WebUI：已实现方案 B 第一版轻量智能 IDE 壳层，可选择预注册 workspace 与 mock/DeepSeek provider，触发真实 harness run，并通过 timeline navigator / event detail stack 查看机制分区 timeline。
 - CLI：已支持 demo、run、credentials status/set/clear。
 - 测试：`npm test` 可一键运行，覆盖核心机制、WebUI、DeepSeek fake fetch 与可用代码开发链路。
 - 机制演示：`npm run demo:mechanisms` 可运行 mock LLM 下的治理与反馈闭环演示。
@@ -30,12 +30,12 @@
 - CI/CD 执行记录：需要最后一次 CI/CD pass 状态截图或链接。
 - GitHub PR 工作流：课程要求完整 commit 历史与 PR 工作流；当前已有 commit 历史，但 PR 创建/合并记录需由用户在 GitHub 上确认。
 - OS keychain：当前 `CredentialManager` 使用测试用内存 adapter；DeepSeek provider 已支持环境变量读取，Windows Credential Manager 或等价安全存储仍是后续增强。
-- 方案 B / Open Design：当前 WebUI 是简单模型前端；若继续做更完整前端 / UI，应引入 Open Design，并在 `SPEC.md` 中补充设计系统与 skill。
+- 方案 B / Open Design：当前已完成轻量智能 IDE 壳层；若继续做文件预览、diff、浏览器内编辑器或更完整视觉系统，应引入 Open Design，并在 `SPEC.md` 中补充设计系统与 skill。
 
 ## 建议下一步
 
 1. 完成方案 A 验证后，经用户确认再提交本轮修改。
 2. 用户手动 push 后，在 GitHub 上确认 CI 运行状态。
-3. 若继续方案 B，先用 Open Design 做简单智能 IDE 信息架构，再实现文件树、任务输入、diff/结果和 timeline 面板。
+3. 若继续方案 B，下一步实现文件预览、diff/结果面板，并用 Open Design 补充更完整视觉系统。
 4. 完成公网 WebUI 部署与 CI pass 记录。
 5. 用户撰写 `REFLECTION.md` 初稿后，可让 AI 做润色和结构建议。

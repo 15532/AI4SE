@@ -1,6 +1,6 @@
 # SPEC：Coding Agent Harness
 
-状态：核心 harness、DeepSeek provider、简单模型前端已实现；方案 A 正在补强为可实际执行小型代码开发任务的完整逻辑链路。方案 B 是后续更 IDE 化的 WebUI 增强阶段。
+状态：核心 harness、DeepSeek provider、方案 A 可用代码开发链路与方案 B 轻量智能 IDE 壳层已实现；后续增强可继续扩展文件预览、diff 和浏览器内编辑器。
 
 ## 1. 问题陈述
 
@@ -21,9 +21,10 @@
 - 状态存储：SQLite
 - 凭据存储：优先使用操作系统钥匙串；`.env` 仅作为显式启用的开发 fallback
 - WebUI 策略：WebUI 可以触发真实 harness run，但只能针对预注册 workspace，并且必须使用与 CLI 相同的 guardrail 和 allowlist
-- 前端策略：当前 WebUI 是功能性“简单模型前端”，用于演示 harness run 与 timeline；Open Design 和更 IDE 化的界面放到核心功能完善后的增强阶段
+- 前端策略：当前 WebUI 是轻量智能 IDE 壳层，用于演示 harness run、workspace、任务编排与 timeline inspector；Open Design 作为方案 B 后续视觉系统和交互原型的设计参考
 - 方案 A 当前目标：可用 Coding Agent Loop V1，支持模型读取上下文、选择工具、修改文件、运行 allowlist 验证命令、根据反馈修正并最终 finish
-- 方案 B 后续目标：基于 Open Design 设计更像智能 IDE 的文件树、任务面板、diff/结果面板和 timeline 面板
+- 方案 B 当前目标：轻量智能 IDE 壳层，包含 workspace rail、task composer、run inspector、timeline navigator 和 event detail stack
+- 方案 B 后续目标：基于 Open Design 继续设计文件预览、diff/结果面板和浏览器内编辑器
 
 ## 3. 用户故事
 
@@ -236,7 +237,7 @@ Provider 层只执行单次 completion call，不提供 agent loop 或 tool runn
 
 ## 11. WebUI
 
-当前 v1 WebUI 是功能性“简单模型前端”，用于证明和演示 harness 机制；它不是 VS Code 替代品，也不包含完整代码编辑器、调试器、插件系统或复杂 IDE 交互。Open Design 驱动的轻量智能 IDE 界面将在核心功能稳定后作为增强阶段引入，并在届时补充具体设计系统与 skill 说明。
+当前 WebUI 是轻量智能 IDE 壳层，用于证明和演示 harness 机制；它不是 VS Code 替代品，也不包含完整代码编辑器、调试器、插件系统或复杂 IDE 交互。Open Design 已作为方案 B 的设计参考：本轮不引入 Open Design runtime，而是采用低依赖、可测试的 server-rendered 信息架构；后续若实现完整视觉系统或交互原型，再补充具体 Open Design skill 与设计系统说明。
 
 WebUI v1 能力：
 
@@ -249,6 +250,8 @@ WebUI v1 能力：
 - 展示 run timeline
 - 展示 action JSON、guardrail decision、tool result、feedback、memory event 和 stop reason
 - 在出现 pending approval 时展示该状态
+- 首页展示 workspace rail、task composer 与 run inspector 三栏工作台
+- 运行详情页展示 timeline navigator 与 event detail stack
 
 安全边界：
 
@@ -262,7 +265,7 @@ WebUI v1 能力：
 
 - 在长期公网部署前加入 `WEBUI_ADMIN_PASSWORD` 或反向代理认证。
 - 增加更友好的凭据状态提示。
-- 在功能稳定后使用 Open Design 设计更 IDE 化的文件树、任务面板、timeline 面板、反馈详情和审批状态界面。
+- 在功能稳定后使用 Open Design 继续设计文件预览、diff/结果面板、浏览器内编辑器和审批状态界面。
 
 ## 12. 凭据与威胁模型
 
@@ -373,7 +376,7 @@ npm run demo:coding-task
 - Vitest 或等价工具：确定性单元测试
 - SQLite：本地持久化 run history、memory 和 WebUI timeline
 - OpenAI-compatible API：当前用于 DeepSeek provider；mock provider 保证离线确定性测试
-- Open Design：当前阶段暂不引入；涉及更完整前端 / UI 增强时再选择设计系统并补充 SPEC
+- Open Design：当前作为方案 B 的设计参考，不直接引入 runtime；涉及更完整前端 / UI 增强时再选择设计系统并补充 SPEC
 - Docker 和 Docker Compose：可复现分发与云服务器部署
 - GitHub Actions + `.gitlab-ci.yml`：兼顾用户偏好和课程 checklist
 
@@ -388,6 +391,8 @@ npm run demo:coding-task
 - CLI 能管理 credential status/set/clear 且不打印 secret。
 - WebUI 只能对预注册 workspace 触发 run。
 - WebUI 展示 action、guardrail、feedback 和 stop reason timeline。
+- WebUI 首页展示轻量智能 IDE 壳层，至少包含 workspace rail、task composer 和 run inspector。
+- WebUI 运行详情页展示 timeline navigator 与 event detail stack。
 - `npm run demo:coding-task` 能在临时 workspace 中完成读文件、写修复、运行测试并 finish。
 - Docker 部署说明能在新服务器上启动 WebUI。
 - CI 通过，且 job 名为 `unit-test`；`.gitlab-ci.yml` 也包含 `unit-test`。
@@ -399,5 +404,5 @@ npm run demo:coding-task
 - 根据用户决定，v1 WebUI 不设置 password；公网 real-run 部署是已知风险，应视为受信任网络或短期演示环境。
 - OS keychain 在 Windows、Linux、Docker 中行为不同；测试必须使用 fake keychain adapter。
 - test/lint/typecheck failure output parsing 首版应保持简单、确定。
-- 当前 WebUI 只是简单模型前端，适合演示 harness 机制；若要升级为更像智能 IDE 的工具，需要单独设计 Open Design 前端阶段。
+- 当前 WebUI 是轻量智能 IDE 壳层，适合演示 harness 机制；若要升级为完整智能 IDE，还需要继续实现文件预览、diff、编辑器和更完整的 Open Design 视觉系统。
 - DeepSeek provider 已可接入真实模型，但真实 API key 仍依赖环境变量；OS keychain 持久化留作后续增强。
