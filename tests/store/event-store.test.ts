@@ -97,4 +97,33 @@ describe("EventStore", () => {
     expect(eventsJson).not.toContain("also-secret");
     expect(eventsJson).not.toContain("third-secret");
   });
+
+  it("lists recent runs for a workspace newest first", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const first = store.createRun({ task: "first task", workspaceId: "demo", mode: "default" });
+    const second = store.createRun({ task: "second task", workspaceId: "demo", mode: "default" });
+    store.createRun({ task: "other workspace", workspaceId: "docs", mode: "default" });
+
+    expect(store.listRecentRuns("demo", 5).map((run) => run.id)).toEqual([second, first]);
+    expect(store.listRecentRuns("demo", 1)).toEqual([
+      expect.objectContaining({ id: second, task: "second task", workspaceId: "demo" })
+    ]);
+  });
+
+  it("summarizes run status and finish summary from stored events", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const runId = store.createRun({ task: "fix tests", workspaceId: "demo", mode: "default" });
+
+    store.appendEvent(runId, "stop", { kind: "stop", reason: "finish", summary: "fixed and verified" });
+
+    expect(store.summarizeRun(runId)).toEqual({
+      id: runId,
+      task: "fix tests",
+      workspaceId: "demo",
+      status: "finished",
+      summary: "fixed and verified"
+    });
+  });
 });

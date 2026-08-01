@@ -283,3 +283,30 @@
 - 学到的教训：
   - 对课程项目来说，UI 的价值是帮助评审者看清 harness 的工程链路，而不是提前堆复杂编辑器。
   - Server-rendered UI 仍然可以做出清晰的 IDE 信息架构，并保持测试简单可靠。
+
+### 2026-08-01 - Workspace Session V1：上下文记忆与代码查看
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `writing-plans`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 关键上下文：
+  - 用户指出系统仍像一次性任务，希望更接近 Codex，具备工作区上下文记忆和代码查看。
+  - 讨论后确定路线：先做 Workspace Session V1 + Code Viewer，再继续 Diff Inspector V1。
+- Agent 动作：
+  - 新增 `docs/superpowers/specs/2026-08-01-workspace-session-v1-design.md`。
+  - 新增 `docs/superpowers/plans/2026-08-01-workspace-session-v1.md`。
+  - 新增 `src/runtime/workspace-explorer.ts`，提供只读文件列表和文本文件读取。
+  - 扩展 `EventStore`，支持 `listRecentRuns` 与 `summarizeRun`。
+  - 扩展 `buildContext` 和 `runAgentLoop`，让后续 run 继承同 workspace 最近 run 摘要。
+  - 扩展 WebUI，新增 code viewer、memory panel、recent runs，并提供只读文件 API。
+- TDD 证据：
+  - workspace explorer 测试先因模块缺失失败，实现后通过。
+  - EventStore recent run 测试先因方法缺失失败，实现后通过；同秒创建排序问题通过 `rowid DESC` 修复。
+  - context/loop recent runs 测试先因缺少 `Recent runs` 失败，实现后通过。
+  - WebUI 文件 API 与 session panel 测试先因 404/缺少 panel 失败，实现后通过。
+- 学到的教训：
+  - 接近 Codex 的关键不是一次 run 更强，而是 workspace 级连续上下文、可见代码和可解释历史。
+  - 文件查看必须是只读能力，并继续沿用 workspace boundary，不能为了 UI 便利绕过 harness 安全模型。

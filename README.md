@@ -14,7 +14,7 @@
 
 ## 当前前端定位
 
-当前 WebUI 已从功能性“简单模型前端”升级为方案 B 第一版轻量智能 IDE 壳层：左侧是 workspace rail，中间是任务编排区，右侧是 Run Inspector。运行详情页提供 timeline navigator 与 event detail stack，用于查看 action / guardrail / tool result / feedback / stop reason。
+当前 WebUI 已从功能性“简单模型前端”升级为方案 B 第一版轻量智能 IDE 壳层：左侧是 workspace rail，中间是任务编排区，右侧是 Run Inspector。运行详情页提供 timeline navigator 与 event detail stack，用于查看 action / guardrail / tool result / feedback / stop reason。Workspace Session V1 还加入了只读代码查看入口、workspace memory 面板和 recent runs 面板，让后续任务能继承同一工作区的上下文。
 
 它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 已作为方案 B 的设计参考写入 SPEC；本轮选择低依赖、可测试的 server-rendered IDE 壳层，后续若继续增强视觉系统或交互原型，再正式引入 Open Design 生成/审查设计系统。
 
@@ -225,6 +225,15 @@ node dist/src/web/server.js
 ```
 
 WebUI 首页是三栏智能 IDE 工作台：左侧列出已注册 workspace 与可用命令，中间选择 workspace/provider 并提交任务，右侧展示 Run Inspector 的机制摘要。选择 `mock` 不需要 key；选择 `deepseek` 前必须配置 `DEEPSEEK_API_KEY`。提交任务后会创建 harness run，并跳转到 `/runs/:id` 查看 timeline navigator 与事件详情。
+
+Workspace Session V1 提供只读文件 API：
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/files"
+Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/files/README.md"
+```
+
+这些 API 只能访问预注册 workspace 内的相对路径，且不会提供文件写入能力。
 
 ## API 调试
 

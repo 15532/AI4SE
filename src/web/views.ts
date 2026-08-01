@@ -2,6 +2,8 @@ export type PublicWorkspace = {
   id: string;
   name: string;
   allowedCommands: string[];
+  memories?: Array<{ key: string; value: string }>;
+  recentRuns?: Array<{ task: string; status: string; summary?: string }>;
 };
 export type PublicProvider = { id: string };
 
@@ -68,8 +70,12 @@ const baseStyles = `
       .event-nav a { display: grid; grid-template-columns: 34px 1fr; gap: 8px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); text-decoration: none; background: var(--soft); }
       .event-nav span { color: var(--muted); font-family: Consolas, monospace; font-size: 12px; }
       .event-detail-stack { margin: 0; }
+      .session-panels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+      .code-viewer, .memory-panel, .recent-runs { display: grid; gap: 10px; }
+      .file-link-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+      .file-link-list code { font-size: 12px; color: var(--blue); }
       @media (max-width: 1060px) { .ide-shell { grid-template-columns: 1fr 1fr; } .run-inspector { grid-column: 1 / -1; } .run-meta { grid-template-columns: 1fr 1fr; } }
-      @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } }
+      @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta, .session-panels { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } }
 `;
 
 function eventLabel(kind: string): string {
@@ -101,6 +107,16 @@ export function renderIndex(workspaces: PublicWorkspace[], providers: PublicProv
           <p class="muted">可用命令</p>
           <ul class="commands">${workspace.allowedCommands.map((command) => `<li><code>${escapeHtml(command)}</code></li>`).join("")}</ul>
         </article>`).join("");
+  const firstWorkspace = workspaces[0];
+  const fileLinks = firstWorkspace === undefined
+    ? ""
+    : `<li><code>GET /api/workspaces/${escapeHtml(firstWorkspace.id)}/files</code></li>`;
+  const memoryItems = workspaces.flatMap((workspace) =>
+    (workspace.memories ?? []).map((memory) => `<li><strong>${escapeHtml(workspace.id)}</strong> ${escapeHtml(memory.key)}: ${escapeHtml(memory.value)}</li>`)
+  ).join("");
+  const recentRunItems = workspaces.flatMap((workspace) =>
+    (workspace.recentRuns ?? []).map((run) => `<li><strong>${escapeHtml(run.status)}</strong> ${escapeHtml(run.task)}${run.summary === undefined ? "" : ` - ${escapeHtml(run.summary)}`}</li>`)
+  ).join("");
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -150,6 +166,21 @@ export function renderIndex(workspaces: PublicWorkspace[], providers: PublicProv
             <li><strong>Guardrail</strong><span>path boundary 与 command allowlist</span></li>
             <li><strong>Timeline</strong><span>模型响应、工具结果、反馈、停止原因</span></li>
           </ul>
+        </aside>
+      </section>
+      <section class="session-panels">
+        <aside class="panel code-viewer">
+          <h2>Code Viewer</h2>
+          <p class="muted">只读文件查看入口，路径仍受 workspace boundary 约束。</p>
+          <ul class="file-link-list">${fileLinks}</ul>
+        </aside>
+        <aside class="panel memory-panel">
+          <h2>Workspace Memory</h2>
+          <ul class="signal-list">${memoryItems || "<li><strong>None</strong><span>还没有记录 workspace memory</span></li>"}</ul>
+        </aside>
+        <aside class="panel recent-runs">
+          <h2>Recent Runs</h2>
+          <ul class="signal-list">${recentRunItems || "<li><strong>None</strong><span>还没有历史 run</span></li>"}</ul>
         </aside>
       </section>
     </main>

@@ -213,6 +213,9 @@ workspaces:
     expect(response.body).toContain("workspace-rail");
     expect(response.body).toContain("task-composer");
     expect(response.body).toContain("run-inspector");
+    expect(response.body).toContain("code-viewer");
+    expect(response.body).toContain("memory-panel");
+    expect(response.body).toContain("recent-runs");
     expect(response.body).toContain("可用命令");
     expect(response.body).toContain("demo-ts");
     expect(response.body).toContain("docs");
@@ -222,6 +225,45 @@ workspaces:
     expect(response.body).toContain('<option value="mock">mock</option>');
     expect(response.body).toContain("<form");
     expect(response.body).not.toContain("registered-docs");
+  });
+
+  it("lists files for a registered workspace without exposing its root", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-files-"));
+    await writeFile(join(dir, "README.md"), "# Demo\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }]
+    });
+
+    const response = await app.inject({ method: "GET", url: "/api/workspaces/demo/files" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([{ path: "README.md", kind: "file" }]);
+    expect(response.body).not.toContain(dir);
+  });
+
+  it("reads a file for a registered workspace", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-files-"));
+    await writeFile(join(dir, "README.md"), "# Demo\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }]
+    });
+
+    const response = await app.inject({ method: "GET", url: "/api/workspaces/demo/files/README.md" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ path: "README.md", content: "# Demo\n" });
+  });
+
+  it("rejects file preview paths that escape the workspace", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-files-"));
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }]
+    });
+
+    const response = await app.inject({ method: "GET", url: "/api/workspaces/demo/files/..%2Foutside.txt" });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Path escapes workspace root" });
   });
 
   it("renders all configured providers as selectable options", async () => {

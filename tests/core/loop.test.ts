@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runAgentLoop } from "../../src/core/loop";
 import { MockLLMProvider, type LLMProvider } from "../../src/core/providers";
+import { EventStore } from "../../src/store/event-store";
 
 describe("runAgentLoop", () => {
   it("stops when mock LLM returns finish", async () => {
@@ -86,6 +87,38 @@ describe("runAgentLoop", () => {
 
     expect(inputs).toHaveLength(2);
     expect(inputs[1].context).toContain("useful tool output");
+  });
+
+  it("includes recent run summaries from the same workspace in provider context", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-loop-store-"));
+    const eventStore = new EventStore(join(dir, "harness.sqlite"));
+    const workspace = { id: "demo", name: "Demo", root: process.cwd(), allowedCommands: [] };
+
+    await runAgentLoop({
+      task: "first task",
+      workspace,
+      provider: new MockLLMProvider([JSON.stringify({ type: "finish", summary: "first summary" })]),
+      maxIterations: 1,
+      eventStore
+    });
+
+    const inputs: Array<{ task: string; context: string }> = [];
+    await runAgentLoop({
+      task: "second task",
+      workspace,
+      provider: {
+        async complete(input) {
+          inputs.push(input);
+          return JSON.stringify({ type: "finish", summary: "second summary" });
+        }
+      },
+      maxIterations: 1,
+      eventStore
+    });
+
+    expect(inputs[0].context).toContain("Recent runs");
+    expect(inputs[0].context).toContain("first task");
+    expect(inputs[0].context).toContain("first summary");
   });
 
   it("blocks invalid JSON and records invalid_action feedback", async () => {

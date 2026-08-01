@@ -1,6 +1,6 @@
 # SPEC：Coding Agent Harness
 
-状态：核心 harness、DeepSeek provider、方案 A 可用代码开发链路与方案 B 轻量智能 IDE 壳层已实现；后续增强可继续扩展文件预览、diff 和浏览器内编辑器。
+状态：核心 harness、DeepSeek provider、方案 A 可用代码开发链路、方案 B 轻量智能 IDE 壳层与 Workspace Session V1 已实现；后续增强可继续扩展 diff inspector、浏览器内编辑器和审批流。
 
 ## 1. 问题陈述
 
@@ -24,7 +24,8 @@
 - 前端策略：当前 WebUI 是轻量智能 IDE 壳层，用于演示 harness run、workspace、任务编排与 timeline inspector；Open Design 作为方案 B 后续视觉系统和交互原型的设计参考
 - 方案 A 当前目标：可用 Coding Agent Loop V1，支持模型读取上下文、选择工具、修改文件、运行 allowlist 验证命令、根据反馈修正并最终 finish
 - 方案 B 当前目标：轻量智能 IDE 壳层，包含 workspace rail、task composer、run inspector、timeline navigator 和 event detail stack
-- 方案 B 后续目标：基于 Open Design 继续设计文件预览、diff/结果面板和浏览器内编辑器
+- Workspace Session V1：包含只读文件列表/文件内容 API、workspace memory 面板、recent runs 面板，以及后续 run 对同 workspace 历史摘要的 context 继承
+- 方案 B 后续目标：基于 Open Design 继续设计 diff/结果面板、浏览器内编辑器和审批流
 
 ## 3. 用户故事
 
@@ -252,6 +253,8 @@ WebUI v1 能力：
 - 在出现 pending approval 时展示该状态
 - 首页展示 workspace rail、task composer 与 run inspector 三栏工作台
 - 运行详情页展示 timeline navigator 与 event detail stack
+- 首页展示只读 code viewer 入口、workspace memory 与 recent runs
+- 文件查看 API 只能读取预注册 workspace 内文件，不能写文件
 
 安全边界：
 
@@ -393,6 +396,8 @@ npm run demo:coding-task
 - WebUI 展示 action、guardrail、feedback 和 stop reason timeline。
 - WebUI 首页展示轻量智能 IDE 壳层，至少包含 workspace rail、task composer 和 run inspector。
 - WebUI 运行详情页展示 timeline navigator 与 event detail stack。
+- WebUI 提供只读代码查看 API，路径逃逸会返回错误。
+- 后续 run 的 provider context 包含同 workspace 的 memory 与最近 run 摘要。
 - `npm run demo:coding-task` 能在临时 workspace 中完成读文件、写修复、运行测试并 finish。
 - Docker 部署说明能在新服务器上启动 WebUI。
 - CI 通过，且 job 名为 `unit-test`；`.gitlab-ci.yml` 也包含 `unit-test`。
@@ -404,5 +409,5 @@ npm run demo:coding-task
 - 根据用户决定，v1 WebUI 不设置 password；公网 real-run 部署是已知风险，应视为受信任网络或短期演示环境。
 - OS keychain 在 Windows、Linux、Docker 中行为不同；测试必须使用 fake keychain adapter。
 - test/lint/typecheck failure output parsing 首版应保持简单、确定。
-- 当前 WebUI 是轻量智能 IDE 壳层，适合演示 harness 机制；若要升级为完整智能 IDE，还需要继续实现文件预览、diff、编辑器和更完整的 Open Design 视觉系统。
+- 当前 WebUI 是轻量智能 IDE 壳层，适合演示 harness 机制；若要升级为完整智能 IDE，还需要继续实现 diff、编辑器、审批流和更完整的 Open Design 视觉系统。
 - DeepSeek provider 已可接入真实模型，但真实 API key 仍依赖环境变量；OS keychain 持久化留作后续增强。

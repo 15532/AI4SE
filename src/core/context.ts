@@ -4,6 +4,7 @@ export function buildContext(input: {
   task: string;
   feedback: Feedback[];
   memories: string[];
+  recentRuns?: string[];
   workspace?: { id: string; name: string };
   allowedCommands?: string[];
 }): string {
@@ -13,6 +14,9 @@ export function buildContext(input: {
   const memoriesSection = input.memories.length === 0
     ? "None"
     : input.memories.map((memory, index) => `${index + 1}. ${memory}`).join("\n");
+  const recentRunsSection = input.recentRuns === undefined || input.recentRuns.length === 0
+    ? "None"
+    : input.recentRuns.map((run, index) => `${index + 1}. ${run}`).join("\n");
   const commandsSection = input.allowedCommands === undefined || input.allowedCommands.length === 0
     ? "No shell commands are allowed in this workspace."
     : input.allowedCommands.map((command) => `- ${command}`).join("\n");
@@ -40,6 +44,9 @@ export function buildContext(input: {
     "",
     "# Memories",
     memoriesSection,
+    "",
+    "# Recent runs",
+    recentRunsSection,
     "",
     "# Recent feedback",
     feedbackSection,

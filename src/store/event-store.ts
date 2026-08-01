@@ -13,6 +13,14 @@ export type StoredRun = {
   mode: string;
   createdAt: string;
 };
+export type RecentRun = StoredRun;
+export type RunSummary = {
+  id: string;
+  task: string;
+  workspaceId: string;
+  status: string;
+  summary?: string;
+};
 
 export class EventStore {
   private readonly db: Database.Database;
@@ -52,6 +60,30 @@ export class EventStore {
     };
   }
 
+  listRecentRuns(workspaceId: string, limit: number): RecentRun[] {
+    const rows = this.db.prepare(`
+      SELECT id, task, workspace_id, mode, created_at
+      FROM runs
+      WHERE workspace_id = ?
+      ORDER BY rowid DESC
+      LIMIT ?
+    `).all(workspaceId, limit) as Array<{
+      id: string;
+      task: string;
+      workspace_id: string;
+      mode: string;
+      created_at: string;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      task: row.task,
+      workspaceId: row.workspace_id,
+      mode: row.mode,
+      createdAt: row.created_at
+    }));
+  }
+
   appendEvent(runId: string, kind: string, payload: Record<string, unknown>): void {
     const append = this.db.transaction(() => {
       const row = this.db.prepare("SELECT COALESCE(MAX(sequence), 0) AS sequence FROM events WHERE run_id = ?")
@@ -68,5 +100,29 @@ export class EventStore {
     ).all(runId) as Array<{ sequence: number; kind: string; payload_json: string }>;
 
     return rows.map((row) => ({ sequence: row.sequence, kind: row.kind, payload: JSON.parse(row.payload_json) }));
+  }
+
+  summarizeRun(runId: string): RunSummary | undefined {
+    const run = this.getRun(runId);
+    if (run === undefined) return undefined;
+
+    const stop = [...this.listEvents(runId)].reverse().find((event) => event.kind === "stop");
+    const reason = typeof stop?.payload.reason === "string" ? stop.payload.reason : undefined;
+    const summary = typeof stop?.payload.summary === "string" ? stop.payload.summary : undefined;
+    const status = reason === "finish"
+      ? "finished"
+      : reason === "max_iterations"
+        ? "max_iterations"
+        : reason === undefined
+          ? "unknown"
+          : "blocked";
+
+    return {
+      id: run.id,
+      task: run.task,
+      workspaceId: run.workspaceId,
+      status,
+      ...(summary === undefined ? {} : { summary })
+    };
   }
 }

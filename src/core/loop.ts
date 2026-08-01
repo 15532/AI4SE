@@ -62,6 +62,17 @@ export async function runAgentLoop(input: {
     workspaceId: input.workspace.id,
     mode: input.mode ?? "default"
   });
+  const recentRuns = input.eventStore === undefined
+    ? []
+    : input.eventStore.listRecentRuns(input.workspace.id, 6)
+      .filter((run) => run.id !== runId)
+      .slice(0, 5)
+      .map((run) => {
+        const summary = input.eventStore?.summarizeRun(run.id);
+        const status = summary?.status ?? "unknown";
+        const suffix = summary?.summary === undefined ? "" : ` - ${summary.summary}`;
+        return `${status}: ${run.task}${suffix}`;
+      });
 
   const record = (event: AgentEvent): void => {
     events.push(event);
@@ -76,6 +87,7 @@ export async function runAgentLoop(input: {
       task: input.task,
       feedback,
       memories,
+      recentRuns,
       workspace: { id: input.workspace.id, name: input.workspace.name },
       allowedCommands: input.workspace.allowedCommands
     });

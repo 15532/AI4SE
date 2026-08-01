@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { HarnessRegistry, loadHarnessRegistry } from "../config/harness-config.js";
 import { runAgentLoop } from "../core/loop.js";
 import { createProvider, type LLMProvider } from "../core/providers.js";
+import { listWorkspaceFiles, readWorkspaceTextFile } from "../runtime/workspace-explorer.js";
 import type { WorkspaceConfig } from "../runtime/workspace.js";
 import { EventStore } from "../store/event-store.js";
 import { MemoryStore } from "../store/memory-store.js";
@@ -37,11 +38,26 @@ function redactValue(value: unknown): unknown {
   return value;
 }
 
-function publicWorkspace(workspace: WorkspaceConfig): PublicWorkspace {
+function publicWorkspace(
+  workspace: WorkspaceConfig,
+  memoryStore?: MemoryStore,
+  eventStore?: EventStore
+): PublicWorkspace {
+  const memories = memoryStore?.recall({ workspaceId: workspace.id, scope: "workspace", limit: 5 }) ?? [];
+  const recentRuns = eventStore?.listRecentRuns(workspace.id, 5)
+    .map((run) => eventStore.summarizeRun(run.id))
+    .filter((summary): summary is NonNullable<typeof summary> => summary !== undefined)
+    .map((summary) => ({
+      task: summary.task,
+      status: summary.status,
+      ...(summary.summary === undefined ? {} : { summary: summary.summary })
+    })) ?? [];
   return redactValue({
     id: workspace.id,
     name: workspace.name,
-    allowedCommands: workspace.allowedCommands
+    allowedCommands: workspace.allowedCommands,
+    ...(memories.length === 0 ? {} : { memories }),
+    ...(recentRuns.length === 0 ? {} : { recentRuns })
   }) as PublicWorkspace;
 }
 
@@ -93,8 +109,8 @@ export function createServer(input: {
   });
   const eventStore = new EventStore(input.dbPath ?? ":memory:");
   const memoryStore = new MemoryStore(input.dbPath ?? ":memory:");
-  const workspaces = registry.listWorkspaces().map(publicWorkspace);
   const providers: PublicProvider[] = registry.listProviders().map((provider) => ({ id: provider.id }));
+  const publicWorkspaces = () => registry.listWorkspaces().map((workspace) => publicWorkspace(workspace, memoryStore, eventStore));
 
   const storedRun = (id: string) => {
     const run = eventStore.getRun(id);
@@ -117,10 +133,30 @@ export function createServer(input: {
   ): Promise<InjectResponse> => {
     const url = new URL(requestUrl, "http://localhost");
     if (method === "GET" && url.pathname === "/") {
-      return response(200, renderIndex(workspaces, providers), "text/html; charset=utf-8");
+      return response(200, renderIndex(publicWorkspaces(), providers), "text/html; charset=utf-8");
     }
     if (method === "GET" && url.pathname === "/api/workspaces") {
-      return response(200, workspaces);
+      return response(200, publicWorkspaces());
+    }
+    const filesPrefix = "/api/workspaces/";
+    if (method === "GET" && url.pathname.startsWith(filesPrefix) && url.pathname.endsWith("/files")) {
+      const workspaceId = decodeURIComponent(url.pathname.slice(filesPrefix.length, -"/files".length));
+      const workspace = registry.getWorkspace(workspaceId);
+      return workspace === undefined
+        ? response(404, { error: "Unknown workspace id" })
+        : response(200, await listWorkspaceFiles(workspace));
+    }
+    if (method === "GET" && url.pathname.startsWith(filesPrefix) && url.pathname.includes("/files/")) {
+      const remainder = url.pathname.slice(filesPrefix.length);
+      const separator = remainder.indexOf("/files/");
+      const workspaceId = decodeURIComponent(remainder.slice(0, separator));
+      const filePath = decodeURIComponent(remainder.slice(separator + "/files/".length));
+      const workspace = registry.getWorkspace(workspaceId);
+      if (workspace === undefined) return response(404, { error: "Unknown workspace id" });
+      const result = await readWorkspaceTextFile(workspace, filePath);
+      return result.ok
+        ? response(200, { path: result.path, content: result.content })
+        : response(400, { error: result.error });
     }
     if (method === "POST" && url.pathname === "/api/runs") {
       if (!isRunRequest(payload)) return response(400, { error: "Invalid run request" });

@@ -12,6 +12,7 @@ describe("buildContext", () => {
         payload: { stderr: "expected 3 got 2" }
       }],
       memories: ["project.testCommand: npm test"],
+      recentRuns: ["finished: fixed add function - verified with npm test"],
       workspace: { id: "demo-ts", name: "Demo TS" },
       allowedCommands: ["npm test", "npm run build"]
     });
@@ -29,6 +30,8 @@ describe("buildContext", () => {
     expect(context).toContain("npm test");
     expect(context).toContain("Recent feedback");
     expect(context).toContain("test_failed");
+    expect(context).toContain("Recent runs");
+    expect(context).toContain("fixed add function");
     expect(context).toContain("Do not finish before");
   });
 });
