@@ -1,4 +1,4 @@
-import type { KeychainAdapter } from "./keychain-adapter";
+import type { KeychainAdapter } from "./keychain-adapter.js";
 
 const SERVICE = "coding-agent-harness";
 

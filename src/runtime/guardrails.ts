@@ -1,5 +1,5 @@
-import type { Action } from "../core/actions";
-import { resolveWorkspacePath, type WorkspaceConfig } from "./workspace";
+import type { Action } from "../core/actions.js";
+import { resolveWorkspacePath, type WorkspaceConfig } from "./workspace.js";
 
 export type GuardrailDecision =
   | { decision: "allow" }

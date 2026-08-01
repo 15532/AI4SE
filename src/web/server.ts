@@ -2,10 +2,10 @@ import { createServer as createHttpServer, type IncomingMessage, type ServerResp
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { runAgentLoop } from "../core/loop";
-import { MockLLMProvider, type LLMProvider } from "../core/providers";
-import type { WorkspaceConfig } from "../runtime/workspace";
-import { renderIndex, type PublicWorkspace } from "./views";
+import { runAgentLoop } from "../core/loop.js";
+import { MockLLMProvider, type LLMProvider } from "../core/providers.js";
+import type { WorkspaceConfig } from "../runtime/workspace.js";
+import { renderIndex, type PublicWorkspace } from "./views.js";
 
 type InjectInput = {
   method: string;

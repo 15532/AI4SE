@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { schemaSql } from "./schema";
+import { schemaSql } from "./schema.js";
 
 type Memory = { key: string; value: string };
 const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;

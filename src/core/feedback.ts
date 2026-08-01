@@ -12,8 +12,8 @@ export type Feedback = {
   payload?: Record<string, unknown>;
 };
 
-import type { GuardrailDecision } from "../runtime/guardrails";
-import type { ToolResult } from "../runtime/tools";
+import type { GuardrailDecision } from "../runtime/guardrails.js";
+import type { ToolResult } from "../runtime/tools.js";
 
 const testFailurePattern = /\b(?:\d+\s+(?:failed|failing)|tests?\s+failed|test\s+failure|vitest|jest)\b/i;
 const staticCheckFailurePattern = /\b(?:TS\d{4}|eslint|typecheck|lint|static\s+check)\b/i;

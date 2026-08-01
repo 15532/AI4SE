@@ -1,12 +1,12 @@
-import { parseAction } from "./actions";
-import { buildContext } from "./context";
-import { feedbackFromCommandResult, feedbackFromGuardrail, type Feedback } from "./feedback";
-import type { LLMProvider } from "./providers";
-import { classifyAction } from "../runtime/guardrails";
-import { dispatchTool } from "../runtime/tools";
-import type { WorkspaceConfig } from "../runtime/workspace";
-import type { EventStore } from "../store/event-store";
-import type { MemoryStore } from "../store/memory-store";
+import { parseAction } from "./actions.js";
+import { buildContext } from "./context.js";
+import { feedbackFromCommandResult, feedbackFromGuardrail, type Feedback } from "./feedback.js";
+import type { LLMProvider } from "./providers.js";
+import { classifyAction } from "../runtime/guardrails.js";
+import { dispatchTool } from "../runtime/tools.js";
+import type { WorkspaceConfig } from "../runtime/workspace.js";
+import type { EventStore } from "../store/event-store.js";
+import type { MemoryStore } from "../store/memory-store.js";
 
 type AgentStatus = "finished" | "blocked" | "max_iterations";
 type AgentEvent = Record<string, unknown>;

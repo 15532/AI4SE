@@ -2,8 +2,8 @@ import { exec } from "node:child_process";
 import { mkdir, readdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Action } from "../core/actions";
-import { resolveWorkspacePath, type WorkspaceConfig } from "./workspace";
+import type { Action } from "../core/actions.js";
+import { resolveWorkspacePath, type WorkspaceConfig } from "./workspace.js";
 
 const execCommand = promisify(exec);
 

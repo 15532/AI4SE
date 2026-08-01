@@ -2,8 +2,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { runAgentLoop } from "../core/loop";
-import { MockLLMProvider } from "../core/providers";
+import { runAgentLoop } from "../core/loop.js";
+import { MockLLMProvider } from "../core/providers.js";
 
 type DemoEvent = Record<string, unknown>;
 

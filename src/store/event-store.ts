@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
-import { schemaSql } from "./schema";
+import { schemaSql } from "./schema.js";
 
 type Event = { sequence: number; kind: string; payload: Record<string, unknown> };
 const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;

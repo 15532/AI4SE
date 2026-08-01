@@ -16,16 +16,16 @@ npm ci
 npm test
 npm run demo:mechanisms
 npm run build
-npx tsx src/cli/main.ts demo
+node dist/src/cli/main.js demo
 ```
 
-`npm run build` 是 TypeScript 类型检查与构建验证入口。当前 ESM 源码使用 Bundler 解析约定，因此运行 CLI 或 WebUI 时使用项目提供的 `tsx` 入口。
+`npm run build` 是 TypeScript 类型检查与构建验证入口；构建完成后可用标准 Node 运行生成的 CLI。
 
 启动 WebUI：
 
 ```bash
 npm run build
-npx tsx src/web/server.ts
+node dist/src/web/server.js
 ```
 
 WebUI 默认监听 `0.0.0.0:3000`；可用 `PORT` 修改端口。它只预注册 `demo-ts` workspace，其根目录由部署时的 `HARNESS_WORKSPACE_ROOT` 或进程当前目录决定。页面和 API 不接受任意服务器路径，real-run 也只能选择该预注册 workspace id。

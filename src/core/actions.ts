@@ -1,4 +1,4 @@
-import type { Feedback } from "./feedback";
+import type { Feedback } from "./feedback.js";
 
 export type Action =
   | { type: "read_file"; path: string; reason: string }

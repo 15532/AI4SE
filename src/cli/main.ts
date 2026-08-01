@@ -1,9 +1,9 @@
 import { Command } from "commander";
-import { CredentialManager } from "../credentials/credential-manager";
-import { InMemoryKeychainAdapter } from "../credentials/keychain-adapter";
-import { runMechanismDemo } from "../demo/mechanisms";
-import { runAgentLoop } from "../core/loop";
-import { MockLLMProvider } from "../core/providers";
+import { CredentialManager } from "../credentials/credential-manager.js";
+import { InMemoryKeychainAdapter } from "../credentials/keychain-adapter.js";
+import { runMechanismDemo } from "../demo/mechanisms.js";
+import { runAgentLoop } from "../core/loop.js";
+import { MockLLMProvider } from "../core/providers.js";
 
 type Output = { write(chunk: string): unknown };
 type CliOptions = {

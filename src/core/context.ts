@@ -1,4 +1,4 @@
-import type { Feedback } from "./feedback";
+import type { Feedback } from "./feedback.js";
 
 export function buildContext(input: {
   task: string;
