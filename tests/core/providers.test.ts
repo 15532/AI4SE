@@ -80,4 +80,29 @@ describe("OpenAICompatibleProvider", () => {
     expect(messages[0].content).toContain('{"type":"finish","summary":"DeepSeek connected"}');
     expect(messages[0].content).toContain('Do not use "action" as a field name');
   });
+
+  it("instructs real models to behave like a coding agent instead of a chat bot", async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    const fetchImpl = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      requestBody = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "{\"type\":\"finish\",\"summary\":\"done\"}" } }]
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const provider = new OpenAICompatibleProvider({
+      id: "deepseek",
+      baseUrl: "https://api.deepseek.com",
+      model: "deepseek-v4-flash",
+      apiKey: "ds-test-key",
+      fetchImpl
+    });
+
+    await provider.complete({ task: "fix failing tests", context: "context" });
+
+    const messages = requestBody?.messages as Array<{ role: string; content: string }>;
+    expect(messages[0].content).toContain("inspect the workspace before editing");
+    expect(messages[0].content).toContain("after writing code, run an allowed verification command");
+    expect(messages[0].content).toContain("if feedback reports invalid_action, return a corrected JSON action");
+    expect(messages[0].content).toContain("do not finish just because the user greeted you");
+  });
 });

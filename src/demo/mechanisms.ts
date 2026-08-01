@@ -60,8 +60,7 @@ export async function runMechanismDemo(): Promise<{
           return JSON.stringify({ type: "run_command", command: "npm test", reason: "run tests" });
         }
         if (providerCall === 2) {
-          const context = JSON.parse(input.context) as { feedback?: Array<{ source?: string }> };
-          correctionContextObserved = context.feedback?.some((item) => item.source === "test_failed") ?? false;
+          correctionContextObserved = input.context.includes("test_failed");
           return correctionContextObserved
             ? JSON.stringify({ type: "write_file", path: "fixed.txt", content: "fixed", reason: "apply correction from test feedback" })
             : JSON.stringify({ type: "finish", summary: "No test failure feedback was available" });

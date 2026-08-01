@@ -1,13 +1,13 @@
 # Coding Agent Harness
 
-这是 AI4SE Project A 的 TypeScript coding-agent harness。项目提供一个带安全边界的代理运行环境：CLI 和 WebUI 都可以触发真实 harness run，代理循环默认使用 mock provider，文件操作受 workspace path boundary 约束，shell 命令受 allowlist 与 guardrail 约束，运行过程会写入 SQLite timeline 和 memory。
+这是 AI4SE Project A 的 TypeScript coding-agent harness。项目提供一个带安全边界的代理运行环境：CLI 和 WebUI 都可以触发真实 harness run，代理循环可通过 mock 或 DeepSeek provider 决策，文件操作受 workspace path boundary 约束，shell 命令受 allowlist 与 guardrail 约束，运行过程会写入 SQLite timeline 和 memory。当前方案 A 已补强为可用代码开发链路：agent 会拿到工具协议、工作区、允许命令和反馈，按“查看 -> 修改 -> 验证 -> 完成”的路径执行小型代码任务。
 
 ## 功能概览
 
-- Action 协议与解析器：支持 `read_file`、`write_file`、`run_shell`、`finish` 等结构化动作。
+- Action 协议与解析器：支持 `list_files`、`read_file`、`write_file`、`run_command`、`remember`、`finish` 等结构化动作。
 - Workspace 注册与边界控制：只能访问配置中注册的 workspace，阻止路径逃逸和符号链接逃逸。
 - 受限工具分发器：文件工具和 shell 工具统一经过 allowlist、路径归一化和敏感信息脱敏。
-- Agent 主循环：provider 输出 Action，harness 执行动作并回灌观察结果，直到 `finish` 或达到最大迭代次数。
+- Agent 主循环：provider 输出 Action，harness 执行动作并回灌观察结果；`invalid_action` 和被护栏拦截的动作会作为反馈进入下一轮，直到 `finish` 或达到最大迭代次数。
 - 事件与记忆存储：run、event、timeline、memory 持久化到 SQLite。
 - CLI 与 WebUI：命令行和浏览器都能创建 run，并查看运行结果。
 - Docker 分发：支持镜像构建和 compose 启动。
@@ -16,7 +16,7 @@
 
 当前 WebUI 是功能性“简单模型前端”，用于演示和调试 harness 机制：选择预注册 workspace、选择 mock 或 DeepSeek provider、输入任务、触发 harness run、查看 action / guardrail / tool result / feedback / stop reason timeline。
 
-它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 会在核心 harness 功能完善后用于后续 UI 增强阶段；当前阶段先保持页面简单、可运行、可测试。
+它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 会在核心 harness 功能完善后用于方案 B 的 UI 增强阶段；方案 B 目标是更像智能 IDE 的文件树、任务面板、diff/结果面板和 timeline 面板。
 
 ## 环境准备
 
@@ -153,6 +153,14 @@ npm run build
 ```powershell
 npm run demo:mechanisms
 ```
+
+真实代码开发链路演示：
+
+```powershell
+npm run demo:coding-task
+```
+
+该演示会创建临时 workspace，写入一个带 bug 的小型 JavaScript 项目，然后通过 harness 依次执行 `list_files`、`read_file`、`write_file`、`run_command` 和 `finish`。它不会修改当前仓库文件。
 
 推荐在提交前至少运行：
 

@@ -70,7 +70,12 @@ export class OpenAICompatibleProvider implements LLMProvider {
               "The discriminator field MUST be named \"type\".",
               "Do not use \"action\" as a field name.",
               "Valid action type values are read_file, write_file, list_files, run_command, remember, and finish.",
-              "For a completed task, return exactly this shape: {\"type\":\"finish\",\"summary\":\"DeepSeek connected\"}."
+              "For a completed task, return exactly this shape: {\"type\":\"finish\",\"summary\":\"DeepSeek connected\"}.",
+              "As a coding agent, inspect the workspace before editing.",
+              "after writing code, run an allowed verification command.",
+              "if feedback reports invalid_action, return a corrected JSON action.",
+              "if feedback reports safety_blocked, choose a safer allowed action.",
+              "do not finish just because the user greeted you; finish only when the task is complete or no code action is needed."
             ].join(" ")
           },
           {

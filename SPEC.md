@@ -1,6 +1,6 @@
 # SPEC：Coding Agent Harness
 
-状态：已通过 Superpowers brainstorming 设计确认；等待用户 review 后再进入实现计划阶段。
+状态：核心 harness、DeepSeek provider、简单模型前端已实现；方案 A 正在补强为可实际执行小型代码开发任务的完整逻辑链路。方案 B 是后续更 IDE 化的 WebUI 增强阶段。
 
 ## 1. 问题陈述
 
@@ -22,6 +22,8 @@
 - 凭据存储：优先使用操作系统钥匙串；`.env` 仅作为显式启用的开发 fallback
 - WebUI 策略：WebUI 可以触发真实 harness run，但只能针对预注册 workspace，并且必须使用与 CLI 相同的 guardrail 和 allowlist
 - 前端策略：当前 WebUI 是功能性“简单模型前端”，用于演示 harness run 与 timeline；Open Design 和更 IDE 化的界面放到核心功能完善后的增强阶段
+- 方案 A 当前目标：可用 Coding Agent Loop V1，支持模型读取上下文、选择工具、修改文件、运行 allowlist 验证命令、根据反馈修正并最终 finish
+- 方案 B 后续目标：基于 Open Design 设计更像智能 IDE 的文件树、任务面板、diff/结果面板和 timeline 面板
 
 ## 3. 用户故事
 
@@ -213,6 +215,8 @@ Feedback sensor 产生以下结构化 feedback：
 
 下一轮 LLM context 包含最近 feedback 的 source、severity、简短 message 和相关 payload。机制演示必须证明 feedback 会改变 mock LLM 的下一步 action。
 
+当 `invalid_action` 或 `safety_blocked` 发生且仍有剩余迭代次数时，loop 不应立刻结束，而应把结构化 feedback 放入下一轮 context，让模型有机会返回修正后的 JSON action 或选择更安全的 action。若最后一轮仍无法得到可执行 action，则按 `blocked` 或 `max_iterations` 结束。
+
 ## 10. LLM Provider
 
 `LLMProvider` 是可注入抽象。当前阶段 provider：
@@ -346,12 +350,21 @@ npm test
 npm run demo:mechanisms
 ```
 
+代码开发链路演示命令：
+
+```bash
+npm run demo:coding-task
+```
+
+`demo:coding-task` 必须在临时 workspace 内确定性完成一次小型修复：先 `list_files` 查看结构，再 `read_file` 阅读有 bug 的实现，随后 `write_file` 修复代码，执行 allowlist 中的 `npm test`，最后 `finish`。该演示不得修改真实仓库。
+
 演示必须确定性展示：
 
 1. mock LLM 尝试危险命令，guardrail 拦截。
 2. 注入的 test failure 转成 feedback。
 3. mock LLM 因该 feedback 改变下一步 action。
 4. 最终 timeline 展示治理 + 反馈闭环这一主要贡献。
+5. 可用 coding loop 能完成 inspect -> edit -> verify -> finish 的真实工具链路。
 
 ## 16. 技术选型
 
@@ -375,6 +388,7 @@ npm run demo:mechanisms
 - CLI 能管理 credential status/set/clear 且不打印 secret。
 - WebUI 只能对预注册 workspace 触发 run。
 - WebUI 展示 action、guardrail、feedback 和 stop reason timeline。
+- `npm run demo:coding-task` 能在临时 workspace 中完成读文件、写修复、运行测试并 finish。
 - Docker 部署说明能在新服务器上启动 WebUI。
 - CI 通过，且 job 名为 `unit-test`；`.gitlab-ci.yml` 也包含 `unit-test`。
 - README 说明安装、运行、分发、key 配置、目录结构和安全边界。

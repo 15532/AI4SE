@@ -103,6 +103,29 @@ describe("runAgentLoop", () => {
     }));
   });
 
+  it("feeds invalid actions back into the next iteration instead of stopping immediately", async () => {
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        return inputs.length === 1
+          ? "not json"
+          : JSON.stringify({ type: "finish", summary: "corrected" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "recover from invalid action",
+      workspace: { id: "demo", name: "Demo", root: process.cwd(), allowedCommands: [] },
+      provider,
+      maxIterations: 2
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(2);
+    expect(inputs[1].context).toContain("invalid_action");
+  });
+
   it("blocks guardrail-rejected actions and records the decision", async () => {
     const result = await runAgentLoop({
       task: "inspect outside workspace",
@@ -118,6 +141,29 @@ describe("runAgentLoop", () => {
       kind: "guardrail",
       decision: expect.objectContaining({ decision: "block" })
     }));
+  });
+
+  it("feeds guardrail blocks back into the next iteration instead of stopping immediately", async () => {
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        return inputs.length === 1
+          ? JSON.stringify({ type: "run_command", command: "git push", reason: "publish" })
+          : JSON.stringify({ type: "finish", summary: "used safer action" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "avoid unsafe publish",
+      workspace: { id: "demo", name: "Demo", root: process.cwd(), allowedCommands: [] },
+      provider,
+      maxIterations: 2
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(2);
+    expect(inputs[1].context).toContain("safety_blocked");
   });
 
   it("does not dispatch finish actions", async () => {

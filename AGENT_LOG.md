@@ -228,3 +228,31 @@
 - 学到的教训：
   - 真实 provider 接入不应破坏 harness 的确定性测试边界。
   - 真实 LLM 只替换“决策来源”，不能绕过 parser、guardrail、tool dispatcher 或 feedback loop。
+
+### 2026-08-01 - 方案 A：可用 Coding Agent Loop V1
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `writing-plans`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 关键上下文：
+  - 用户指出当前产物看起来更像测试用例，希望具备类似 Codex 的完整逻辑链路，能真正用于代码开发。
+  - 经讨论确认先做方案 A：补完整可用 coding loop；方案 B：更 IDE 化的 WebUI 后续再做。
+- Agent 动作：
+  - 新增 `docs/superpowers/plans/2026-08-01-coding-agent-usable-loop-v1.md`。
+  - 增强 `buildContext`，让模型看到任务、workspace、可用 action schema、allowed commands、memory、feedback 和工作规则。
+  - 增强 DeepSeek provider system prompt，要求先 inspect、按严格 JSON action 工作、写代码后执行允许的验证命令、不要因简单问候过早 finish。
+  - 修改 loop 控制流，让 `invalid_action` 和 `safety_blocked` 在仍有迭代次数时进入下一轮自修正，而不是立即终止。
+  - 新增 `runCodingTaskDemo()` 和 `npm run demo:coding-task`，在临时 workspace 中确定性执行 `list_files`、`read_file`、`write_file`、`run_command`、`finish`。
+- TDD 证据：
+  - context/provider 测试先因缺少工具协议和工作策略失败，增强提示后通过。
+  - loop 自修正测试先因返回 `blocked` 失败，修改控制流后通过。
+  - coding-task demo 测试先因缺少 `src/demo/coding-task.ts` 入口失败，实现 demo 后通过。
+- 人工干预：
+  - 用户要求本轮先做方案 A，再做方案 B。
+  - 用户此前要求提交前必须先确认，因此本轮完成验证后等待用户确认再提交。
+- 学到的教训：
+  - “真实可用”不等于做一个大 UI；先要证明 harness 能完整控制模型决策、工具执行、安全反馈和验证闭环。
+  - 可用 loop 的核心证据应是能在临时项目中真实改文件并跑测试，而不是只展示模型返回文本。

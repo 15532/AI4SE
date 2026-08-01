@@ -71,7 +71,14 @@ export async function runAgentLoop(input: {
   };
 
   for (let iteration = 0; iteration < input.maxIterations; iteration += 1) {
-    const context = buildContext({ task: input.task, feedback, memories });
+    const isLastIteration = iteration === input.maxIterations - 1;
+    const context = buildContext({
+      task: input.task,
+      feedback,
+      memories,
+      workspace: { id: input.workspace.id, name: input.workspace.name },
+      allowedCommands: input.workspace.allowedCommands
+    });
     const response = await input.provider.complete({ task: input.task, context });
     record({ kind: "llm_response", iteration, response: redactString(response) });
 
@@ -81,6 +88,9 @@ export async function runAgentLoop(input: {
       feedback.push(invalidFeedback);
       record({ kind: "parsed_action", iteration, ok: false });
       record({ kind: "feedback", iteration, feedback: invalidFeedback });
+      if (!isLastIteration) {
+        continue;
+      }
       record({ kind: "stop", iteration, reason: "invalid_action" });
       return { runId, status: "blocked", events };
     }
@@ -99,6 +109,9 @@ export async function runAgentLoop(input: {
       const blockedFeedback = redactFeedback(feedbackFromGuardrail(guardrail));
       feedback.push(blockedFeedback);
       record({ kind: "feedback", iteration, feedback: blockedFeedback });
+      if (!isLastIteration) {
+        continue;
+      }
       record({ kind: "stop", iteration, reason: "guardrail_blocked" });
       return { runId, status: "blocked", events };
     }
