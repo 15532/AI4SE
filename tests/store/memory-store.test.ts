@@ -1,0 +1,46 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { MemoryStore } from "../../src/store/memory-store";
+
+describe("MemoryStore", () => {
+  it("stores and recalls workspace-scoped memory", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-memory-"));
+    const store = new MemoryStore(join(dir, "test.sqlite"));
+
+    store.remember({
+      workspaceId: "demo",
+      scope: "workspace",
+      key: "project.testCommand",
+      value: "npm test"
+    });
+
+    expect(store.recall({ workspaceId: "demo", scope: "workspace", limit: 5 })).toEqual([
+      { key: "project.testCommand", value: "npm test" }
+    ]);
+  });
+
+  it("updates an existing memory deterministically", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-memory-"));
+    const store = new MemoryStore(join(dir, "test.sqlite"));
+
+    store.remember({ workspaceId: "demo", scope: "global", key: "style", value: "concise" });
+    store.remember({ workspaceId: "demo", scope: "global", key: "style", value: "detailed" });
+
+    expect(store.recall({ workspaceId: "demo", scope: "global", limit: 5 })).toEqual([
+      { key: "style", value: "detailed" }
+    ]);
+  });
+
+  it("redacts secret-like memory keys before persistence", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-memory-"));
+    const store = new MemoryStore(join(dir, "test.sqlite"));
+
+    store.remember({ workspaceId: "demo", scope: "workspace", key: "apiKey", value: "sk-memory-secret" });
+
+    expect(store.recall({ workspaceId: "demo", scope: "workspace", limit: 5 })).toEqual([
+      { key: "apiKey", value: "[REDACTED]" }
+    ]);
+  });
+});

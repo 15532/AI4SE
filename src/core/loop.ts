@@ -5,6 +5,8 @@ import type { LLMProvider } from "./providers";
 import { classifyAction } from "../runtime/guardrails";
 import { dispatchTool } from "../runtime/tools";
 import type { WorkspaceConfig } from "../runtime/workspace";
+import type { EventStore } from "../store/event-store";
+import type { MemoryStore } from "../store/memory-store";
 
 type AgentStatus = "finished" | "blocked" | "max_iterations";
 type AgentEvent = Record<string, unknown>;
@@ -43,51 +45,86 @@ export async function runAgentLoop(input: {
   workspace: WorkspaceConfig;
   provider: LLMProvider;
   maxIterations: number;
+  eventStore?: EventStore;
+  memoryStore?: MemoryStore;
+  mode?: string;
 }): Promise<{ status: AgentStatus; events: AgentEvent[] }> {
   const events: AgentEvent[] = [];
   const feedback: Feedback[] = [];
-  const memories: string[] = [];
+  const memories = input.memoryStore === undefined
+    ? []
+    : [
+      ...input.memoryStore.recall({ workspaceId: input.workspace.id, scope: "workspace", limit: 50 }),
+      ...input.memoryStore.recall({ workspaceId: input.workspace.id, scope: "global", limit: 50 })
+    ].map((memory) => `${memory.key}: ${memory.value}`);
+  const runId = input.eventStore?.createRun({
+    task: input.task,
+    workspaceId: input.workspace.id,
+    mode: input.mode ?? "default"
+  });
+
+  const record = (event: AgentEvent): void => {
+    events.push(event);
+    if (runId !== undefined && typeof event.kind === "string") {
+      input.eventStore?.appendEvent(runId, event.kind, event);
+    }
+  };
 
   for (let iteration = 0; iteration < input.maxIterations; iteration += 1) {
     const context = buildContext({ task: input.task, feedback, memories });
     const response = await input.provider.complete({ task: input.task, context });
-    events.push({ kind: "llm_response", iteration, response: redactString(response) });
+    record({ kind: "llm_response", iteration, response: redactString(response) });
 
     const parsed = parseAction(response);
     if (!parsed.ok) {
       const invalidFeedback = redactFeedback(parsed.feedback);
       feedback.push(invalidFeedback);
-      events.push({ kind: "parsed_action", iteration, ok: false });
-      events.push({ kind: "feedback", iteration, feedback: invalidFeedback });
-      events.push({ kind: "stop", iteration, reason: "invalid_action" });
+      record({ kind: "parsed_action", iteration, ok: false });
+      record({ kind: "feedback", iteration, feedback: invalidFeedback });
+      record({ kind: "stop", iteration, reason: "invalid_action" });
       return { status: "blocked", events };
     }
 
     const { action } = parsed;
-    events.push({ kind: "parsed_action", iteration, ok: true, action: redactValue(action) });
+    record({ kind: "parsed_action", iteration, ok: true, action: redactValue(action) });
 
     if (action.type === "finish") {
-      events.push({ kind: "stop", iteration, reason: "finish", summary: redactString(action.summary) });
+      record({ kind: "stop", iteration, reason: "finish", summary: redactString(action.summary) });
       return { status: "finished", events };
     }
 
     const guardrail = classifyAction(action, input.workspace);
-    events.push({ kind: "guardrail", iteration, decision: guardrail });
+    record({ kind: "guardrail", iteration, decision: guardrail });
     if (guardrail.decision !== "allow") {
       const blockedFeedback = redactFeedback(feedbackFromGuardrail(guardrail));
       feedback.push(blockedFeedback);
-      events.push({ kind: "feedback", iteration, feedback: blockedFeedback });
-      events.push({ kind: "stop", iteration, reason: "guardrail_blocked" });
+      record({ kind: "feedback", iteration, feedback: blockedFeedback });
+      record({ kind: "stop", iteration, reason: "guardrail_blocked" });
       return { status: "blocked", events };
     }
 
+    if (action.type === "remember" && input.memoryStore !== undefined) {
+      input.memoryStore.remember({
+        workspaceId: input.workspace.id,
+        scope: action.scope,
+        key: action.key,
+        value: action.value
+      });
+      const result = { ok: true };
+      record({ kind: "tool_result", iteration, action: redactValue(action), result });
+      const nextFeedback = redactFeedback(feedbackFromCommandResult(result));
+      feedback.push(nextFeedback);
+      record({ kind: "feedback", iteration, feedback: nextFeedback });
+      continue;
+    }
+
     const result = await dispatchTool(action, input.workspace);
-    events.push({ kind: "tool_result", iteration, action: redactValue(action), result: redactValue(result) });
+    record({ kind: "tool_result", iteration, action: redactValue(action), result: redactValue(result) });
     const nextFeedback = redactFeedback(feedbackFromCommandResult(result));
     feedback.push(nextFeedback);
-    events.push({ kind: "feedback", iteration, feedback: nextFeedback });
+    record({ kind: "feedback", iteration, feedback: nextFeedback });
   }
 
-  events.push({ kind: "stop", reason: "max_iterations" });
+  record({ kind: "stop", reason: "max_iterations" });
   return { status: "max_iterations", events };
 }
