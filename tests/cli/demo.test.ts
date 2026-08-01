@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { runCli } from "../../src/cli/main";
 import { runMechanismDemo } from "../../src/demo/mechanisms";
@@ -32,6 +33,12 @@ describe("mechanism demo", () => {
 });
 
 describe("CLI", () => {
+  it("publishes the compiled CLI entrypoint produced by the current build layout", async () => {
+    const packageJson = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
+
+    expect(packageJson.bin.harness).toBe("dist/src/cli/main.js");
+  });
+
   it("writes the demo timeline as JSON", async () => {
     const stdout = outputBuffer();
     const stderr = outputBuffer();
