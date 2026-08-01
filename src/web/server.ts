@@ -6,6 +6,8 @@ import { HarnessRegistry, loadHarnessRegistry } from "../config/harness-config.j
 import { runAgentLoop } from "../core/loop.js";
 import { createProvider, type LLMProvider } from "../core/providers.js";
 import { listWorkspaceChanges, readWorkspaceDiff } from "../runtime/diff-inspector.js";
+import { classifyAction } from "../runtime/guardrails.js";
+import { dispatchTool } from "../runtime/tools.js";
 import { listWorkspaceFiles, readWorkspaceTextFile } from "../runtime/workspace-explorer.js";
 import type { WorkspaceConfig } from "../runtime/workspace.js";
 import { EventStore } from "../store/event-store.js";
@@ -107,6 +109,9 @@ function statusFromTimeline(timeline: Array<{ payload: Record<string, unknown> }
   switch (stop?.payload.reason) {
     case "finish": return "finished";
     case "max_iterations": return "max_iterations";
+    case "pending_approval": return "pending_approval";
+    case "approval_executed": return "approval_executed";
+    case "approval_rejected": return "approval_rejected";
     default: return stop === undefined ? "unknown" : "blocked";
   }
 }
@@ -140,6 +145,7 @@ export function createServer(input: {
       task: run.task,
       workspaceId: run.workspaceId,
       status: statusFromTimeline(timeline),
+      approvals: eventStore.listPendingApprovals(id),
       timeline
     };
   };
@@ -245,6 +251,69 @@ export function createServer(input: {
       }
       return response(201, { id: result.runId, sessionId: session.id });
     }
+    if (method === "POST" && url.pathname.startsWith("/api/approvals/")) {
+      const actionName = url.pathname.endsWith("/approve")
+        ? "approve"
+        : url.pathname.endsWith("/reject")
+          ? "reject"
+          : undefined;
+      if (actionName === undefined) return response(404, { error: "Not found" });
+
+      const approvalId = decodeURIComponent(
+        url.pathname.slice("/api/approvals/".length, -`/${actionName}`.length)
+      );
+      const approval = eventStore.getApproval(approvalId);
+      if (approval === undefined) return response(404, { error: "Unknown approval id" });
+      if (approval.status !== "pending") return response(409, { error: "Approval has already been decided" });
+
+      const workspace = registry.getWorkspace(approval.workspaceId);
+      if (workspace === undefined) return response(400, { error: "Unknown workspace id" });
+
+      if (actionName === "reject") {
+        eventStore.decideApproval(approval.id, "rejected");
+        eventStore.appendEvent(approval.runId, "approval_decision", {
+          kind: "approval_decision",
+          approvalId: approval.id,
+          decision: "rejected"
+        });
+        eventStore.appendEvent(approval.runId, "stop", {
+          kind: "stop",
+          reason: "approval_rejected",
+          approvalId: approval.id
+        });
+        return redirect(`/runs/${encodeURIComponent(approval.runId)}`);
+      }
+
+      const guardrail = classifyAction(approval.action, workspace);
+      if (guardrail.decision !== "require_approval") {
+        eventStore.appendEvent(approval.runId, "approval_decision", {
+          kind: "approval_decision",
+          approvalId: approval.id,
+          decision: "approval_failed",
+          guardrail
+        });
+        return response(400, { error: "Approved action no longer requires approval" });
+      }
+
+      eventStore.decideApproval(approval.id, "approved");
+      eventStore.appendEvent(approval.runId, "approval_decision", {
+        kind: "approval_decision",
+        approvalId: approval.id,
+        decision: "approved"
+      });
+      const result = await dispatchTool(approval.action, workspace);
+      eventStore.appendEvent(approval.runId, "tool_result", {
+        kind: "tool_result",
+        action: approval.action,
+        result
+      });
+      eventStore.appendEvent(approval.runId, "stop", {
+        kind: "stop",
+        reason: "approval_executed",
+        approvalId: approval.id
+      });
+      return redirect(`/runs/${encodeURIComponent(approval.runId)}`);
+    }
     if (method === "GET" && url.pathname.startsWith("/api/sessions/")) {
       const sessionId = decodeURIComponent(url.pathname.slice("/api/sessions/".length));
       const session = publicSession(sessionId);
@@ -325,7 +394,7 @@ export function createServer(input: {
       const id = decodeURIComponent(url.pathname.slice("/api/runs/".length));
       const run = storedRun(id);
       if (run === undefined) return response(404, { error: "Unknown run id" });
-      const { task: _task, ...publicRun } = run;
+      const { task: _task, approvals: _approvals, ...publicRun } = run;
       return response(200, publicRun);
     }
     if (method === "GET" && url.pathname.startsWith("/runs/")) {

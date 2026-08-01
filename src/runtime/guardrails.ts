@@ -15,6 +15,10 @@ function block(reason: string, ruleId: string): GuardrailDecision {
   return { decision: "block", reason, ruleId };
 }
 
+function requireApproval(reason: string, ruleId: string): GuardrailDecision {
+  return { decision: "require_approval", reason, ruleId };
+}
+
 function isSecretPath(value: string): boolean {
   return secretPathPattern.test(value);
 }
@@ -48,12 +52,15 @@ export function classifyAction(action: Action, workspace: WorkspaceConfig): Guar
     return block("Path escapes workspace root", "path.escape_workspace");
   }
 
-  if (action.type === "run_command" && publishOrDeployPattern.test(action.command)) {
-    return block("Publish and deploy commands are not allowed in v1", "command.publish_or_deploy");
-  }
-
   if (action.type === "run_command" && !workspace.allowedCommands.includes(action.command)) {
     return block("Command is not in the workspace allowlist", "command.not_allowlisted");
+  }
+
+  if (action.type === "run_command" && publishOrDeployPattern.test(action.command)) {
+    return requireApproval(
+      "Publish and deploy commands require human approval",
+      "command.publish_or_deploy"
+    );
   }
 
   return { decision: "allow" };

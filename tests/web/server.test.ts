@@ -578,6 +578,95 @@ workspaces:
     expect(page.body).toContain("护栏 Guardrail");
     expect(page.body).toContain("反馈 Feedback");
     expect(page.body).toContain("停止 Stop Reason");
+    expect(page.body).toContain("command.not_allowlisted");
+  });
+
+  it("renders pending approvals and executes approved actions through the WebUI", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-approval-"));
+    const dbPath = join(dir, "harness.sqlite");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: ["git push"] }],
+      dbPath,
+      providerFactory: () => ({
+        async complete() {
+          return JSON.stringify({ type: "run_command", command: "git push", reason: "publish" });
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo", provider: "mock", task: "publish" }
+    });
+    const { id: runId } = created.json() as { id: string };
+    const page = await app.inject({ method: "GET", url: `/runs/${runId}` });
+    const approvalId = new EventStore(dbPath).listPendingApprovals(runId)[0]?.id;
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("approval-panel");
     expect(page.body).toContain("command.publish_or_deploy");
+    expect(approvalId).toEqual(expect.any(String));
+
+    const approved = await app.inject({
+      method: "POST",
+      url: `/api/approvals/${approvalId}/approve`
+    });
+
+    expect(approved.statusCode).toBe(303);
+    expect(approved.headers.location).toBe(`/runs/${runId}`);
+    expect((await app.inject({ method: "GET", url: `/api/runs/${runId}` })).json()).toEqual(expect.objectContaining({
+      status: "approval_executed"
+    }));
+    const events = new EventStore(dbPath).listEvents(runId);
+    expect(events).toContainEqual(expect.objectContaining({
+      kind: "approval_decision",
+      payload: expect.objectContaining({ decision: "approved", approvalId })
+    }));
+    expect(events).toContainEqual(expect.objectContaining({
+      kind: "tool_result",
+      payload: expect.objectContaining({
+        action: { type: "run_command", command: "git push", reason: "publish" }
+      })
+    }));
+  });
+
+  it("records rejected approvals without executing the pending action", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-approval-"));
+    const dbPath = join(dir, "harness.sqlite");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: ["git push"] }],
+      dbPath,
+      providerFactory: () => ({
+        async complete() {
+          return JSON.stringify({ type: "run_command", command: "git push", reason: "publish" });
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo", provider: "mock", task: "publish" }
+    });
+    const { id: runId } = created.json() as { id: string };
+    const approvalId = new EventStore(dbPath).listPendingApprovals(runId)[0]?.id;
+
+    const rejected = await app.inject({
+      method: "POST",
+      url: `/api/approvals/${approvalId}/reject`
+    });
+
+    expect(rejected.statusCode).toBe(303);
+    expect(rejected.headers.location).toBe(`/runs/${runId}`);
+    expect((await app.inject({ method: "GET", url: `/api/runs/${runId}` })).json()).toEqual(expect.objectContaining({
+      status: "approval_rejected"
+    }));
+    const events = new EventStore(dbPath).listEvents(runId);
+    expect(events).toContainEqual(expect.objectContaining({
+      kind: "approval_decision",
+      payload: expect.objectContaining({ decision: "rejected", approvalId })
+    }));
+    expect(events.filter((event) => event.kind === "tool_result")).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ import type { WorkspaceConfig } from "../runtime/workspace.js";
 import type { EventStore } from "../store/event-store.js";
 import type { MemoryStore } from "../store/memory-store.js";
 
-type AgentStatus = "finished" | "blocked" | "max_iterations";
+type AgentStatus = "finished" | "blocked" | "max_iterations" | "pending_approval";
 type AgentEvent = Record<string, unknown>;
 
 const credentialAssignmentPattern = /\b(?:openai_api_key|api[_-]?key|secret|token|password|private[_-]?key)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,}\]]+)/gi;
@@ -120,6 +120,27 @@ export async function runAgentLoop(input: {
 
     const guardrail = classifyAction(action, input.workspace);
     record({ kind: "guardrail", iteration, decision: guardrail });
+    if (guardrail.decision === "require_approval") {
+      const approvalId = runId === undefined
+        ? undefined
+        : input.eventStore?.createApproval({
+          runId,
+          workspaceId: input.workspace.id,
+          action,
+          ruleId: guardrail.ruleId,
+          reason: guardrail.reason
+        });
+      record({
+        kind: "approval_required",
+        iteration,
+        approvalId,
+        action: redactValue(action),
+        decision: guardrail
+      });
+      record({ kind: "stop", iteration, reason: "pending_approval", approvalId });
+      return { runId, status: "pending_approval", events };
+    }
+
     if (guardrail.decision !== "allow") {
       const blockedFeedback = redactFeedback(feedbackFromGuardrail(guardrail));
       feedback.push(blockedFeedback);

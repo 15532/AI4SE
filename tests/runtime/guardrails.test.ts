@@ -25,10 +25,21 @@ describe("classifyAction", () => {
     });
   });
 
-  it("blocks publish and deploy commands before allowlist checks", () => {
+  it("blocks publish and deploy commands that are not allowlisted", () => {
     expect(classifyAction({ type: "run_command", command: "git push", reason: "publish" }, workspace)).toEqual({
       decision: "block",
-      reason: "Publish and deploy commands are not allowed in v1",
+      reason: "Command is not in the workspace allowlist",
+      ruleId: "command.not_allowlisted"
+    });
+  });
+
+  it("requires human approval for allowlisted publish and deploy commands", () => {
+    expect(classifyAction(
+      { type: "run_command", command: "git push", reason: "publish" },
+      { ...workspace, allowedCommands: ["git push"] }
+    )).toEqual({
+      decision: "require_approval",
+      reason: "Publish and deploy commands require human approval",
       ruleId: "command.publish_or_deploy"
     });
   });

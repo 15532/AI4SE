@@ -1,6 +1,6 @@
 # SPEC：Coding Agent Harness
 
-状态：核心 harness、DeepSeek provider、方案 A 可用代码开发链路、方案 B 轻量智能 IDE 壳层、Workspace Session V1、Diff Inspector V1 与 Interactive Run V1 已实现；后续增强可继续扩展审批流和浏览器内编辑器。
+状态：核心 harness、DeepSeek provider、方案 A 可用代码开发链路、方案 B 轻量智能 IDE 壳层、Workspace Session V1、Diff Inspector V1、Interactive Run V1 与 Approval V1 已实现；后续增强可继续扩展浏览器内编辑器和 Open Design 视觉系统。
 
 ## 1. 问题陈述
 
@@ -27,7 +27,8 @@
 - Workspace Session V1：包含只读文件列表/文件内容 API、workspace memory 面板、recent runs 面板，以及后续 run 对同 workspace 历史摘要的 context 继承
 - Diff Inspector V1：包含只读 git 变更列表 API、单文件 unified diff API，以及运行详情页的 diff inspector 区块
 - Interactive Run V1：包含 SQLite session、session-run 关联、session 页面和继续运行 API
-- 方案 B 后续目标：基于 Open Design 继续设计审批流、浏览器内编辑器和更完整视觉系统
+- Approval V1：allowlist 内的发布/部署命令进入 `pending_approval`，由 WebUI 人工批准或拒绝；未在 allowlist 的命令继续直接 block
+- 方案 B 后续目标：基于 Open Design 继续设计浏览器内编辑器和更完整视觉系统
 
 ## 3. 用户故事
 
@@ -189,7 +190,7 @@ Project A 要求 harness 实现六个维度：决策、工具、记忆、治理�
 - `command.not_allowlisted`：任何不精确匹配当前 workspace allowlist 的 command 都 block。
 - `command.destructive_delete`：识别并 block `rm -rf`、`del /s`、`Remove-Item -Recurse` 等破坏性删除命令。
 - `command.secret_access`：block 读取或打印 `.env`、private key、token file 或已知 secret path 的尝试。
-- `command.publish_or_deploy`：v1 block `git push`、`npm publish`、`docker push` 和部署命令。
+- `command.publish_or_deploy`：已在当前 workspace `allowedCommands` 中显式允许的 `git push`、`npm publish`、`docker push`、`kubectl apply` 等发布/部署命令返回 `require_approval`。
 - `write.sensitive_file`：block 写入 `.env`、private key file 和含 secret 的配置文件。
 
 规则优先级从高到低：
@@ -197,13 +198,13 @@ Project A 要求 harness 实现六个维度：决策、工具、记忆、治理�
 1. `command.destructive_delete`
 2. `command.secret_access` / `write.sensitive_file`
 3. `path.escape_workspace`
-4. `command.publish_or_deploy`
-5. `command.not_allowlisted`
+4. `command.not_allowlisted`
+5. `command.publish_or_deploy`
 6. allow
 
-如果一个 action 同时命中多条规则，返回优先级最高的规则。例：`rm -rf .` 返回 `command.destructive_delete`；`git push` 返回 `command.publish_or_deploy`，而不是 `command.not_allowlisted`。
+如果一个 action 同时命中多条规则，返回优先级最高的规则。例：`rm -rf .` 返回 `command.destructive_delete`；未加入 allowlist 的 `git push` 返回 `command.not_allowlisted`；只有已加入 allowlist 的 `git push` 才返回 `command.publish_or_deploy` 的 `require_approval`。
 
-`require_approval` 存在于数据模型和 UI 状态中，但 v1 对高风险操作默认 `block`，直到显式实现人工审批执行流程。
+`require_approval` 是 harness 状态，不是 LLM action。核心 loop 记录 `approval_required` 事件并以 `pending_approval` 停止；WebUI 审批 API 在批准前会重新运行 guardrail，只有仍然是 `require_approval` 的 action 才会执行。
 
 ## 9. 反馈闭环
 
@@ -253,6 +254,7 @@ WebUI v1 能力：
 - 展示 run timeline
 - 展示 action JSON、guardrail decision、tool result、feedback、memory event 和 stop reason
 - 在出现 pending approval 时展示该状态
+- 对 pending approval 提供批准和拒绝入口；批准后执行原 action 并追加 `approval_decision` 与 `tool_result` 事件，拒绝后只追加拒绝事件
 - 首页展示 workspace rail、task composer 与 run inspector 三栏工作台
 - 运行详情页展示 timeline navigator 与 event detail stack
 - 首页展示只读 code viewer 入口、workspace memory 与 recent runs
@@ -269,13 +271,14 @@ WebUI v1 能力：
 - WebUI 使用与 CLI 相同的 workspace registry、allowlist、guardrail 和 feedback sensor。
 - Session 绑定 workspace id 和 provider id；继续运行时不能从请求体覆盖 root、workspace 或 provider。
 - Session 持久化在 SQLite 中，服务器部署必须持久化 `HARNESS_DB_PATH` 所在目录。
+- 人工审批不能绕过 allowlist、workspace boundary、敏感文件和密钥保护。
 - 根据用户决定，v1 不要求 password。这是已知风险。公网部署应被视为受信任网络或短期课程演示部署，直到加入认证。
 
 未来改进：
 
 - 在长期公网部署前加入 `WEBUI_ADMIN_PASSWORD` 或反向代理认证。
 - 增加更友好的凭据状态提示。
-- 在功能稳定后使用 Open Design 继续设计审批状态、浏览器内编辑器和更完整视觉系统。
+- 在功能稳定后使用 Open Design 继续设计浏览器内编辑器和更完整视觉系统。
 
 ## 12. 凭据与威胁模型
 
@@ -307,6 +310,7 @@ WebUI v1 能力：
 - Feedback：id、run_id、sequence、source、severity、message、payload_json、created_at
 - MemoryItem：id、workspace_id、scope、key、value_json、created_at、updated_at
 - WorkspaceConfigSnapshot：id、run_id、workspace_id、root、allowed_commands_json、created_at
+- Approval：id、run_id、workspace_id、action_json、rule_id、reason、status、created_at、decided_at
 
 Secret values 不得存入 SQLite。
 
@@ -406,6 +410,7 @@ npm run demo:coding-task
 - WebUI 提供只读代码查看 API，路径逃逸会返回错误。
 - WebUI 提供只读 git diff API，路径逃逸会返回错误，响应不包含 workspace 绝对路径。
 - WebUI 提供 interactive session API，可连续触发同 workspace/provider 下的真实 harness run。
+- WebUI 提供人工审批 API，可批准或拒绝 `pending_approval` action，且审批不能绕过 allowlist。
 - 后续 run 的 provider context 包含同 workspace 的 memory 与最近 run 摘要。
 - `npm run demo:coding-task` 能在临时 workspace 中完成读文件、写修复、运行测试并 finish。
 - Docker 部署说明能在新服务器上启动 WebUI。
@@ -418,5 +423,5 @@ npm run demo:coding-task
 - 根据用户决定，v1 WebUI 不设置 password；公网 real-run 部署是已知风险，应视为受信任网络或短期演示环境。
 - OS keychain 在 Windows、Linux、Docker 中行为不同；测试必须使用 fake keychain adapter。
 - test/lint/typecheck failure output parsing 首版应保持简单、确定。
-- 当前 WebUI 是轻量智能 IDE 壳层，适合演示 harness 机制；若要升级为完整智能 IDE，还需要继续实现审批流、浏览器内编辑器和更完整的 Open Design 视觉系统。
+- 当前 WebUI 是轻量智能 IDE 壳层，适合演示 harness 机制；若要升级为完整智能 IDE，还需要继续实现浏览器内编辑器和更完整的 Open Design 视觉系统。
 - DeepSeek provider 已可接入真实模型，但真实 API key 仍依赖环境变量；OS keychain 持久化留作后续增强。

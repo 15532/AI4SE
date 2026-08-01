@@ -174,4 +174,48 @@ describe("EventStore", () => {
     expect(store.listSessions({ workspaceId: "demo", limit: 5 }).map((session) => session.id)).toEqual([second, first]);
     expect(store.listSessions({ limit: 1 })).toHaveLength(1);
   });
+
+  it("creates and decides approval records without leaking secret-like action content", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const runId = store.createRun({ task: "publish", workspaceId: "demo", mode: "webui" });
+
+    const approvalId = store.createApproval({
+      runId,
+      workspaceId: "demo",
+      action: { type: "run_command", command: "git push", reason: "publish token=plain-secret" },
+      ruleId: "command.publish_or_deploy",
+      reason: "Publish and deploy commands require human approval"
+    });
+
+    expect(store.listPendingApprovals(runId)).toEqual([
+      expect.objectContaining({
+        id: approvalId,
+        runId,
+        workspaceId: "demo",
+        status: "pending",
+        ruleId: "command.publish_or_deploy",
+        action: { type: "run_command", command: "git push", reason: "publish token=[REDACTED]" }
+      })
+    ]);
+    expect(JSON.stringify(store.getApproval(approvalId))).not.toContain("plain-secret");
+
+    expect(store.decideApproval(approvalId, "approved")).toEqual(expect.objectContaining({
+      id: approvalId,
+      status: "approved"
+    }));
+    expect(store.listPendingApprovals(runId)).toEqual([]);
+
+    const rejectedId = store.createApproval({
+      runId,
+      workspaceId: "demo",
+      action: { type: "run_command", command: "npm publish", reason: "publish" },
+      ruleId: "command.publish_or_deploy",
+      reason: "Publish and deploy commands require human approval"
+    });
+    expect(store.decideApproval(rejectedId, "rejected")).toEqual(expect.objectContaining({
+      id: rejectedId,
+      status: "rejected"
+    }));
+  });
 });

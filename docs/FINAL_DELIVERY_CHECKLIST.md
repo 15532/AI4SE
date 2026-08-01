@@ -42,3 +42,18 @@
 3. 若继续方案 B，下一步实现 Approval V1，并用 Open Design 补充更完整视觉系统。
 4. 完成公网 WebUI 部署与 CI pass 记录。
 5. 用户撰写 `REFLECTION.md` 初稿后，可让 AI 做润色和结构建议。
+
+## 2026-08-02 更新：Approval V1
+
+已完成：
+
+- Approval V1：allowlist 内的发布/部署命令会进入 `pending_approval`，由 WebUI 人工批准或拒绝。
+- 审批安全边界：未在 allowlist 的命令仍按 `command.not_allowlisted` 拦截；破坏性删除、密钥访问、敏感写入和路径逃逸仍然永久 block。
+- WebUI：运行详情页新增 `approval-panel`，审批决定会写入 timeline。
+- 测试：新增 guardrail、EventStore、AgentLoop 和 WebUI 审批测试。
+
+仍待最终交付前确认：
+
+- 由用户手动 push 后查看 GitHub CI 结果。
+- 公网部署前补充认证或反向代理访问控制。
+- 用户本人完成 `REFLECTION.md`。

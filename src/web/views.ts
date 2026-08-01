@@ -26,6 +26,12 @@ export type PublicSession = {
   changes?: PublicWorkspaceChange[];
 };
 export type PublicProvider = { id: string };
+export type PublicApproval = {
+  id: string;
+  ruleId: string;
+  reason: string;
+  action: unknown;
+};
 
 function escapeHtml(value: string): string {
   return value
@@ -115,6 +121,8 @@ function eventLabel(kind: string): string {
     case "feedback": return "反馈 Feedback";
     case "stop": return "停止 Stop Reason";
     case "llm_response": return "模型响应 LLM Response";
+    case "approval_required": return "审批 Approval";
+    case "approval_decision": return "审批结果 Approval Decision";
     default: return kind;
   }
 }
@@ -232,6 +240,7 @@ export function renderRun(input: {
   workspaceId: string;
   status: string;
   changes?: PublicWorkspaceChange[];
+  approvals?: PublicApproval[];
   timeline: Array<{ sequence: number; kind: string; payload: Record<string, unknown> }>;
 }): string {
   const nav = input.timeline.map((event) => `
@@ -247,6 +256,18 @@ export function renderRun(input: {
             <strong>${escapeHtml(change.status)}</strong>
             <code>${escapeHtml(change.path)}</code>
             <span class="muted">GET /api/workspaces/${escapeHtml(input.workspaceId)}/changes/${escapeHtml(encodeURIComponent(change.path))}</span>
+          </li>`).join("");
+  const approvalItems = (input.approvals ?? []).map((approval) => `
+          <li>
+            <strong>${escapeHtml(approval.ruleId)}</strong>
+            <span>${escapeHtml(approval.reason)}</span>
+            <pre>${escapeHtml(JSON.stringify(approval.action, null, 2))}</pre>
+            <form method="post" action="/api/approvals/${escapeHtml(approval.id)}/approve">
+              <button type="submit">批准执行</button>
+            </form>
+            <form method="post" action="/api/approvals/${escapeHtml(approval.id)}/reject">
+              <button type="submit">拒绝</button>
+            </form>
           </li>`).join("");
 
   return `<!doctype html>
@@ -278,6 +299,10 @@ export function renderRun(input: {
       <section class="panel diff-inspector">
         <h2>文件变更 Diff Inspector</h2>
         <ul class="change-list">${changeItems || "<li><strong>clean</strong><span class=\"muted\">当前工作区没有可展示的 git 变更</span></li>"}</ul>
+      </section>
+      <section class="panel approval-panel">
+        <h2>人工审批 Approval</h2>
+        <ul class="signal-list">${approvalItems || "<li><strong>None</strong><span>当前没有等待人工审批的动作</span></li>"}</ul>
       </section>
       <section class="run-layout">
         <aside class="panel timeline-navigator">

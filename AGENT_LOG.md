@@ -368,3 +368,31 @@
   - “接近 Codex”不一定要一次性实现流式长生命周期 run；先把同 workspace 的连续意图、历史 run、memory 和 diff 串成 session，就能显著提升可用性。
   - 未来服务器部署时，session、run、event、memory 都必须依赖持久化 SQLite volume；否则重启服务会破坏用户的连续工作上下文。
   - WebUI 无认证叠加真实 provider 与 interactive session 会放大风险，公网前必须补认证或反向代理访问控制。
+
+### 2026-08-02 - Approval V1：人工审批发布/部署动作
+
+- 执行 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `writing-plans`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 关键上下文：
+  - 用户确认按后续路线推进，并要求 Approval V1 可以先做简单版本。
+  - 因未来会部署到服务器，本轮选择保守策略：审批不能绕过 workspace allowlist；只有已经被 allowlist 显式允许的发布/部署命令才进入人工审批。
+- Agent 动作：
+  - 新增 `docs/superpowers/specs/2026-08-02-approval-v1-design.md`。
+  - 新增 `docs/superpowers/plans/2026-08-02-approval-v1.md`。
+  - 扩展 guardrail：allowlist 内的发布/部署命令返回 `require_approval`；未 allowlist 的命令仍返回 `command.not_allowlisted`。
+  - 扩展 SQLite schema 与 `EventStore`，新增审批记录创建、查询、待审批列表、批准和拒绝。
+  - 扩展 `runAgentLoop`，遇到 `require_approval` 时写入 `approval_required` 事件并以 `pending_approval` 停止。
+  - 扩展 WebUI，新增 Approval Panel 与 `/api/approvals/:id/approve`、`/api/approvals/:id/reject`。
+  - 更新 `README.md`、`SPEC.md` 和最终交付清单中的审批说明。
+- TDD 证据：
+  - guardrail 测试先因发布命令仍被硬 block 失败，更新分类后通过。
+  - EventStore 测试先因 `createApproval` 不存在失败，实现审批表和方法后通过。
+  - loop 测试先因状态不是 `pending_approval` 失败，实现暂停后通过。
+  - WebUI 测试先因缺少审批记录/API/UI 失败，实现审批路由和面板后通过。
+- 学到的教训：
+  - 人工审批不是 prompt 约束，而应是 harness 状态机的一部分。
+  - 服务器部署场景下，审批应作为额外安全门，而不是绕过 allowlist 的后门。

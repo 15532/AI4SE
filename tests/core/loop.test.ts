@@ -176,6 +176,39 @@ describe("runAgentLoop", () => {
     }));
   });
 
+  it("pauses for human approval when an allowlisted publish command is requested", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-loop-approval-"));
+    const eventStore = new EventStore(join(dir, "harness.sqlite"));
+    const result = await runAgentLoop({
+      task: "publish",
+      workspace: { id: "demo", name: "Demo", root: process.cwd(), allowedCommands: ["git push"] },
+      provider: new MockLLMProvider([
+        JSON.stringify({ type: "run_command", command: "git push", reason: "publish" })
+      ]),
+      maxIterations: 3,
+      eventStore
+    });
+
+    expect(result.status).toBe("pending_approval");
+    expect(result.runId).toEqual(expect.any(String));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      kind: "approval_required",
+      approvalId: expect.any(String),
+      decision: expect.objectContaining({ decision: "require_approval" })
+    }));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      kind: "stop",
+      reason: "pending_approval"
+    }));
+    expect(eventStore.listPendingApprovals(result.runId ?? "")).toEqual([
+      expect.objectContaining({
+        workspaceId: "demo",
+        status: "pending",
+        action: { type: "run_command", command: "git push", reason: "publish" }
+      })
+    ]);
+  });
+
   it("feeds guardrail blocks back into the next iteration instead of stopping immediately", async () => {
     const inputs: Array<{ task: string; context: string }> = [];
     const provider: LLMProvider = {

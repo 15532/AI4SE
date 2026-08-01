@@ -35,6 +35,19 @@ export const schemaSql = `
     FOREIGN KEY (run_id) REFERENCES runs(id)
   );
 
+  CREATE TABLE IF NOT EXISTS approvals (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    action_json TEXT NOT NULL,
+    rule_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decided_at TEXT,
+    FOREIGN KEY (run_id) REFERENCES runs(id)
+  );
+
   CREATE TABLE IF NOT EXISTS actions (
     id INTEGER PRIMARY KEY,
     run_id TEXT NOT NULL,

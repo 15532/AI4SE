@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import type { Action } from "../core/actions.js";
 import { schemaSql } from "./schema.js";
 import { redactSensitiveString, redactSensitiveValue } from "./redaction.js";
 
@@ -28,6 +29,18 @@ export type StoredSession = {
   title: string;
   createdAt: string;
   updatedAt: string;
+};
+export type ApprovalStatus = "pending" | "approved" | "rejected";
+export type StoredApproval = {
+  id: string;
+  runId: string;
+  workspaceId: string;
+  action: Action;
+  ruleId: string;
+  reason: string;
+  status: ApprovalStatus;
+  createdAt: string;
+  decidedAt?: string;
 };
 
 export class EventStore {
@@ -103,6 +116,80 @@ export class EventStore {
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
+  }
+
+  createApproval(input: {
+    runId: string;
+    workspaceId: string;
+    action: Action;
+    ruleId: string;
+    reason: string;
+  }): string {
+    const id = randomUUID();
+    this.db.prepare(`
+      INSERT INTO approvals (id, run_id, workspace_id, action_json, rule_id, reason, status)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending')
+    `).run(
+      id,
+      input.runId,
+      input.workspaceId,
+      JSON.stringify(redactSensitiveValue(input.action)),
+      input.ruleId,
+      redactSensitiveString(input.reason)
+    );
+    return id;
+  }
+
+  getApproval(approvalId: string): StoredApproval | undefined {
+    const row = this.db.prepare(`
+      SELECT id, run_id, workspace_id, action_json, rule_id, reason, status, created_at, decided_at
+      FROM approvals
+      WHERE id = ?
+    `).get(approvalId) as {
+      id: string;
+      run_id: string;
+      workspace_id: string;
+      action_json: string;
+      rule_id: string;
+      reason: string;
+      status: ApprovalStatus;
+      created_at: string;
+      decided_at?: string;
+    } | undefined;
+
+    return row === undefined ? undefined : {
+      id: row.id,
+      runId: row.run_id,
+      workspaceId: row.workspace_id,
+      action: JSON.parse(row.action_json) as Action,
+      ruleId: row.rule_id,
+      reason: row.reason,
+      status: row.status,
+      createdAt: row.created_at,
+      ...(row.decided_at === undefined || row.decided_at === null ? {} : { decidedAt: row.decided_at })
+    };
+  }
+
+  listPendingApprovals(runId: string): StoredApproval[] {
+    const rows = this.db.prepare(`
+      SELECT id
+      FROM approvals
+      WHERE run_id = ? AND status = 'pending'
+      ORDER BY rowid ASC
+    `).all(runId) as Array<{ id: string }>;
+
+    return rows
+      .map((row) => this.getApproval(row.id))
+      .filter((approval): approval is StoredApproval => approval !== undefined);
+  }
+
+  decideApproval(approvalId: string, status: Exclude<ApprovalStatus, "pending">): StoredApproval | undefined {
+    this.db.prepare(`
+      UPDATE approvals
+      SET status = ?, decided_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND status = 'pending'
+    `).run(status, approvalId);
+    return this.getApproval(approvalId);
   }
 
   createRun(input: { task: string; workspaceId: string; mode: string; sessionId?: string }): string {
@@ -221,9 +308,15 @@ export class EventStore {
       ? "finished"
       : reason === "max_iterations"
         ? "max_iterations"
-        : reason === undefined
-          ? "unknown"
-          : "blocked";
+        : reason === "pending_approval"
+          ? "pending_approval"
+          : reason === "approval_executed"
+            ? "approval_executed"
+            : reason === "approval_rejected"
+              ? "approval_rejected"
+              : reason === undefined
+                ? "unknown"
+                : "blocked";
 
     return {
       id: run.id,
