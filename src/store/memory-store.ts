@@ -2,9 +2,10 @@ import Database from "better-sqlite3";
 import { schemaSql } from "./schema";
 
 type Memory = { key: string; value: string };
+const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;
 
 function redactValue(key: string, value: string): string {
-  return /secret|token|apikey/i.test(key) ? "[REDACTED]" : value;
+  return /secret|token|apikey/i.test(key) ? "[REDACTED]" : value.replace(apiKeyPattern, "[REDACTED]");
 }
 
 export class MemoryStore {

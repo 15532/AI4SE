@@ -3,10 +3,14 @@ import { randomUUID } from "node:crypto";
 import { schemaSql } from "./schema";
 
 type Event = { sequence: number; kind: string; payload: Record<string, unknown> };
+const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;
 
 function redactPayload(value: unknown, key?: string): unknown {
   if (key !== undefined && /secret|token|apikey/i.test(key)) {
     return "[REDACTED]";
+  }
+  if (typeof value === "string") {
+    return value.replace(apiKeyPattern, "[REDACTED]");
   }
   if (Array.isArray(value)) {
     return value.map((item) => redactPayload(item));

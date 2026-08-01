@@ -43,4 +43,15 @@ describe("MemoryStore", () => {
       { key: "apiKey", value: "[REDACTED]" }
     ]);
   });
+
+  it("redacts secret-shaped memory values under benign keys", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-memory-"));
+    const store = new MemoryStore(join(dir, "test.sqlite"));
+
+    store.remember({ workspaceId: "demo", scope: "workspace", key: "note", value: "sk-real-key" });
+
+    expect(store.recall({ workspaceId: "demo", scope: "workspace", limit: 5 })).toEqual([
+      { key: "note", value: "[REDACTED]" }
+    ]);
+  });
 });

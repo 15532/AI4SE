@@ -38,4 +38,16 @@ describe("EventStore", () => {
     expect(eventsJson).toContain("[REDACTED]");
     expect(eventsJson).toContain("safe");
   });
+
+  it("redacts secret-shaped payload values under benign keys", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const runId = store.createRun({ task: "inspect", workspaceId: "demo", mode: "default" });
+
+    store.appendEvent(runId, "provider", { note: "sk-real-key" });
+
+    expect(store.listEvents(runId)).toEqual([
+      { sequence: 1, kind: "provider", payload: { note: "[REDACTED]" } }
+    ]);
+  });
 });
