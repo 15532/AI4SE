@@ -1,0 +1,13 @@
+# WebUI v1 不设 password，仅用于受信任网络或短期课程演示。
+workspaces:
+  - id: demo-ts
+    name: TypeScript Demo
+    root: ./examples/demo-ts
+    allowedCommands:
+      - npm test
+      - npm run build
+  - id: docs
+    name: Documentation Demo
+    root: ./examples/docs
+    allowedCommands:
+      - npm run build
