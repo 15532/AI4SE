@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { createDefaultServer, createServer } from "../../src/web/server";
 import type { LLMProvider } from "../../src/core/providers";
@@ -8,10 +10,27 @@ import { EventStore } from "../../src/store/event-store";
 import { MemoryStore } from "../../src/store/memory-store";
 import { HarnessRegistry } from "../../src/config/harness-config";
 
+const execFileAsync = promisify(execFile);
+
 const workspaces = [
   { id: "demo-ts", name: "Demo TS", root: process.cwd(), allowedCommands: ["npm test"] },
   { id: "docs", name: "Docs", root: "C:\\registered-docs", allowedCommands: ["npm run build"] }
 ];
+
+async function git(root: string, args: string[]): Promise<void> {
+  await execFileAsync("git", ["-C", root, ...args]);
+}
+
+async function createGitWebWorkspace() {
+  const root = await mkdtemp(join(tmpdir(), "harness-web-diff-"));
+  await git(root, ["init"]);
+  await git(root, ["config", "user.email", "test@example.com"]);
+  await git(root, ["config", "user.name", "Harness Test"]);
+  await writeFile(join(root, "README.md"), "hello\n", "utf8");
+  await git(root, ["add", "README.md"]);
+  await git(root, ["commit", "-m", "initial"]);
+  return { id: "demo", name: "Demo", root, allowedCommands: [] };
+}
 
 describe("web server", () => {
   it("loads the default WebUI registry from YAML without exposing workspace roots", async () => {
@@ -266,6 +285,43 @@ workspaces:
     expect(response.json()).toEqual({ error: "Path escapes workspace root" });
   });
 
+  it("lists git changes for a registered workspace", async () => {
+    const workspace = await createGitWebWorkspace();
+    await writeFile(join(workspace.root, "README.md"), "hello changed\n", "utf8");
+    const app = createServer({ workspaces: [workspace] });
+
+    const response = await app.inject({ method: "GET", url: "/api/workspaces/demo/changes" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([{ path: "README.md", status: "modified" }]);
+    expect(response.body).not.toContain(workspace.root);
+  });
+
+  it("reads a git diff for a registered workspace", async () => {
+    const workspace = await createGitWebWorkspace();
+    await writeFile(join(workspace.root, "README.md"), "hello changed\n", "utf8");
+    const app = createServer({ workspaces: [workspace] });
+
+    const response = await app.inject({ method: "GET", url: "/api/workspaces/demo/changes/README.md" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      path: "README.md",
+      diff: expect.stringContaining("+hello changed")
+    });
+    expect(response.body).not.toContain(workspace.root);
+  });
+
+  it("rejects diff paths that escape a registered workspace", async () => {
+    const workspace = await createGitWebWorkspace();
+    const app = createServer({ workspaces: [workspace] });
+
+    const response = await app.inject({ method: "GET", url: "/api/workspaces/demo/changes/..%2Foutside.txt" });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Path escapes workspace root" });
+  });
+
   it("renders all configured providers as selectable options", async () => {
     const app = createServer({
       registry: new HarnessRegistry({
@@ -343,6 +399,7 @@ workspaces:
     expect(page.body).toContain("Run Inspector");
     expect(page.body).toContain("timeline-navigator");
     expect(page.body).toContain("event-detail-stack");
+    expect(page.body).toContain("diff-inspector");
     expect(page.body).toContain("动作 Action");
     expect(page.body).toContain("护栏 Guardrail");
     expect(page.body).toContain("反馈 Feedback");

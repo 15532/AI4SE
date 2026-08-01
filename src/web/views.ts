@@ -5,6 +5,10 @@ export type PublicWorkspace = {
   memories?: Array<{ key: string; value: string }>;
   recentRuns?: Array<{ task: string; status: string; summary?: string }>;
 };
+export type PublicWorkspaceChange = {
+  path: string;
+  status: string;
+};
 export type PublicProvider = { id: string };
 
 function escapeHtml(value: string): string {
@@ -74,6 +78,10 @@ const baseStyles = `
       .code-viewer, .memory-panel, .recent-runs { display: grid; gap: 10px; }
       .file-link-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
       .file-link-list code { font-size: 12px; color: var(--blue); }
+      .diff-inspector { margin: 18px 0; display: grid; gap: 10px; }
+      .change-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+      .change-list li { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--soft); min-width: 0; }
+      .change-list code { color: var(--blue); overflow-wrap: anywhere; }
       @media (max-width: 1060px) { .ide-shell { grid-template-columns: 1fr 1fr; } .run-inspector { grid-column: 1 / -1; } .run-meta { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta, .session-panels { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } }
 `;
@@ -193,6 +201,7 @@ export function renderRun(input: {
   task: string;
   workspaceId: string;
   status: string;
+  changes?: PublicWorkspaceChange[];
   timeline: Array<{ sequence: number; kind: string; payload: Record<string, unknown> }>;
 }): string {
   const nav = input.timeline.map((event) => `
@@ -202,6 +211,13 @@ export function renderRun(input: {
           <h2><span class="sequence">${event.sequence}</span>${escapeHtml(eventLabel(event.kind))}</h2>
           <pre>${escapeHtml(JSON.stringify(event.payload, null, 2))}</pre>
         </li>`).join("");
+  const changes = input.changes ?? [];
+  const changeItems = changes.map((change) => `
+          <li>
+            <strong>${escapeHtml(change.status)}</strong>
+            <code>${escapeHtml(change.path)}</code>
+            <span class="muted">GET /api/workspaces/${escapeHtml(input.workspaceId)}/changes/${escapeHtml(encodeURIComponent(change.path))}</span>
+          </li>`).join("");
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -228,6 +244,10 @@ export function renderRun(input: {
         <div class="meta-tile"><span>工作区</span><strong>${escapeHtml(input.workspaceId)}</strong></div>
         <div class="meta-tile"><span>状态</span><strong>${escapeHtml(input.status)}</strong></div>
         <div class="meta-tile"><span>任务</span><strong>${escapeHtml(input.task)}</strong></div>
+      </section>
+      <section class="panel diff-inspector">
+        <h2>文件变更 Diff Inspector</h2>
+        <ul class="change-list">${changeItems || "<li><strong>clean</strong><span class=\"muted\">当前工作区没有可展示的 git 变更</span></li>"}</ul>
       </section>
       <section class="run-layout">
         <aside class="panel timeline-navigator">

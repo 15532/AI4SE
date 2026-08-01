@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { HarnessRegistry, loadHarnessRegistry } from "../config/harness-config.js";
 import { runAgentLoop } from "../core/loop.js";
 import { createProvider, type LLMProvider } from "../core/providers.js";
+import { listWorkspaceChanges, readWorkspaceDiff } from "../runtime/diff-inspector.js";
 import { listWorkspaceFiles, readWorkspaceTextFile } from "../runtime/workspace-explorer.js";
 import type { WorkspaceConfig } from "../runtime/workspace.js";
 import { EventStore } from "../store/event-store.js";
@@ -125,6 +126,13 @@ export function createServer(input: {
     };
   };
 
+  const changesForWorkspace = async (workspaceId: string) => {
+    const workspace = registry.getWorkspace(workspaceId);
+    if (workspace === undefined) return [];
+    const result = await listWorkspaceChanges(workspace);
+    return result.ok ? result.changes : [];
+  };
+
   const handle = async (
     method: string,
     requestUrl: string,
@@ -138,16 +146,35 @@ export function createServer(input: {
     if (method === "GET" && url.pathname === "/api/workspaces") {
       return response(200, publicWorkspaces());
     }
-    const filesPrefix = "/api/workspaces/";
-    if (method === "GET" && url.pathname.startsWith(filesPrefix) && url.pathname.endsWith("/files")) {
-      const workspaceId = decodeURIComponent(url.pathname.slice(filesPrefix.length, -"/files".length));
+    const workspaceApiPrefix = "/api/workspaces/";
+    if (method === "GET" && url.pathname.startsWith(workspaceApiPrefix) && url.pathname.endsWith("/changes")) {
+      const workspaceId = decodeURIComponent(url.pathname.slice(workspaceApiPrefix.length, -"/changes".length));
+      const workspace = registry.getWorkspace(workspaceId);
+      if (workspace === undefined) return response(404, { error: "Unknown workspace id" });
+      const result = await listWorkspaceChanges(workspace);
+      return result.ok ? response(200, result.changes) : response(400, { error: result.error });
+    }
+    if (method === "GET" && url.pathname.startsWith(workspaceApiPrefix) && url.pathname.includes("/changes/")) {
+      const remainder = url.pathname.slice(workspaceApiPrefix.length);
+      const separator = remainder.indexOf("/changes/");
+      const workspaceId = decodeURIComponent(remainder.slice(0, separator));
+      const filePath = decodeURIComponent(remainder.slice(separator + "/changes/".length));
+      const workspace = registry.getWorkspace(workspaceId);
+      if (workspace === undefined) return response(404, { error: "Unknown workspace id" });
+      const result = await readWorkspaceDiff(workspace, filePath);
+      return result.ok
+        ? response(200, { path: result.path, diff: result.diff })
+        : response(400, { error: result.error });
+    }
+    if (method === "GET" && url.pathname.startsWith(workspaceApiPrefix) && url.pathname.endsWith("/files")) {
+      const workspaceId = decodeURIComponent(url.pathname.slice(workspaceApiPrefix.length, -"/files".length));
       const workspace = registry.getWorkspace(workspaceId);
       return workspace === undefined
         ? response(404, { error: "Unknown workspace id" })
         : response(200, await listWorkspaceFiles(workspace));
     }
-    if (method === "GET" && url.pathname.startsWith(filesPrefix) && url.pathname.includes("/files/")) {
-      const remainder = url.pathname.slice(filesPrefix.length);
+    if (method === "GET" && url.pathname.startsWith(workspaceApiPrefix) && url.pathname.includes("/files/")) {
+      const remainder = url.pathname.slice(workspaceApiPrefix.length);
       const separator = remainder.indexOf("/files/");
       const workspaceId = decodeURIComponent(remainder.slice(0, separator));
       const filePath = decodeURIComponent(remainder.slice(separator + "/files/".length));
@@ -200,7 +227,7 @@ export function createServer(input: {
       const run = storedRun(id);
       return run === undefined
         ? response(404, "运行不存在", "text/html; charset=utf-8")
-        : response(200, renderRun(run), "text/html; charset=utf-8");
+        : response(200, renderRun({ ...run, changes: await changesForWorkspace(run.workspaceId) }), "text/html; charset=utf-8");
     }
     return response(404, { error: "Not found" });
   };

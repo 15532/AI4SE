@@ -310,3 +310,30 @@
 - 学到的教训：
   - 接近 Codex 的关键不是一次 run 更强，而是 workspace 级连续上下文、可见代码和可解释历史。
   - 文件查看必须是只读能力，并继续沿用 workspace boundary，不能为了 UI 便利绕过 harness 安全模型。
+
+### 2026-08-01 - Diff Inspector V1：工作区变更查看
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `writing-plans`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 关键上下文：
+  - 用户确认继续按“Workspace Session V1 -> Diff Inspector V1 -> Interactive Run V1”的路线推进。
+  - 本轮目标只做“看见变化”，不做浏览器内编辑、回滚、accept/reject 或逐行审阅。
+- Agent 动作：
+  - 新增 `docs/superpowers/specs/2026-08-01-diff-inspector-v1-design.md`。
+  - 新增 `docs/superpowers/plans/2026-08-01-diff-inspector-v1.md`。
+  - 新增 `src/runtime/diff-inspector.ts`，封装 `git status --porcelain=v1`、`git diff -- <path>` 和未跟踪文本文件的虚拟 diff。
+  - 扩展 WebUI API：`GET /api/workspaces/:id/changes` 与 `GET /api/workspaces/:id/changes/<relativePath>`。
+  - 扩展运行详情页，加入 `diff-inspector` 区块展示当前 workspace 的 git 变更摘要。
+  - 更新 `README.md`、`SPEC.md` 和最终交付清单，将后续路线推进到 Interactive Run V1。
+- TDD 证据：
+  - `tests/runtime/diff-inspector.test.ts` 先因 `src/runtime/diff-inspector` 缺失失败。
+  - `tests/web/server.test.ts` 先因 changes API 返回 404、运行详情页缺少 `diff-inspector` 失败。
+  - runtime 初次实现后暴露两个边界：Windows 用户目录父级 git repo 会误吸收临时目录；排序受 locale 影响。通过要求 workspace root 是 git 顶层仓库、使用状态优先级排序修复。
+  - `npm.cmd test -- tests/runtime/diff-inspector.test.ts tests/web/server.test.ts` 通过：2 个测试文件、23 个测试。
+- 学到的教训：
+  - diff 能力看似只是调用 git，但安全边界必须明确，否则临时目录或子目录可能被父级 repo 误识别。
+  - 对课程演示来说，先展示“agent 改了哪些文件”比立刻做浏览器编辑器更能补齐可用工具的信任链路。

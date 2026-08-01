@@ -9,12 +9,12 @@
 - 受限工具分发器：文件工具和 shell 工具统一经过 allowlist、路径归一化和敏感信息脱敏。
 - Agent 主循环：provider 输出 Action，harness 执行动作并回灌观察结果；`invalid_action` 和被护栏拦截的动作会作为反馈进入下一轮，直到 `finish` 或达到最大迭代次数。
 - 事件与记忆存储：run、event、timeline、memory 持久化到 SQLite。
-- CLI 与 WebUI：命令行和浏览器都能创建 run，并查看运行结果。
+- CLI 与 WebUI：命令行和浏览器都能创建 run，并查看运行结果、工作区文件和 git diff。
 - Docker 分发：支持镜像构建和 compose 启动。
 
 ## 当前前端定位
 
-当前 WebUI 已从功能性“简单模型前端”升级为方案 B 第一版轻量智能 IDE 壳层：左侧是 workspace rail，中间是任务编排区，右侧是 Run Inspector。运行详情页提供 timeline navigator 与 event detail stack，用于查看 action / guardrail / tool result / feedback / stop reason。Workspace Session V1 还加入了只读代码查看入口、workspace memory 面板和 recent runs 面板，让后续任务能继承同一工作区的上下文。
+当前 WebUI 已从功能性“简单模型前端”升级为方案 B 第一版轻量智能 IDE 壳层：左侧是 workspace rail，中间是任务编排区，右侧是 Run Inspector。运行详情页提供 timeline navigator、event detail stack 与 Diff Inspector，用于查看 action / guardrail / tool result / feedback / stop reason，以及当前 workspace 的 git 文件变更。Workspace Session V1 还加入了只读代码查看入口、workspace memory 面板和 recent runs 面板，让后续任务能继承同一工作区的上下文。
 
 它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 已作为方案 B 的设计参考写入 SPEC；本轮选择低依赖、可测试的 server-rendered IDE 壳层，后续若继续增强视觉系统或交互原型，再正式引入 Open Design 生成/审查设计系统。
 
@@ -233,6 +233,15 @@ Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/files"
 Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/files/README.md"
 ```
 
+Diff Inspector V1 提供只读 git 变更 API：
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/changes"
+Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/changes/README.md"
+```
+
+`changes` API 只返回 workspace 相对路径；单个 diff 预览上限为 200 KiB。当前版本要求 workspace root 本身是 git 仓库顶层，避免误扫父级目录。
+
 这些 API 只能访问预注册 workspace 内的相对路径，且不会提供文件写入能力。
 
 ## API 调试
@@ -337,7 +346,7 @@ WebUI v1 不配置 password，仅适合受信任网络或短期课程演示。�
 - `src/core/`：代理循环、provider 抽象和治理逻辑。
 - `src/config/`：共享 YAML 配置加载器与 registry。
 - `src/store/`：SQLite run、event、timeline 与 memory 持久化。
-- `src/runtime/`：workspace、文件与 shell 执行边界。
+- `src/runtime/`：workspace、文件、git diff 与 shell 执行边界。
 - `src/web/`：WebUI HTTP server 与页面。
 - `src/cli/`：命令行入口。
 - `tests/`：Vitest 单元测试。
