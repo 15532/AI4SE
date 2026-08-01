@@ -6,11 +6,12 @@
 - 不得在终端输出、日志、SQLite、运行历史、CI 日志或 WebUI response 中打印或返回真实 key。
 - `.env` 只能作为显式启用的本地开发 fallback，且应理解明文存储风险。
 - 当前 `CredentialManager` v1 使用测试用内存 adapter；环境变量 fallback 仅在显式开启时可用。真实 OS keychain 不属于当前 v1 实现。
+- DeepSeek provider 从 `DEEPSEEK_API_KEY` 读取真实 key。真实值只能来自未提交的 `.env`、系统环境变量或部署平台 secret；`.env.example` 只能保留变量名和占位值。
 - SQLite 写入边界会对 task、event payload、memory key/value 中的常见 password、api_key、credential、token、secret 和 `sk-...` 形态做脱敏。该防线不能替代凭据管理，任务与 memory 输入仍不得包含真实 secret。
 
 ## WebUI 边界
 
-WebUI real-run 只能选择共享 YAML registry 中预注册的 workspace id，不能提交任意服务器路径或覆盖 root。每个 workspace 的文件操作均受 path boundary 限制；shell 操作必须命中 command allowlist，全部 action 仍经过 guardrail。WebUI 也不得展示或返回 API key 明文。
+WebUI real-run 只能选择共享 YAML registry 中预注册的 workspace id，不能提交任意服务器路径或覆盖 root。每个 workspace 的文件操作均受 path boundary 限制；shell 操作必须命中 command allowlist，全部 action 仍经过 guardrail。WebUI 也不得展示或返回 API key 明文。缺少 DeepSeek key 时，WebUI 返回结构化错误，不回显环境变量名或 secret。
 
 ## v1 无密码风险与部署建议
 

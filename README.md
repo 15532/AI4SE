@@ -14,7 +14,7 @@
 
 ## 当前前端定位
 
-当前 WebUI 是功能性“简单模型前端”，用于演示和调试 harness 机制：选择预注册 workspace、输入任务、触发 mock harness run、查看 action / guardrail / tool result / feedback / stop reason timeline。
+当前 WebUI 是功能性“简单模型前端”，用于演示和调试 harness 机制：选择预注册 workspace、选择 mock 或 DeepSeek provider、输入任务、触发 harness run、查看 action / guardrail / tool result / feedback / stop reason timeline。
 
 它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 会在核心 harness 功能完善后用于后续 UI 增强阶段；当前阶段先保持页面简单、可运行、可测试。
 
@@ -39,7 +39,20 @@ npm ci
 Copy-Item .env.example .env
 ```
 
-当前版本默认使用 mock provider，不需要真实 API key。不要把真实 secret 写入 `.env`、SQLite、日志或任何已提交文件。
+当前版本默认保留 mock provider，因此测试和机制演示不需要真实 API key。若要选择 DeepSeek provider，需要在本地未提交的 `.env` 或部署环境变量中配置 `DEEPSEEK_API_KEY`。不要把真实 secret 写入 `.env.example`、SQLite、日志或任何已提交文件。
+
+DeepSeek 本地配置示例：
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+在 `.env` 中设置：
+
+```env
+DEEPSEEK_API_KEY=你的真实 DeepSeek Key
+```
 
 ## 最快启动
 
@@ -85,6 +98,12 @@ maxIterations: 10
 providers:
   - id: mock
     type: mock
+  - id: deepseek
+    type: deepseek-compatible
+    baseUrl: https://api.deepseek.com
+    model: deepseek-v4-flash
+    apiKeyEnv: DEEPSEEK_API_KEY
+    thinking: disabled
 workspaces:
   - id: demo-ts
     name: TypeScript Demo
@@ -102,6 +121,7 @@ workspaces:
 - `HARNESS_CONFIG_PATH`：指定 YAML 配置路径，默认 `config/harness.example.yaml`。
 - `HARNESS_DB_PATH`：指定 SQLite 数据库路径，默认 `data/harness.sqlite`。
 - `PORT`：指定 WebUI 端口，默认 `3000`。
+- `DEEPSEEK_API_KEY`：DeepSeek provider 的真实 API key，只能放在未提交的 `.env` 或受控部署环境。
 
 PowerShell 示例：
 
@@ -155,10 +175,16 @@ npm run build
 node dist/src/cli/main.js demo
 ```
 
-触发一次真实 harness run：
+使用 mock provider 触发一次 harness run：
 
 ```powershell
 node dist/src/cli/main.js run --workspace demo-ts --provider mock --task "请完成一次 mock 运行"
+```
+
+使用 DeepSeek provider：
+
+```powershell
+node dist/src/cli/main.js run --workspace demo-ts --provider deepseek --task "阅读项目结构并给出下一步建议"
 ```
 
 运行结果会写入 `HARNESS_DB_PATH` 指向的 SQLite 文件；未设置时写入 `data/harness.sqlite`。
@@ -190,7 +216,7 @@ $env:PORT = "3100"
 node dist/src/web/server.js
 ```
 
-WebUI 首页会列出已注册 workspace 和每个 workspace 的可用命令。提交任务后会创建 mock harness run，并跳转到 `/runs/:id` 查看按机制分区的 timeline。
+WebUI 首页会列出已注册 workspace、每个 workspace 的可用命令和 provider 下拉框。选择 `mock` 不需要 key；选择 `deepseek` 前必须配置 `DEEPSEEK_API_KEY`。提交任务后会创建 harness run，并跳转到 `/runs/:id` 查看按机制分区的 timeline。
 
 ## API 调试
 
@@ -283,9 +309,9 @@ Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` �
 
 ## 安全说明
 
-WebUI v1 不配置 password，仅适合受信任网络或短期课程演示。长期公网部署必须先在 Nginx、VPN、SSO、basic auth 或其他边界层配置认证与访问控制；不要把容器端口直接暴露到公网。
+WebUI v1 不配置 password，仅适合受信任网络或短期课程演示。长期公网部署必须先在 Nginx、VPN、SSO、basic auth 或其他边界层配置认证与访问控制；不要把容器端口直接暴露到公网。启用 DeepSeek provider 后，公网无认证风险更高。
 
-当前 v1 默认使用 mock provider，不实现真实 OpenAI provider，也不实现真实 OS keychain。`CredentialManager` 使用测试用内存 adapter；环境变量 fallback 仅在显式开启时使用。真实 API key 绝不能提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。
+当前 v1 已支持 DeepSeek OpenAI-compatible provider，并保留 mock provider 用于离线测试。`CredentialManager` 使用测试用内存 adapter；真实 OS keychain 留作后续增强。真实 API key 绝不能提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。
 
 更多安全边界和发布前检查请见 [SECURITY.md](SECURITY.md)。
 

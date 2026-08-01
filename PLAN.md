@@ -16,7 +16,7 @@
 - v1 action：`read_file`、`write_file`、`list_files`、`run_command`、`remember`、`finish`。
 - WebUI 可以触发真实 run，但只能选择预注册 workspace id，不能输入任意服务器路径。
 - 当前 WebUI 只做功能性简单模型前端；Open Design 与更 IDE 化的界面留到核心功能完善后的增强阶段。
-- 当前 provider 使用 mock；OpenAI-compatible 真实 provider 留到后续模型接入阶段。
+- 当前 provider 支持 mock 与 DeepSeek OpenAI-compatible；测试仍默认使用 mock 或 fake fetch，不依赖真实网络。
 - v1 WebUI 不设置 password；公网 real-run 部署是已知风险，只用于受信任网络或短期课程演示。
 - 默认 TypeScript command allowlist：`npm test`、`npm run test`、`npm run lint`、`npm run typecheck`、`npm run build`。
 - 一键测试入口：`npm test`。
@@ -921,6 +921,13 @@ git commit -m "feat: add cli and mechanism demo via subagent T9"
 - 首页展示 workspace id/name 与 allowlist commands。
 - run 详情页使用可扫读标签展示模型响应、动作、护栏、工具结果、反馈和停止原因。
 - 不引入前端框架，不实现完整代码编辑器，不使用 Open Design；Open Design 留到独立 UI 增强阶段。
+
+后续 DeepSeek 接入约束：
+
+- `deepseek-compatible` provider 使用 `https://api.deepseek.com/chat/completions`。
+- 默认模型为 `deepseek-v4-flash`，`thinking` 为 `disabled`。
+- API key 从 `DEEPSEEK_API_KEY` 读取，不写入 Git、SQLite、日志或 WebUI response。
+- Provider 请求格式用 fake fetch 测试，不能让一键测试依赖真实 DeepSeek 网络。
 
 - [ ] **Step 1：写失败测试**
 

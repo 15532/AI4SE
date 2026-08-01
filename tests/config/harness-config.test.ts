@@ -60,4 +60,34 @@ workspaces:
 
     expect(() => loadHarnessRegistry(configPath)).toThrow("Duplicate workspace id: demo");
   });
+
+  it("loads a DeepSeek-compatible provider with safe defaults", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-config-"));
+    const configPath = join(dir, "harness.yaml");
+    await writeFile(configPath, `
+mode: default
+maxIterations: 3
+providers:
+  - id: deepseek
+    type: deepseek-compatible
+    baseUrl: https://api.deepseek.com
+    model: deepseek-v4-flash
+workspaces:
+  - id: demo
+    name: Demo
+    root: ./demo
+    allowedCommands: []
+`, "utf8");
+
+    const registry = loadHarnessRegistry(configPath);
+
+    expect(registry.getProvider("deepseek")).toEqual({
+      id: "deepseek",
+      type: "deepseek-compatible",
+      baseUrl: "https://api.deepseek.com",
+      model: "deepseek-v4-flash",
+      apiKeyEnv: "DEEPSEEK_API_KEY",
+      thinking: "disabled"
+    });
+  });
 });

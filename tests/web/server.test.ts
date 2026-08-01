@@ -6,6 +6,7 @@ import { createDefaultServer, createServer } from "../../src/web/server";
 import type { LLMProvider } from "../../src/core/providers";
 import { EventStore } from "../../src/store/event-store";
 import { MemoryStore } from "../../src/store/memory-store";
+import { HarnessRegistry } from "../../src/config/harness-config";
 
 const workspaces = [
   { id: "demo-ts", name: "Demo TS", root: process.cwd(), allowedCommands: ["npm test"] },
@@ -41,7 +42,7 @@ workspaces:
     expect(response.body).not.toContain("private-root");
 
     const index = await app.inject({ method: "GET", url: "/" });
-    expect(index.body).toContain('name="provider" value="web-mock"');
+    expect(index.body).toContain('<option value="web-mock">web-mock</option>');
     expect(index.body).not.toContain('name="provider" value="mock"');
   });
 
@@ -214,9 +215,65 @@ workspaces:
     expect(response.body).toContain("docs");
     expect(response.body).toContain("npm test");
     expect(response.body).toContain("npm run build");
-    expect(response.body).toContain('name="provider" value="mock"');
+    expect(response.body).toContain('name="provider"');
+    expect(response.body).toContain('<option value="mock">mock</option>');
     expect(response.body).toContain("<form");
     expect(response.body).not.toContain("registered-docs");
+  });
+
+  it("renders all configured providers as selectable options", async () => {
+    const app = createServer({
+      registry: new HarnessRegistry({
+        mode: "webui",
+        maxIterations: 3,
+        workspaces,
+        providers: [
+          { id: "mock", type: "mock" as const },
+          {
+            id: "deepseek",
+            type: "deepseek-compatible" as const,
+            baseUrl: "https://api.deepseek.com",
+            model: "deepseek-v4-flash",
+            apiKeyEnv: "DEEPSEEK_API_KEY",
+            thinking: "disabled"
+          }
+        ]
+      })
+    });
+
+    const response = await app.inject({ method: "GET", url: "/" });
+
+    expect(response.body).toContain('name="provider"');
+    expect(response.body).toContain('<option value="mock">mock</option>');
+    expect(response.body).toContain('<option value="deepseek">deepseek</option>');
+  });
+
+  it("returns a structured error when DeepSeek API key is missing", async () => {
+    const app = createServer({
+      registry: new HarnessRegistry({
+        mode: "webui",
+        maxIterations: 3,
+        workspaces,
+        providers: [{
+          id: "deepseek",
+          type: "deepseek-compatible",
+          baseUrl: "https://api.deepseek.com",
+          model: "deepseek-v4-flash",
+          apiKeyEnv: "HARNESS_TEST_MISSING_DEEPSEEK_KEY",
+          thinking: "disabled"
+        }]
+      })
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo-ts", provider: "deepseek", task: "finish" }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Missing API key for provider deepseek" });
+    expect(response.body).not.toContain("HARNESS_TEST_MISSING_DEEPSEEK_KEY");
   });
 
   it("renders timeline events as harness mechanism sections", async () => {

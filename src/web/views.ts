@@ -3,6 +3,7 @@ export type PublicWorkspace = {
   name: string;
   allowedCommands: string[];
 };
+export type PublicProvider = { id: string };
 
 function escapeHtml(value: string): string {
   return value
@@ -52,10 +53,14 @@ function eventLabel(kind: string): string {
   }
 }
 
-export function renderIndex(workspaces: PublicWorkspace[], providerId = "mock"): string {
+export function renderIndex(workspaces: PublicWorkspace[], providers: PublicProvider[] = [{ id: "mock" }]): string {
   const options = workspaces
     .map((workspace) => `<option value="${escapeHtml(workspace.id)}">${escapeHtml(workspace.name)} (${escapeHtml(workspace.id)})</option>`)
     .join("");
+  const providerOptions = providers
+    .map((provider) => `<option value="${escapeHtml(provider.id)}">${escapeHtml(provider.id)}</option>`)
+    .join("");
+  const providerLabel = providers.map((provider) => provider.id).join(", ");
   const workspaceCards = workspaces.map((workspace) => `
         <article class="panel">
           <h2>${escapeHtml(workspace.name)} <span class="workspace-id">${escapeHtml(workspace.id)}</span></h2>
@@ -73,7 +78,7 @@ export function renderIndex(workspaces: PublicWorkspace[], providerId = "mock"):
   <body>
     <main>
       <h1>简单模型前端</h1>
-      <p class="muted">用于演示 Coding Agent Harness 的工作区边界、动作执行、护栏拦截和反馈闭环。当前 provider：${escapeHtml(providerId)}。</p>
+      <p class="muted">用于演示 Coding Agent Harness 的工作区边界、动作执行、护栏拦截和反馈闭环。可选 provider：${escapeHtml(providerLabel)}。</p>
       <section class="grid">
         <div>
           <h2>已注册工作区</h2>
@@ -82,8 +87,8 @@ export function renderIndex(workspaces: PublicWorkspace[], providerId = "mock"):
         <form class="panel" method="post" action="/api/runs">
           <h2>创建 Harness Run</h2>
           <label>工作区 <select name="workspaceId">${options}</select></label>
+          <label>Provider <select name="provider">${providerOptions}</select></label>
           <label>任务 <input name="task" required placeholder="例如：运行测试并解释结果"></label>
-          <input type="hidden" name="provider" value="${escapeHtml(providerId)}">
           <button type="submit">运行</button>
         </form>
       </section>

@@ -1,13 +1,14 @@
+import "dotenv/config";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { HarnessRegistry, loadHarnessRegistry } from "../config/harness-config.js";
 import { runAgentLoop } from "../core/loop.js";
-import { MockLLMProvider, type LLMProvider } from "../core/providers.js";
+import { createProvider, type LLMProvider } from "../core/providers.js";
 import type { WorkspaceConfig } from "../runtime/workspace.js";
 import { EventStore } from "../store/event-store.js";
 import { MemoryStore } from "../store/memory-store.js";
-import { renderIndex, renderRun, type PublicWorkspace } from "./views.js";
+import { renderIndex, renderRun, type PublicProvider, type PublicWorkspace } from "./views.js";
 
 type InjectInput = {
   method: string;
@@ -93,6 +94,7 @@ export function createServer(input: {
   const eventStore = new EventStore(input.dbPath ?? ":memory:");
   const memoryStore = new MemoryStore(input.dbPath ?? ":memory:");
   const workspaces = registry.listWorkspaces().map(publicWorkspace);
+  const providers: PublicProvider[] = registry.listProviders().map((provider) => ({ id: provider.id }));
 
   const storedRun = (id: string) => {
     const run = eventStore.getRun(id);
@@ -115,7 +117,7 @@ export function createServer(input: {
   ): Promise<InjectResponse> => {
     const url = new URL(requestUrl, "http://localhost");
     if (method === "GET" && url.pathname === "/") {
-      return response(200, renderIndex(workspaces, registry.listProviders()[0]?.id ?? ""), "text/html; charset=utf-8");
+      return response(200, renderIndex(workspaces, providers), "text/html; charset=utf-8");
     }
     if (method === "GET" && url.pathname === "/api/workspaces") {
       return response(200, workspaces);
@@ -125,18 +127,25 @@ export function createServer(input: {
       const workspace = registry.getWorkspace(payload.workspaceId);
       if (workspace === undefined) return response(400, { error: "Unknown workspace id" });
       const providerConfig = registry.getProvider(payload.provider);
-      if (providerConfig === undefined || providerConfig.type !== "mock") return response(400, { error: "Unsupported provider" });
+      if (providerConfig === undefined) return response(400, { error: "Unsupported provider" });
 
-      const provider = input.providerFactory?.(payload.provider) ?? new MockLLMProvider([]);
-      const result = await runAgentLoop({
-        task: payload.task,
-        workspace,
-        provider,
-        maxIterations: registry.maxIterations,
-        mode: registry.mode,
-        eventStore,
-        memoryStore
-      });
+      let result: Awaited<ReturnType<typeof runAgentLoop>>;
+      try {
+        const provider = input.providerFactory?.(payload.provider) ?? createProvider(providerConfig);
+        result = await runAgentLoop({
+          task: payload.task,
+          workspace,
+          provider,
+          maxIterations: registry.maxIterations,
+          mode: registry.mode,
+          eventStore,
+          memoryStore
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Provider request failed";
+        if (message.startsWith("Missing API key for provider ")) return response(400, { error: message });
+        return response(502, { error: "Provider request failed" });
+      }
       if (result.runId === undefined) throw new Error("Persisted run did not return an id");
       if (String(headers["content-type"] ?? "").includes("application/x-www-form-urlencoded")) {
         return redirect(`/runs/${encodeURIComponent(result.runId)}`);

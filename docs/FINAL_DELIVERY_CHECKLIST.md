@@ -1,0 +1,39 @@
+# 最终交付检查清单
+
+更新时间：2026-08-01
+
+本清单用于对照 `AI4SE_Final_Project_通用要求.md` 与 `AI4SE_Final_Project_A_Coding_Agent_Harness(1).md`，跟踪当前项目离最终提交还差什么。
+
+## 已完成
+
+- `SPEC.md`：已覆盖问题陈述、用户故事、模块规约、领域与机制设计、数据模型、凭据与分发、安全边界、验收标准。
+- `PLAN.md`：已包含分 task 的实现计划、TDD 步骤、验证命令和 worktree 策略。
+- `SPEC_PROCESS.md`：已记录 brainstorming、关键迭代和冷启动验证反馈。
+- Harness 内核：已实现 action parser、agent loop、mock provider、DeepSeek provider、workspace boundary、guardrail、tool dispatcher、feedback、SQLite event/memory store。
+- WebUI：已实现功能性简单模型前端，可选择预注册 workspace、触发 mock harness run、查看机制分区 timeline。
+- CLI：已支持 demo、run、credentials status/set/clear。
+- 测试：`npm test` 可一键运行，当前 13 个测试文件、91 个测试通过。
+- 机制演示：`npm run demo:mechanisms` 可运行 mock LLM 下的治理与反馈闭环演示。
+- 分发：已提供 `Dockerfile` 与 `docker-compose.yml`。
+- CI：已提供 `.github/workflows/unit-test.yml` 与 `.gitlab-ci.yml`，job 名为 `unit-test`。
+- 安全文档：`SECURITY.md` 已说明凭据、WebUI 无密码风险和提交前检查。
+- 本地启动：已提供 `scripts/start-local.ps1`。
+- 提交历史：当前本地主要分支提交信息已中文化。
+
+## 待完成
+
+- `REFLECTION.md`：目前只是提纲。最终 1500-2500 字反思报告必须由学生本人撰写；AI 可辅助润色但需要标注。
+- `AGENT_LOG.md`：已补近期关键过程，但在最终提交前还应追加 CI、部署、人工修改和最后审查记录。
+- 线上部署 URL：最终交付清单要求提供应用可访问的 WebUI 接口；当前尚未部署到公网。
+- CI/CD 执行记录：需要最后一次 CI/CD pass 状态截图或链接。
+- GitHub PR 工作流：课程要求完整 commit 历史与 PR 工作流；当前已有 commit 历史，但 PR 创建/合并记录需由用户在 GitHub 上确认。
+- OS keychain：当前 `CredentialManager` 使用测试用内存 adapter；DeepSeek provider 已支持环境变量读取，Windows Credential Manager 或等价安全存储仍是后续增强。
+- Open Design：当前 WebUI 是简单模型前端；若继续做更完整前端 / UI，应引入 Open Design 并在 `SPEC.md` 中补充设计系统与 skill。
+
+## 建议下一步
+
+1. 用户先手动 push 当前 `feature/core-loop`。
+2. 在 GitHub 上确认 CI 运行状态。
+3. 若只提交 mock 版本，优先完成公网 WebUI 部署与 CI pass 记录。
+4. 用户撰写 `REFLECTION.md` 初稿后，可让 AI 做润色和结构建议。
+5. 若时间允许，再启动真实 LLM provider 与 OS keychain 阶段。

@@ -15,8 +15,8 @@
 - 主要贡献：治理护栏 + 确定性反馈闭环
 - 架构：Typed JSON Action Harness
 - 产品形态：TypeScript CLI + WebUI
-- LLM 接口：当前阶段实现可注入的 `LLMProvider` 抽象与 mock provider；OpenAI-compatible chat API 作为后续真实模型接入阶段
-- 测试策略：先用 mock/stub LLM 做确定性测试，核心功能稳定后再接真实 LLM
+- LLM 接口：实现可注入的 `LLMProvider` 抽象、mock provider 与 DeepSeek OpenAI-compatible provider
+- 测试策略：mock/stub LLM 做确定性测试；DeepSeek provider 使用 fake fetch 测试请求格式，不依赖真实网络
 - 分发方式：Docker 镜像 + Docker Compose，通过 Nginx 部署到云服务器
 - 状态存储：SQLite
 - 凭据存储：优先使用操作系统钥匙串；`.env` 仅作为显式启用的开发 fallback
@@ -215,14 +215,18 @@ Feedback sensor 产生以下结构化 feedback：
 
 ## 10. LLM Provider
 
-`LLMProvider` 是可注入抽象。当前阶段必需 provider：
+`LLMProvider` 是可注入抽象。当前阶段 provider：
 
 - `MockLLMProvider`：为测试和 demo 提供确定性 scripted responses；不依赖网络。
+- `OpenAICompatibleProvider` / DeepSeek：真实 provider mode，使用 DeepSeek OpenAI-compatible chat completion endpoint。
 
-后续真实模型接入阶段：
+DeepSeek 默认配置：
 
-- `OpenAICompatibleProvider`：真实 provider mode，使用 OpenAI-compatible chat completion endpoint。
-- 真实 provider 必须先完成安全凭据读取、缺失 key 的结构化错误、请求 timeout 和响应脱敏。
+- `baseUrl`: `https://api.deepseek.com`
+- `model`: `deepseek-v4-flash`
+- `apiKeyEnv`: `DEEPSEEK_API_KEY`
+- `thinking`: `disabled`
+- `response_format`: `{ "type": "json_object" }`
 
 Provider 层只执行单次 completion call，不提供 agent loop 或 tool runner。
 
@@ -236,7 +240,7 @@ WebUI v1 能力：
 - 展示每个 workspace 的 allowlist commands
 - 选择 workspace id
 - 输入 task 描述
-- 使用 mock provider profile 触发 run
+- 选择 mock 或 DeepSeek provider profile 触发 run
 - 触发 harness run
 - 展示 run timeline
 - 展示 action JSON、guardrail decision、tool result、feedback、memory event 和 stop reason
@@ -253,7 +257,7 @@ WebUI v1 能力：
 未来改进：
 
 - 在长期公网部署前加入 `WEBUI_ADMIN_PASSWORD` 或反向代理认证。
-- 在真实模型接入完成后增加 provider 选择和凭据状态提示。
+- 增加更友好的凭据状态提示。
 - 在功能稳定后使用 Open Design 设计更 IDE 化的文件树、任务面板、timeline 面板、反馈详情和审批状态界面。
 
 ## 12. 凭据与威胁模型
@@ -355,7 +359,7 @@ npm run demo:mechanisms
 - Node.js：适合 CLI、server、SQLite、keychain integration 和 Docker
 - Vitest 或等价工具：确定性单元测试
 - SQLite：本地持久化 run history、memory 和 WebUI timeline
-- OpenAI-compatible API：后续真实 LLM provider 接入目标；当前阶段用 mock provider 保证离线确定性测试
+- OpenAI-compatible API：当前用于 DeepSeek provider；mock provider 保证离线确定性测试
 - Open Design：当前阶段暂不引入；涉及更完整前端 / UI 增强时再选择设计系统并补充 SPEC
 - Docker 和 Docker Compose：可复现分发与云服务器部署
 - GitHub Actions + `.gitlab-ci.yml`：兼顾用户偏好和课程 checklist
@@ -382,3 +386,4 @@ npm run demo:mechanisms
 - OS keychain 在 Windows、Linux、Docker 中行为不同；测试必须使用 fake keychain adapter。
 - test/lint/typecheck failure output parsing 首版应保持简单、确定。
 - 当前 WebUI 只是简单模型前端，适合演示 harness 机制；若要升级为更像智能 IDE 的工具，需要单独设计 Open Design 前端阶段。
+- DeepSeek provider 已可接入真实模型，但真实 API key 仍依赖环境变量；OS keychain 持久化留作后续增强。

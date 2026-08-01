@@ -3,7 +3,16 @@ import { dirname, resolve } from "node:path";
 import { load } from "js-yaml";
 import type { WorkspaceConfig } from "../runtime/workspace.js";
 
-export type ProviderConfig = { id: string; type: "mock" };
+export type MockProviderConfig = { id: string; type: "mock" };
+export type DeepSeekProviderConfig = {
+  id: string;
+  type: "deepseek-compatible";
+  baseUrl: string;
+  model: string;
+  apiKeyEnv: string;
+  thinking: "enabled" | "disabled";
+};
+export type ProviderConfig = MockProviderConfig | DeepSeekProviderConfig;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -19,6 +28,17 @@ function stringArray(value: unknown, field: string): string[] {
     throw new Error(`${field} must be an array of strings`);
   }
   return value;
+}
+
+function optionalString(value: unknown, fallback: string, field: string): string {
+  if (value === undefined) return fallback;
+  return requiredString(value, field);
+}
+
+function optionalThinking(value: unknown): "enabled" | "disabled" {
+  if (value === undefined) return "disabled";
+  if (value === "enabled" || value === "disabled") return value;
+  throw new Error("provider thinking must be enabled or disabled");
 }
 
 export class HarnessRegistry {
@@ -76,8 +96,18 @@ export function loadHarnessRegistry(configPath: string): HarnessRegistry {
     const id = requiredString(provider.id, `providers[${index}].id`);
     if (providerIds.has(id)) throw new Error(`Duplicate provider id: ${id}`);
     providerIds.add(id);
-    if (provider.type !== "mock") throw new Error(`Unsupported provider type: ${String(provider.type)}`);
-    return { id, type: "mock" };
+    if (provider.type === "mock") return { id, type: "mock" };
+    if (provider.type === "deepseek-compatible") {
+      return {
+        id,
+        type: "deepseek-compatible",
+        baseUrl: requiredString(provider.baseUrl, `providers[${index}].baseUrl`),
+        model: requiredString(provider.model, `providers[${index}].model`),
+        apiKeyEnv: optionalString(provider.apiKeyEnv, "DEEPSEEK_API_KEY", `providers[${index}].apiKeyEnv`),
+        thinking: optionalThinking(provider.thinking)
+      };
+    }
+    throw new Error(`Unsupported provider type: ${String(provider.type)}`);
   });
 
   if (!Array.isArray(parsed.workspaces)) throw new Error("workspaces must be an array");

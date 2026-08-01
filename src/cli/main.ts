@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
+import "dotenv/config";
 import { Command } from "commander";
 import { loadHarnessRegistry } from "../config/harness-config.js";
 import { CredentialManager } from "../credentials/credential-manager.js";
 import { InMemoryKeychainAdapter } from "../credentials/keychain-adapter.js";
 import { runMechanismDemo } from "../demo/mechanisms.js";
 import { runAgentLoop } from "../core/loop.js";
-import { MockLLMProvider } from "../core/providers.js";
+import { createProvider } from "../core/providers.js";
 import { EventStore } from "../store/event-store.js";
 import { MemoryStore } from "../store/memory-store.js";
 
@@ -61,7 +62,7 @@ export function createProgram(options: CliOptions = {}): Command {
       const workspace = registry.getWorkspace(commandOptions.workspace);
       if (workspace === undefined) throw new Error(`Unknown workspace: ${commandOptions.workspace}`);
       const providerConfig = registry.getProvider(commandOptions.provider);
-      if (providerConfig === undefined || providerConfig.type !== "mock") {
+      if (providerConfig === undefined) {
         throw new Error(`Unsupported provider: ${commandOptions.provider}`);
       }
       const dbPath = process.env.HARNESS_DB_PATH ?? "data/harness.sqlite";
@@ -70,7 +71,7 @@ export function createProgram(options: CliOptions = {}): Command {
       const result = await runAgentLoop({
         task: commandOptions.task,
         workspace,
-        provider: new MockLLMProvider([JSON.stringify({ type: "finish", summary: "Mock run completed" })]),
+        provider: createProvider(providerConfig),
         maxIterations: registry.maxIterations,
         mode: registry.mode,
         eventStore,
