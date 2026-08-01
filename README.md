@@ -12,6 +12,12 @@
 - CLI 与 WebUI：命令行和浏览器都能创建 run，并查看运行结果。
 - Docker 分发：支持镜像构建和 compose 启动。
 
+## 当前前端定位
+
+当前 WebUI 是功能性“简单模型前端”，用于演示和调试 harness 机制：选择预注册 workspace、输入任务、触发 mock harness run、查看 action / guardrail / tool result / feedback / stop reason timeline。
+
+它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 会在核心 harness 功能完善后用于后续 UI 增强阶段；当前阶段先保持页面简单、可运行、可测试。
+
 ## 环境准备
 
 需要 Node.js 22 和 npm。建议先确认版本：
@@ -34,6 +40,40 @@ Copy-Item .env.example .env
 ```
 
 当前版本默认使用 mock provider，不需要真实 API key。不要把真实 secret 写入 `.env`、SQLite、日志或任何已提交文件。
+
+## 最快启动
+
+在 Windows PowerShell 中执行：
+
+```powershell
+.\scripts\start-local.ps1
+```
+
+脚本会自动完成以下步骤：
+
+- 如果缺少 `node_modules`，执行 `npm ci`。
+- 创建本地 `data/` 目录。
+- 执行 `npm run build`。
+- 设置默认 `HARNESS_CONFIG_PATH`、`HARNESS_DB_PATH` 和 `PORT`。
+- 启动 WebUI。
+
+启动后访问：
+
+```text
+http://127.0.0.1:3000
+```
+
+修改端口：
+
+```powershell
+.\scripts\start-local.ps1 -Port 3100
+```
+
+开发时如果刚刚构建过，可以跳过构建：
+
+```powershell
+.\scripts\start-local.ps1 -SkipBuild
+```
 
 ## 常用配置
 
@@ -150,7 +190,7 @@ $env:PORT = "3100"
 node dist/src/web/server.js
 ```
 
-WebUI 首页会列出已注册 workspace。提交任务后会创建真实 harness run，并跳转到 `/runs/:id` 查看 timeline。
+WebUI 首页会列出已注册 workspace 和每个 workspace 的可用命令。提交任务后会创建 mock harness run，并跳转到 `/runs/:id` 查看按机制分区的 timeline。
 
 ## API 调试
 

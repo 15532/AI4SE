@@ -15,12 +15,13 @@
 - 主要贡献：治理护栏 + 确定性反馈闭环
 - 架构：Typed JSON Action Harness
 - 产品形态：TypeScript CLI + WebUI
-- LLM 接口：OpenAI-compatible chat API，位于可注入的 `LLMProvider` 抽象之后
-- 测试策略：先用 mock/stub LLM 做确定性测试，再接真实 LLM
+- LLM 接口：当前阶段实现可注入的 `LLMProvider` 抽象与 mock provider；OpenAI-compatible chat API 作为后续真实模型接入阶段
+- 测试策略：先用 mock/stub LLM 做确定性测试，核心功能稳定后再接真实 LLM
 - 分发方式：Docker 镜像 + Docker Compose，通过 Nginx 部署到云服务器
 - 状态存储：SQLite
 - 凭据存储：优先使用操作系统钥匙串；`.env` 仅作为显式启用的开发 fallback
 - WebUI 策略：WebUI 可以触发真实 harness run，但只能针对预注册 workspace，并且必须使用与 CLI 相同的 guardrail 和 allowlist
+- 前端策略：当前 WebUI 是功能性“简单模型前端”，用于演示 harness run 与 timeline；Open Design 和更 IDE 化的界面放到核心功能完善后的增强阶段
 
 ## 3. 用户故事
 
@@ -214,21 +215,28 @@ Feedback sensor 产生以下结构化 feedback：
 
 ## 10. LLM Provider
 
-`LLMProvider` 是可注入抽象。必需 provider：
+`LLMProvider` 是可注入抽象。当前阶段必需 provider：
 
 - `MockLLMProvider`：为测试和 demo 提供确定性 scripted responses；不依赖网络。
+
+后续真实模型接入阶段：
+
 - `OpenAICompatibleProvider`：真实 provider mode，使用 OpenAI-compatible chat completion endpoint。
+- 真实 provider 必须先完成安全凭据读取、缺失 key 的结构化错误、请求 timeout 和响应脱敏。
 
 Provider 层只执行单次 completion call，不提供 agent loop 或 tool runner。
 
 ## 11. WebUI
 
-WebUI 能力：
+当前 v1 WebUI 是功能性“简单模型前端”，用于证明和演示 harness 机制；它不是 VS Code 替代品，也不包含完整代码编辑器、调试器、插件系统或复杂 IDE 交互。Open Design 驱动的轻量智能 IDE 界面将在核心功能稳定后作为增强阶段引入，并在届时补充具体设计系统与 skill 说明。
+
+WebUI v1 能力：
 
 - 列出预注册 workspace
+- 展示每个 workspace 的 allowlist commands
 - 选择 workspace id
 - 输入 task 描述
-- 选择 mock 或 real provider profile
+- 使用 mock provider profile 触发 run
 - 触发 harness run
 - 展示 run timeline
 - 展示 action JSON、guardrail decision、tool result、feedback、memory event 和 stop reason
@@ -242,7 +250,11 @@ WebUI 能力：
 - WebUI 使用与 CLI 相同的 workspace registry、allowlist、guardrail 和 feedback sensor。
 - 根据用户决定，v1 不要求 password。这是已知风险。公网部署应被视为受信任网络或短期课程演示部署，直到加入认证。
 
-未来改进：在长期公网部署前加入 `WEBUI_ADMIN_PASSWORD` 或反向代理认证。
+未来改进：
+
+- 在长期公网部署前加入 `WEBUI_ADMIN_PASSWORD` 或反向代理认证。
+- 在真实模型接入完成后增加 provider 选择和凭据状态提示。
+- 在功能稳定后使用 Open Design 设计更 IDE 化的文件树、任务面板、timeline 面板、反馈详情和审批状态界面。
 
 ## 12. 凭据与威胁模型
 
@@ -343,7 +355,8 @@ npm run demo:mechanisms
 - Node.js：适合 CLI、server、SQLite、keychain integration 和 Docker
 - Vitest 或等价工具：确定性单元测试
 - SQLite：本地持久化 run history、memory 和 WebUI timeline
-- OpenAI-compatible API：灵活接入真实 LLM provider
+- OpenAI-compatible API：后续真实 LLM provider 接入目标；当前阶段用 mock provider 保证离线确定性测试
+- Open Design：当前阶段暂不引入；涉及更完整前端 / UI 增强时再选择设计系统并补充 SPEC
 - Docker 和 Docker Compose：可复现分发与云服务器部署
 - GitHub Actions + `.gitlab-ci.yml`：兼顾用户偏好和课程 checklist
 
@@ -368,4 +381,4 @@ npm run demo:mechanisms
 - 根据用户决定，v1 WebUI 不设置 password；公网 real-run 部署是已知风险，应视为受信任网络或短期演示环境。
 - OS keychain 在 Windows、Linux、Docker 中行为不同；测试必须使用 fake keychain adapter。
 - test/lint/typecheck failure output parsing 首版应保持简单、确定。
-- Cursor 冷启动验证尚未完成，可能暴露缺失接口或 task 边界不清的问题。
+- 当前 WebUI 只是简单模型前端，适合演示 harness 机制；若要升级为更像智能 IDE 的工具，需要单独设计 Open Design 前端阶段。

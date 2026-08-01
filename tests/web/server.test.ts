@@ -208,9 +208,40 @@ workspaces:
     const response = await app.inject({ method: "GET", url: "/" });
 
     expect(response.statusCode).toBe(200);
+    expect(response.body).toContain("简单模型前端");
+    expect(response.body).toContain("可用命令");
     expect(response.body).toContain("demo-ts");
     expect(response.body).toContain("docs");
+    expect(response.body).toContain("npm test");
+    expect(response.body).toContain("npm run build");
+    expect(response.body).toContain('name="provider" value="mock"');
     expect(response.body).toContain("<form");
     expect(response.body).not.toContain("registered-docs");
+  });
+
+  it("renders timeline events as harness mechanism sections", async () => {
+    const app = createServer({
+      workspaces,
+      providerFactory: () => ({
+        async complete() {
+          return JSON.stringify({ type: "run_command", command: "git push", reason: "publish" });
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo-ts", provider: "mock", task: "try publish" }
+    });
+    const { id } = created.json() as { id: string };
+    const page = await app.inject({ method: "GET", url: `/runs/${id}` });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("动作 Action");
+    expect(page.body).toContain("护栏 Guardrail");
+    expect(page.body).toContain("反馈 Feedback");
+    expect(page.body).toContain("停止 Stop Reason");
+    expect(page.body).toContain("command.publish_or_deploy");
   });
 });

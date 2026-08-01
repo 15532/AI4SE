@@ -15,6 +15,8 @@
 - LLM action 协议是严格 JSON；每轮最多一个 action。
 - v1 action：`read_file`、`write_file`、`list_files`、`run_command`、`remember`、`finish`。
 - WebUI 可以触发真实 run，但只能选择预注册 workspace id，不能输入任意服务器路径。
+- 当前 WebUI 只做功能性简单模型前端；Open Design 与更 IDE 化的界面留到核心功能完善后的增强阶段。
+- 当前 provider 使用 mock；OpenAI-compatible 真实 provider 留到后续模型接入阶段。
 - v1 WebUI 不设置 password；公网 real-run 部署是已知风险，只用于受信任网络或短期课程演示。
 - 默认 TypeScript command allowlist：`npm test`、`npm run test`、`npm run lint`、`npm run typecheck`、`npm run build`。
 - 一键测试入口：`npm test`。
@@ -912,6 +914,13 @@ git commit -m "feat: add cli and mechanism demo via subagent T9"
 - `GET /api/workspaces`：返回预注册 workspace list，不包含 secret
 - `POST /api/runs`：body `{ "workspaceId": "demo-ts", "provider": "mock", "task": "fix tests" }`
 - `GET /api/runs/:id`：返回 timeline
+
+当前增强约束：
+
+- 页面是简单模型前端，用于展示 workspace 边界、mock provider、harness run 和 timeline 机制。
+- 首页展示 workspace id/name 与 allowlist commands。
+- run 详情页使用可扫读标签展示模型响应、动作、护栏、工具结果、反馈和停止原因。
+- 不引入前端框架，不实现完整代码编辑器，不使用 Open Design；Open Design 留到独立 UI 增强阶段。
 
 - [ ] **Step 1：写失败测试**
 
