@@ -18,6 +18,10 @@
 
 `read_file` 与 `write_file` 工具卡片会显示文件操作入口：`预览文件` 会留在同一个对话首页，并把目标文件打开到右侧 Inspector 的文件预览面板；`编辑文件` 会进入受 guardrail 保护的轻量编辑器。链接会保留当前 run/session 参数，方便在连续对话中查看 agent 刚读过或刚修改过的文件。
 
+右侧文件预览现在使用内嵌代码面板显示：包含行号、行数/字符数元信息和当前 git 变更状态；当文件处于 modified/untracked 等状态时，会直接提供 diff API 入口，便于在对话中快速核对 agent 的修改。
+
+右侧 Inspector 也提供内联编辑表单。保存时仍复用 `POST /api/workspaces/<workspace-id>/files/<relative-path>`、workspace guardrail 与 `write_file` 工具分发，成功后回到原对话 URL 并继续保留当前 workspace、file、run/session 参数。
+
 ## 对话内变更与审批展示 V1
 
 当 agent 修改 workspace 后，对话页会把 git 工作区变化渲染为 `文件变更` 卡片，展示变更状态、相对路径、文件预览入口和 diff API 入口。遇到需要人工确认的高风险动作时，对话页会显示 `等待审批` 卡片，直接展示命令/目标、原因、护栏规则，并提供批准或拒绝按钮；审批结果仍写回 timeline。

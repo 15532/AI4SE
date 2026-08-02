@@ -50,6 +50,7 @@ export type PublicChatFilePreview = {
   workspaceId: string;
   path: string;
   content: string;
+  status?: string;
 };
 export type PublicChatWorkspaceFiles = {
   workspaceId: string;
@@ -283,6 +284,17 @@ const baseStyles = `
       .chat-file-preview h2 { color: #111827; font-size: 13px; text-transform: none; }
       .chat-file-preview a { color: #2563eb; font-size: 12px; text-decoration: none; }
       .chat-file-preview pre { max-height: 420px; margin: 0; overflow: auto; background: #f3f4f6; color: #1f2937; border: 1px solid #e5e7eb; font-size: 12px; line-height: 1.55; }
+      .chat-file-preview-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .chat-file-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+      .chat-file-stat { display: inline-flex; align-items: center; min-height: 24px; padding: 0 7px; border-radius: 999px; background: #f3f4f6; color: #4b5563; font-size: 12px; }
+      .chat-code-preview { max-height: 420px; margin: 0; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; color: #1f2937; font-size: 12px; line-height: 1.55; }
+      .chat-code-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); min-width: max-content; }
+      .chat-code-line-number { padding: 0 9px; color: #9ca3af; text-align: right; user-select: none; border-right: 1px solid #e5e7eb; background: #f1f5f9; }
+      .chat-code-line { padding: 0 10px; white-space: pre-wrap; }
+      .chat-inline-editor { display: grid; gap: 8px; margin-top: 4px; }
+      .chat-inline-editor textarea { width: 100%; min-height: 220px; max-height: 420px; resize: vertical; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fbfcfd; color: #1f2937; font: 12px/1.55 Consolas, "Cascadia Mono", monospace; }
+      .chat-inline-editor footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #6b7280; font-size: 12px; }
+      .chat-inline-editor button { min-height: 32px; padding: 0 11px; border-radius: 8px; font-size: 13px; }
       @media (max-width: 1060px) { .ide-shell { grid-template-columns: 1fr 1fr; } .run-inspector { grid-column: 1 / -1; } .run-meta { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 1060px) { .workspace-editor-layout { grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); } .workspace-editor-note { grid-column: 1 / -1; } }
       @media (max-width: 1100px) { .codex-app-shell { grid-template-columns: 240px minmax(0, 1fr); } .codex-agent-panel { display: none; } }
@@ -650,6 +662,26 @@ function selectChatShowcaseFiles(files: PublicWorkspaceFile[]): PublicWorkspaceF
     .slice(0, chatShowcaseFileLimit);
 }
 
+function previewLines(content: string): string[] {
+  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (normalized === "") return [""];
+  const lines = normalized.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  return lines.length === 0 ? [""] : lines;
+}
+
+function renderChatCodePreview(content: string, status?: string): string {
+  const lines = previewLines(content);
+  const statusAttr = status === undefined ? "" : ` data-change-status="${escapeHtml(status)}"`;
+  const rows = lines.map((line, index) => `
+                <span class="chat-code-row">
+                  <span class="chat-code-line-number">${index + 1}</span>
+                  <span class="chat-code-line">${escapeHtml(line)}</span>
+                </span>`).join("");
+  return `<pre class="chat-code-preview" data-lines="${lines.length}"${statusAttr}>${rows}
+            </pre>`;
+}
+
 export function renderIndex(
   workspaces: PublicWorkspace[],
   providers: PublicProvider[] = [{ id: "mock" }],
@@ -657,7 +689,9 @@ export function renderIndex(
   fileContext?: {
     activeWorkspaceId?: string;
     activeSessionId?: string;
+    activeRunId?: string;
     workspaceFiles?: PublicChatWorkspaceFiles;
+    workspaceChanges?: PublicWorkspaceChange[];
     filePreview?: PublicChatFilePreview;
   },
   chatSession?: PublicChatSession
@@ -679,7 +713,8 @@ export function renderIndex(
     ? ""
     : `<a class="chat-nav-item" href="/workspaces/${escapeHtml(encodeURIComponent(firstWorkspace.id))}/files"><span>⌁</span><span>文件浏览</span></a>`;
   const sessionQuery = fileContext?.activeSessionId === undefined ? "" : `&sessionId=${encodeURIComponent(fileContext.activeSessionId)}`;
-  const runQuery = activeRun === undefined ? "" : `&runId=${encodeURIComponent(activeRun.id)}`;
+  const activeRunId = activeRun?.id ?? fileContext?.activeRunId;
+  const runQuery = activeRunId === undefined ? "" : `&runId=${encodeURIComponent(activeRunId)}`;
   const chatFileItems = selectChatShowcaseFiles(fileContext?.workspaceFiles?.files ?? []).map((file) => {
     const icon = file.kind === "directory" ? "▸" : "·";
     if (file.kind === "directory") {
@@ -690,14 +725,36 @@ export function renderIndex(
     return `<li><a${active} href="${escapeHtml(href)}"><span>${icon}</span><code>${escapeHtml(file.path)}</code></a></li>`;
   }).join("");
   const filePreview = fileContext?.filePreview;
+  const filePreviewLines = filePreview === undefined ? 0 : previewLines(filePreview.content).length;
+  const filePreviewStatus = filePreview?.status ?? fileContext?.workspaceChanges?.find((change) => change.path === filePreview?.path)?.status;
+  const filePreviewDiffHref = filePreview === undefined || filePreviewStatus === undefined
+    ? undefined
+    : `/api/workspaces/${encodeURIComponent(filePreview.workspaceId)}/changes/${encodeURIComponent(filePreview.path)}`;
+  const filePreviewReturnTo = filePreview === undefined
+    ? undefined
+    : `/?workspaceId=${encodeURIComponent(filePreview.workspaceId)}&file=${encodeURIComponent(filePreview.path)}${sessionQuery}${runQuery}`;
   const filePreviewPanel = filePreview === undefined
     ? `<div class="chat-inspector-card"><strong>未选择文件</strong><span>从左侧文件列表打开预览，主对话会保持不变。</span></div>`
     : `<div class="chat-inspector-card chat-file-preview">
             <header>
               <h2>${escapeHtml(filePreview.path)}</h2>
+              ${filePreviewDiffHref === undefined ? "" : `<a href="${escapeHtml(filePreviewDiffHref)}">查看 diff</a>`}
               <a href="${escapeHtml(fileHref(filePreview.workspaceId, filePreview.path))}">打开编辑器</a>
             </header>
-            <pre>${escapeHtml(filePreview.content)}</pre>
+            <div class="chat-file-meta">
+              <span class="chat-file-stat">${filePreviewLines} 行</span>
+              <span class="chat-file-stat">${filePreview.content.length} 字符</span>
+              ${filePreviewStatus === undefined ? "" : `<span class="chat-file-stat">${escapeHtml(filePreviewStatus)}</span>`}
+            </div>
+            ${renderChatCodePreview(filePreview.content, filePreviewStatus)}
+            <form class="chat-inline-editor" method="post" action="/api/workspaces/${escapeHtml(encodeURIComponent(filePreview.workspaceId))}/files/${escapeHtml(encodeURIComponent(filePreview.path))}">
+              <textarea name="content" spellcheck="false">${escapeHtml(filePreview.content)}</textarea>
+              ${filePreviewReturnTo === undefined ? "" : `<input type="hidden" name="returnTo" value="${escapeHtml(encodeURIComponent(filePreviewReturnTo))}">`}
+              <footer>
+                <span>保存会经过 workspace guardrail，并回到当前对话。</span>
+                <button type="submit">保存</button>
+              </footer>
+            </form>
           </div>`;
   const memoryItems = workspaces.flatMap((workspace) =>
     (workspace.memories ?? []).map((memory) => `<div class="chat-inspector-card"><strong>${escapeHtml(workspace.id)} / ${escapeHtml(memory.key)}</strong><span>${escapeHtml(memory.value)}</span></div>`)

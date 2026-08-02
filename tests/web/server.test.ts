@@ -809,6 +809,74 @@ workspaces:
     expect(preview.body).not.toContain(dir);
   });
 
+  it("renders the chat file preview as an inline code panel with line metadata and diff access", async () => {
+    const workspace = await createGitWebWorkspace();
+    await writeFile(join(workspace.root, "README.md"), "first line\nsecond line\n", "utf8");
+    const app = createServer({ workspaces: [workspace] });
+
+    const preview = await app.inject({ method: "GET", url: "/?workspaceId=demo&file=README.md" });
+
+    expect(preview.statusCode).toBe(200);
+    expect(preview.body).toContain("chat-code-preview");
+    expect(preview.body).toContain('data-lines="2"');
+    expect(preview.body).toContain('data-change-status="modified"');
+    expect(preview.body).toContain('<span class="chat-code-line-number">1</span>');
+    expect(preview.body).toContain('<span class="chat-code-line-number">2</span>');
+    expect(preview.body).toContain("first line");
+    expect(preview.body).toContain("second line");
+    expect(preview.body).toContain("/api/workspaces/demo/changes/README.md");
+    expect(preview.body).not.toContain(workspace.root);
+  });
+
+  it("renders an inline guarded editor inside the chat file preview panel", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-chat-inline-editor-"));
+    await writeFile(join(dir, "README.md"), "editable from chat\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }]
+    });
+
+    const preview = await app.inject({ method: "GET", url: "/?workspaceId=demo&file=README.md&runId=run-123&sessionId=session-456" });
+
+    expect(preview.statusCode).toBe(200);
+    expect(preview.body).toContain("chat-inline-editor");
+    expect(preview.body).toContain('method="post" action="/api/workspaces/demo/files/README.md"');
+    expect(preview.body).toContain('name="content"');
+    expect(preview.body).toContain('name="returnTo"');
+    expect(preview.body).toContain(encodeURIComponent("/?workspaceId=demo&file=README.md&sessionId=session-456&runId=run-123"));
+    expect(preview.body).toContain("editable from chat");
+    expect(preview.body).not.toContain(dir);
+  });
+
+  it("saves inline chat edits and redirects back to the same chat preview", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-chat-inline-save-"));
+    await writeFile(join(dir, "README.md"), "old chat text\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }]
+    });
+    const returnTo = "/?workspaceId=demo&file=README.md&runId=run-123";
+
+    const saved = await app.inject({
+      method: "POST",
+      url: "/api/workspaces/demo/files/README.md",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `content=${encodeURIComponent("new chat text\n")}&returnTo=${encodeURIComponent(returnTo)}`
+    });
+
+    expect(saved.statusCode).toBe(303);
+    expect(saved.headers.location).toBe(`${returnTo}&saved=1`);
+    await expect(readFile(join(dir, "README.md"), "utf8")).resolves.toBe("new chat text\n");
+
+    const blockedRedirect = await app.inject({
+      method: "POST",
+      url: "/api/workspaces/demo/files/README.md",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `content=${encodeURIComponent("still safe\n")}&returnTo=${encodeURIComponent("https://example.com/phish")}`
+    });
+
+    expect(blockedRedirect.statusCode).toBe(303);
+    expect(blockedRedirect.headers.location).toBe("/workspaces/demo/files/README.md?saved=1");
+  });
+
   it("uses panel-level scrolling instead of global page scrolling in the chat workspace", async () => {
     const app = createServer({ workspaces });
     const response = await app.inject({ method: "GET", url: "/" });

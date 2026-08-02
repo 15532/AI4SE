@@ -103,11 +103,12 @@ function isSessionRunRequest(value: unknown): value is { task: string } {
     && typeof (value as Record<string, unknown>).task === "string";
 }
 
-function isFileSaveRequest(value: unknown): value is { content: string } {
+function isFileSaveRequest(value: unknown): value is { content: string; returnTo?: string } {
   return typeof value === "object"
     && value !== null
     && !Array.isArray(value)
-    && typeof (value as Record<string, unknown>).content === "string";
+    && typeof (value as Record<string, unknown>).content === "string"
+    && ((value as Record<string, unknown>).returnTo === undefined || typeof (value as Record<string, unknown>).returnTo === "string");
 }
 
 function isFormRequest(headers: Record<string, string | string[] | undefined>): boolean {
@@ -138,6 +139,24 @@ function statusFromTimeline(timeline: Array<{ payload: Record<string, unknown> }
     case "approval_rejected": return "approval_rejected";
     default: return stop === undefined ? "running" : "blocked";
   }
+}
+
+function safeLocalReturnTo(value: string | undefined): string | undefined {
+  if (value === undefined || value === "") return undefined;
+  let decoded = value;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    decoded = value;
+  }
+  if (!decoded.startsWith("/") || decoded.startsWith("//")) return undefined;
+  if (decoded.includes("://")) return undefined;
+  return decoded;
+}
+
+function appendSavedFlag(location: string): string {
+  const separator = location.includes("?") ? "&" : "?";
+  return `${location}${separator}saved=1`;
 }
 
 export function createServer(input: {
@@ -322,20 +341,28 @@ export function createServer(input: {
       const workspaceFiles: PublicChatWorkspaceFiles | undefined = activeWorkspace === undefined
         ? undefined
         : { workspaceId: activeWorkspace.id, files: workspaceFileEntries };
+      const workspaceChanges = activeWorkspace === undefined ? [] : await changesForWorkspace(activeWorkspace.id);
       const selectedFile = url.searchParams.get("file");
       let filePreview: PublicChatFilePreview | undefined;
       if (activeWorkspace !== undefined && selectedFile !== null) {
         try {
           const file = await readWorkspaceTextFile(activeWorkspace, selectedFile);
-          if (file.ok) filePreview = { workspaceId: activeWorkspace.id, path: file.path, content: file.content };
+          if (file.ok) filePreview = {
+            workspaceId: activeWorkspace.id,
+            path: file.path,
+            content: file.content,
+            status: workspaceChanges.find((change) => change.path === file.path)?.status
+          };
         } catch {
           filePreview = undefined;
         }
       }
       return response(200, renderIndex(publicWorkspaces(), providers, publicRun, {
         activeWorkspaceId,
-        activeSessionId: chatSession?.id,
+        activeSessionId: chatSession?.id ?? sessionId ?? undefined,
+        activeRunId: publicRun?.id ?? runId ?? undefined,
         workspaceFiles,
+        workspaceChanges,
         filePreview
       }, chatSession), "text/html; charset=utf-8");
     }
@@ -569,7 +596,8 @@ export function createServer(input: {
         });
       }
       if (isFormRequest(headers)) {
-        return redirect(`/workspaces/${encodeURIComponent(workspace.id)}/files/${encodeURIComponent(result.path)}?saved=1`);
+        const returnTo = safeLocalReturnTo(payload.returnTo);
+        return redirect(appendSavedFlag(returnTo ?? `/workspaces/${encodeURIComponent(workspace.id)}/files/${encodeURIComponent(result.path)}`));
       }
       return response(200, { path: result.path, saved: true });
     }
