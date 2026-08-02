@@ -50,6 +50,7 @@ export async function runAgentLoop(input: {
   memoryStore?: MemoryStore;
   mode?: string;
   sessionId?: string;
+  existingRunId?: string;
 }): Promise<{ runId?: string; status: AgentStatus; events: AgentEvent[] }> {
   const events: AgentEvent[] = [];
   const feedback: Feedback[] = [];
@@ -59,7 +60,7 @@ export async function runAgentLoop(input: {
       ...input.memoryStore.recall({ workspaceId: input.workspace.id, scope: "workspace", limit: 50 }),
       ...input.memoryStore.recall({ workspaceId: input.workspace.id, scope: "global", limit: 50 })
     ].map((memory) => `${memory.key}: ${memory.value}`);
-  const runId = input.eventStore?.createRun({
+  const runId = input.existingRunId ?? input.eventStore?.createRun({
     task: input.task,
     workspaceId: input.workspace.id,
     mode: input.mode ?? "default",

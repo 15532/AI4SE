@@ -8,11 +8,24 @@ import { createProvider, type LLMProvider } from "../core/providers.js";
 import { listWorkspaceChanges, readWorkspaceDiff } from "../runtime/diff-inspector.js";
 import { classifyAction } from "../runtime/guardrails.js";
 import { dispatchTool } from "../runtime/tools.js";
+import { saveWorkspaceTextFile } from "../runtime/workspace-editor.js";
 import { listWorkspaceFiles, readWorkspaceTextFile } from "../runtime/workspace-explorer.js";
 import type { WorkspaceConfig } from "../runtime/workspace.js";
 import { EventStore } from "../store/event-store.js";
 import { MemoryStore } from "../store/memory-store.js";
-import { renderIndex, renderRun, renderSession, type PublicProvider, type PublicWorkspace } from "./views.js";
+import {
+  renderIndex,
+  renderRun,
+  renderSession,
+  renderWorkspaceFileEditor,
+  renderWorkspaceFiles,
+  type PublicChatFilePreview,
+  type PublicChatRun,
+  type PublicChatSession,
+  type PublicChatWorkspaceFiles,
+  type PublicProvider,
+  type PublicWorkspace
+} from "./views.js";
 
 type InjectInput = {
   method: string;
@@ -90,6 +103,17 @@ function isSessionRunRequest(value: unknown): value is { task: string } {
     && typeof (value as Record<string, unknown>).task === "string";
 }
 
+function isFileSaveRequest(value: unknown): value is { content: string } {
+  return typeof value === "object"
+    && value !== null
+    && !Array.isArray(value)
+    && typeof (value as Record<string, unknown>).content === "string";
+}
+
+function isFormRequest(headers: Record<string, string | string[] | undefined>): boolean {
+  return String(headers["content-type"] ?? "").includes("application/x-www-form-urlencoded");
+}
+
 function response(statusCode: number, value: unknown, contentType = "application/json; charset=utf-8"): InjectResponse {
   const body = contentType.startsWith("application/json") ? JSON.stringify(redactValue(value)) : String(value);
   return { statusCode, body, headers: { "content-type": contentType }, json: () => JSON.parse(body) };
@@ -112,7 +136,7 @@ function statusFromTimeline(timeline: Array<{ payload: Record<string, unknown> }
     case "pending_approval": return "pending_approval";
     case "approval_executed": return "approval_executed";
     case "approval_rejected": return "approval_rejected";
-    default: return stop === undefined ? "unknown" : "blocked";
+    default: return stop === undefined ? "running" : "blocked";
   }
 }
 
@@ -190,6 +214,80 @@ export function createServer(input: {
       ...(summary.summary === undefined ? {} : { summary: summary.summary })
     }));
 
+  const publicChatRun = (runId: string): PublicChatRun | undefined => {
+    const run = storedRun(runId);
+    if (run === undefined) return undefined;
+    const summary = eventStore.summarizeRun(run.id)?.summary;
+    return {
+      ...run,
+      ...(summary === undefined ? {} : { summary })
+    };
+  };
+
+  const publicChatSession = (sessionId: string): PublicChatSession | undefined => {
+    const session = eventStore.getSession(sessionId);
+    if (session === undefined) return undefined;
+    const runs = eventStore.listSessionRuns(session.id, 20)
+      .map((run) => publicChatRun(run.id))
+      .filter((run): run is PublicChatRun => run !== undefined);
+    return {
+      id: session.id,
+      workspaceId: session.workspaceId,
+      provider: session.provider,
+      title: session.title,
+      runs
+    };
+  };
+
+  const startRunInBackground = (start: {
+    task: string;
+    workspace: WorkspaceConfig;
+    provider: string;
+    sessionId?: string;
+  }): string => {
+    const providerConfig = registry.getProvider(start.provider);
+    if (providerConfig === undefined) throw new Error("Unsupported provider");
+    const provider = input.providerFactory?.(start.provider) ?? createProvider(providerConfig);
+    const runId = eventStore.createRun({
+      task: start.task,
+      workspaceId: start.workspace.id,
+      mode: registry.mode,
+      sessionId: start.sessionId
+    });
+    eventStore.appendEvent(runId, "run_started", {
+      kind: "run_started",
+      task: start.task,
+      workspaceId: start.workspace.id,
+      provider: start.provider
+    });
+    void runAgentLoop({
+      task: start.task,
+      workspace: start.workspace,
+      provider,
+      maxIterations: registry.maxIterations,
+      mode: registry.mode,
+      eventStore,
+      memoryStore,
+      sessionId: start.sessionId,
+      existingRunId: runId
+    }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Provider request failed";
+      eventStore.appendEvent(runId, "feedback", {
+        kind: "feedback",
+        feedback: {
+          source: "provider_error",
+          severity: "error",
+          message
+        }
+      });
+      eventStore.appendEvent(runId, "stop", {
+        kind: "stop",
+        reason: "provider_error"
+      });
+    });
+    return runId;
+  };
+
   const handle = async (
     method: string,
     requestUrl: string,
@@ -198,10 +296,78 @@ export function createServer(input: {
   ): Promise<InjectResponse> => {
     const url = new URL(requestUrl, "http://localhost");
     if (method === "GET" && url.pathname === "/") {
-      return response(200, renderIndex(publicWorkspaces(), providers), "text/html; charset=utf-8");
+      const runId = url.searchParams.get("runId");
+      const sessionId = url.searchParams.get("sessionId");
+      const chatSession = sessionId === null ? undefined : publicChatSession(sessionId);
+      const activeRun = runId === null ? undefined : publicChatRun(runId);
+      const publicRun: PublicChatRun | undefined = activeRun === undefined
+        ? undefined
+        : {
+          ...activeRun,
+          changes: await changesForWorkspace(activeRun.workspaceId)
+        };
+      const activeWorkspaceId = url.searchParams.get("workspaceId")
+        ?? chatSession?.workspaceId
+        ?? publicRun?.workspaceId
+        ?? registry.listWorkspaces()[0]?.id;
+      const activeWorkspace = activeWorkspaceId === undefined ? undefined : registry.getWorkspace(activeWorkspaceId);
+      let workspaceFileEntries: Awaited<ReturnType<typeof listWorkspaceFiles>> = [];
+      if (activeWorkspace !== undefined) {
+        try {
+          workspaceFileEntries = await listWorkspaceFiles(activeWorkspace);
+        } catch {
+          workspaceFileEntries = [];
+        }
+      }
+      const workspaceFiles: PublicChatWorkspaceFiles | undefined = activeWorkspace === undefined
+        ? undefined
+        : { workspaceId: activeWorkspace.id, files: workspaceFileEntries };
+      const selectedFile = url.searchParams.get("file");
+      let filePreview: PublicChatFilePreview | undefined;
+      if (activeWorkspace !== undefined && selectedFile !== null) {
+        try {
+          const file = await readWorkspaceTextFile(activeWorkspace, selectedFile);
+          if (file.ok) filePreview = { workspaceId: activeWorkspace.id, path: file.path, content: file.content };
+        } catch {
+          filePreview = undefined;
+        }
+      }
+      return response(200, renderIndex(publicWorkspaces(), providers, publicRun, {
+        activeWorkspaceId,
+        activeSessionId: chatSession?.id,
+        workspaceFiles,
+        filePreview
+      }, chatSession), "text/html; charset=utf-8");
     }
     if (method === "GET" && url.pathname === "/api/workspaces") {
       return response(200, publicWorkspaces());
+    }
+    if (method === "GET" && url.pathname.startsWith("/workspaces/") && url.pathname.endsWith("/files")) {
+      const workspaceId = decodeURIComponent(url.pathname.slice("/workspaces/".length, -"/files".length));
+      const workspace = registry.getWorkspace(workspaceId);
+      if (workspace === undefined) return response(404, "Workspace not found", "text/html; charset=utf-8");
+      return response(200, renderWorkspaceFiles({
+        workspace: publicWorkspace(workspace, memoryStore, eventStore),
+        files: await listWorkspaceFiles(workspace),
+        changes: await changesForWorkspace(workspace.id)
+      }), "text/html; charset=utf-8");
+    }
+    if (method === "GET" && url.pathname.startsWith("/workspaces/") && url.pathname.includes("/files/")) {
+      const remainder = url.pathname.slice("/workspaces/".length);
+      const separator = remainder.indexOf("/files/");
+      const workspaceId = decodeURIComponent(remainder.slice(0, separator));
+      const filePath = decodeURIComponent(remainder.slice(separator + "/files/".length));
+      const workspace = registry.getWorkspace(workspaceId);
+      if (workspace === undefined) return response(404, "Workspace not found", "text/html; charset=utf-8");
+      const file = await readWorkspaceTextFile(workspace, filePath);
+      if (!file.ok) return response(400, file.error, "text/html; charset=utf-8");
+      return response(200, renderWorkspaceFileEditor({
+        workspace: publicWorkspace(workspace, memoryStore, eventStore),
+        files: await listWorkspaceFiles(workspace),
+        file,
+        changes: await changesForWorkspace(workspace.id),
+        saved: url.searchParams.get("saved") === "1"
+      }), "text/html; charset=utf-8");
     }
     if (method === "POST" && url.pathname === "/api/sessions") {
       if (!isSessionRequest(payload)) return response(400, { error: "Invalid session request" });
@@ -216,6 +382,33 @@ export function createServer(input: {
         return redirect(`/sessions/${encodeURIComponent(sessionId)}`);
       }
       return response(201, { id: sessionId });
+    }
+    if (method === "POST" && url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/runs/start")) {
+      const sessionId = decodeURIComponent(url.pathname.slice("/api/sessions/".length, -"/runs/start".length));
+      const session = eventStore.getSession(sessionId);
+      if (session === undefined) return response(404, { error: "Unknown session id" });
+      if (!isSessionRunRequest(payload)) return response(400, { error: "Invalid session run request" });
+      const workspace = registry.getWorkspace(session.workspaceId);
+      if (workspace === undefined) return response(400, { error: "Unknown workspace id" });
+      if (registry.getProvider(session.provider) === undefined) return response(400, { error: "Unsupported provider" });
+      let runId: string;
+      try {
+        runId = startRunInBackground({
+          task: payload.task,
+          workspace,
+          provider: session.provider,
+          sessionId: session.id
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Provider request failed";
+        if (message.startsWith("Missing API key for provider ")) return response(400, { error: message });
+        if (message === "Unsupported provider") return response(400, { error: message });
+        return response(502, { error: "Provider request failed" });
+      }
+      if (isFormRequest(headers)) {
+        return redirect(`/?sessionId=${encodeURIComponent(session.id)}&runId=${encodeURIComponent(runId)}`);
+      }
+      return response(202, { id: runId, sessionId: session.id });
     }
     if (method === "POST" && url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/runs")) {
       const sessionId = decodeURIComponent(url.pathname.slice("/api/sessions/".length, -"/runs".length));
@@ -247,7 +440,7 @@ export function createServer(input: {
       }
       if (result.runId === undefined) throw new Error("Persisted run did not return an id");
       if (String(headers["content-type"] ?? "").includes("application/x-www-form-urlencoded")) {
-        return redirect(`/sessions/${encodeURIComponent(session.id)}`);
+        return redirect(`/?sessionId=${encodeURIComponent(session.id)}&runId=${encodeURIComponent(result.runId)}`);
       }
       return response(201, { id: result.runId, sessionId: session.id });
     }
@@ -281,7 +474,7 @@ export function createServer(input: {
           reason: "approval_rejected",
           approvalId: approval.id
         });
-        return redirect(`/runs/${encodeURIComponent(approval.runId)}`);
+        return redirect(`/?runId=${encodeURIComponent(approval.runId)}`);
       }
 
       const guardrail = classifyAction(approval.action, workspace);
@@ -312,7 +505,7 @@ export function createServer(input: {
         reason: "approval_executed",
         approvalId: approval.id
       });
-      return redirect(`/runs/${encodeURIComponent(approval.runId)}`);
+      return redirect(`/?runId=${encodeURIComponent(approval.runId)}`);
     }
     if (method === "GET" && url.pathname.startsWith("/api/sessions/")) {
       const sessionId = decodeURIComponent(url.pathname.slice("/api/sessions/".length));
@@ -360,6 +553,58 @@ export function createServer(input: {
         ? response(200, { path: result.path, content: result.content })
         : response(400, { error: result.error });
     }
+    if (method === "POST" && url.pathname.startsWith(workspaceApiPrefix) && url.pathname.includes("/files/")) {
+      const remainder = url.pathname.slice(workspaceApiPrefix.length);
+      const separator = remainder.indexOf("/files/");
+      const workspaceId = decodeURIComponent(remainder.slice(0, separator));
+      const filePath = decodeURIComponent(remainder.slice(separator + "/files/".length));
+      const workspace = registry.getWorkspace(workspaceId);
+      if (workspace === undefined) return response(404, { error: "Unknown workspace id" });
+      if (!isFileSaveRequest(payload)) return response(400, { error: "Invalid file save request" });
+      const result = await saveWorkspaceTextFile(workspace, filePath, payload.content);
+      if (!result.ok) {
+        return response(400, {
+          error: result.error,
+          ...(result.ruleId === undefined ? {} : { ruleId: result.ruleId })
+        });
+      }
+      if (isFormRequest(headers)) {
+        return redirect(`/workspaces/${encodeURIComponent(workspace.id)}/files/${encodeURIComponent(result.path)}?saved=1`);
+      }
+      return response(200, { path: result.path, saved: true });
+    }
+    if (method === "POST" && url.pathname === "/api/runs/start") {
+      if (!isRunRequest(payload)) return response(400, { error: "Invalid run request" });
+      const workspace = registry.getWorkspace(payload.workspaceId);
+      if (workspace === undefined) return response(400, { error: "Unknown workspace id" });
+      const providerConfig = registry.getProvider(payload.provider);
+      if (providerConfig === undefined) return response(400, { error: "Unsupported provider" });
+
+      const formRequest = String(headers["content-type"] ?? "").includes("application/x-www-form-urlencoded");
+      const sessionId = eventStore.createSession({
+        workspaceId: workspace.id,
+        provider: providerConfig.id,
+        title: payload.task
+      });
+      let runId: string;
+      try {
+        runId = startRunInBackground({
+          task: payload.task,
+          workspace,
+          provider: payload.provider,
+          sessionId
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Provider request failed";
+        if (message.startsWith("Missing API key for provider ")) return response(400, { error: message });
+        if (message === "Unsupported provider") return response(400, { error: message });
+        return response(502, { error: "Provider request failed" });
+      }
+      if (formRequest) {
+        return redirect(`/?sessionId=${encodeURIComponent(sessionId)}&runId=${encodeURIComponent(runId)}`);
+      }
+      return response(202, { id: runId, sessionId });
+    }
     if (method === "POST" && url.pathname === "/api/runs") {
       if (!isRunRequest(payload)) return response(400, { error: "Invalid run request" });
       const workspace = registry.getWorkspace(payload.workspaceId);
@@ -367,6 +612,14 @@ export function createServer(input: {
       const providerConfig = registry.getProvider(payload.provider);
       if (providerConfig === undefined) return response(400, { error: "Unsupported provider" });
 
+      const formRequest = String(headers["content-type"] ?? "").includes("application/x-www-form-urlencoded");
+      const sessionId = formRequest
+        ? eventStore.createSession({
+          workspaceId: workspace.id,
+          provider: providerConfig.id,
+          title: payload.task
+        })
+        : undefined;
       let result: Awaited<ReturnType<typeof runAgentLoop>>;
       try {
         const provider = input.providerFactory?.(payload.provider) ?? createProvider(providerConfig);
@@ -377,7 +630,8 @@ export function createServer(input: {
           maxIterations: registry.maxIterations,
           mode: registry.mode,
           eventStore,
-          memoryStore
+          memoryStore,
+          sessionId
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Provider request failed";
@@ -385,10 +639,25 @@ export function createServer(input: {
         return response(502, { error: "Provider request failed" });
       }
       if (result.runId === undefined) throw new Error("Persisted run did not return an id");
-      if (String(headers["content-type"] ?? "").includes("application/x-www-form-urlencoded")) {
-        return redirect(`/runs/${encodeURIComponent(result.runId)}`);
+      if (formRequest) {
+        return redirect(`/?sessionId=${encodeURIComponent(sessionId ?? "")}&runId=${encodeURIComponent(result.runId)}`);
       }
       return response(201, { id: result.runId });
+    }
+    if (method === "GET" && url.pathname.startsWith("/api/runs/") && url.pathname.endsWith("/timeline")) {
+      const id = decodeURIComponent(url.pathname.slice("/api/runs/".length, -"/timeline".length));
+      const run = storedRun(id);
+      if (run === undefined) return response(404, { error: "Unknown run id" });
+      const after = Number(url.searchParams.get("after") ?? "0");
+      const timeline = Number.isFinite(after)
+        ? run.timeline.filter((event) => event.sequence > after)
+        : run.timeline;
+      return response(200, {
+        id: run.id,
+        status: run.status,
+        approvals: run.approvals,
+        timeline
+      });
     }
     if (method === "GET" && url.pathname.startsWith("/api/runs/")) {
       const id = decodeURIComponent(url.pathname.slice("/api/runs/".length));

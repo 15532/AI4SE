@@ -11,10 +11,13 @@ describe("workspace explorer", () => {
     await mkdir(join(root, "src"), { recursive: true });
     await mkdir(join(root, "node_modules", "pkg"), { recursive: true });
     await mkdir(join(root, "dist"), { recursive: true });
+    await mkdir(join(root, "coverage"), { recursive: true });
+    await writeFile(join(root, ".git"), "gitdir: ../.git/worktrees/demo\n", "utf8");
     await writeFile(join(root, "README.md"), "# Demo\n", "utf8");
     await writeFile(join(root, "src", "index.ts"), "export const ok = true;\n", "utf8");
     await writeFile(join(root, "node_modules", "pkg", "index.js"), "ignored", "utf8");
     await writeFile(join(root, "dist", "index.js"), "ignored", "utf8");
+    await writeFile(join(root, "coverage", "index.html"), "ignored", "utf8");
 
     const files = await listWorkspaceFiles({ id: "demo", name: "Demo", root, allowedCommands: [] });
 

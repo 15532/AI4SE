@@ -1,5 +1,45 @@
 # Coding Agent Harness
 
+## Chat-first WebUI
+
+当前 WebUI 首页已经调整为对话优先的 AI coding agent 工作台。启动后访问 `/`，主体区域是类似 Codex 桌面端的对话流和底部输入框；用户选择 workspace/provider 并输入任务后，浏览器表单会提交到 `/api/runs/start`，先在当前对话创建 session/run，再由后台触发真实 harness run。左侧用于工作区和工具入口，右侧 Inspector 展示运行机制、允许命令、memory 和文件入口。
+
+文件浏览与编辑器仍然保留，但定位为从对话工作台打开的辅助工具，而不是默认主体页面。
+
+## 实时运行流 V1
+
+浏览器对话页使用异步运行入口，提交后立即回到同一个对话流并显示 `running` 状态。服务端会先写入 `run_started` 事件，再在后台执行同一套 `runAgentLoop`、provider、guardrail 和 tool dispatcher。页面通过 `GET /api/runs/<run-id>/timeline?after=<sequence>` 轮询增量 timeline；运行结束、阻塞或进入审批状态后会刷新当前对话卡片。原有同步 `POST /api/runs` 与 `POST /api/sessions/<session-id>/runs` 仍保留，便于 CLI/API 调试和测试。
+
+## 对话内工具调用展示 V1
+
+对话页会从 run timeline 中提取 `tool_result` 事件，并在 AI 回复卡片中渲染为可读的工具调用列表。`list_files`、`read_file`、`write_file`、`run_command` 和 `remember` 会显示为中文动作名、目标路径或命令、执行原因、成功/失败状态以及输出预览；完整原始 timeline 仍保留在下方，便于调试 harness 机制。
+
+## 对话内文件联动 V1
+
+`read_file` 与 `write_file` 工具卡片会显示文件操作入口：`预览文件` 会留在同一个对话首页，并把目标文件打开到右侧 Inspector 的文件预览面板；`编辑文件` 会进入受 guardrail 保护的轻量编辑器。链接会保留当前 run/session 参数，方便在连续对话中查看 agent 刚读过或刚修改过的文件。
+
+## 对话内变更与审批展示 V1
+
+当 agent 修改 workspace 后，对话页会把 git 工作区变化渲染为 `文件变更` 卡片，展示变更状态、相对路径、文件预览入口和 diff API 入口。遇到需要人工确认的高风险动作时，对话页会显示 `等待审批` 卡片，直接展示命令/目标、原因、护栏规则，并提供批准或拒绝按钮；审批结果仍写回 timeline。
+
+## Browser Editor V1
+
+当前 WebUI 已新增浏览器内工作区文件浏览与轻量编辑入口，目标是让系统更接近可实际使用的 coding agent 工作台，而不只是一次性测试页面。
+
+- 文件浏览页：`/workspaces/<workspace-id>/files`
+- 文件编辑页：`/workspaces/<workspace-id>/files/<relative-path>`
+- 保存 API：`POST /api/workspaces/<workspace-id>/files/<relative-path>`
+
+编辑器只接收已注册的 `workspace id` 和 workspace 内相对路径，不接受浏览器传入任意服务器根路径。保存会复用 harness 现有 `write_file` action、workspace path boundary、敏感路径/密钥内容 guardrail 和工具分发器；`.env`、private key、secret-like content、路径逃逸都会被拒绝。页面只展示 workspace id 与相对路径，不暴露 workspace root。
+
+本地启动后可以先打开：
+
+```text
+http://127.0.0.1:3000/workspaces/demo-ts/files
+```
+
+从文件列表进入某个文件后即可在浅色集成式编辑区域中修改并保存。该能力仍是轻量 Browser Editor V1，不是完整 VS Code 替代品；后续如果继续增强复杂编辑体验，会按已确认方向参考 Open Design 做更完整的视觉系统和交互规范。
+
 这是 AI4SE Project A 的 TypeScript coding-agent harness。项目提供一个带安全边界的代理运行环境：CLI 和 WebUI 都可以触发真实 harness run，代理循环可通过 mock 或 DeepSeek provider 决策，文件操作受 workspace path boundary 约束，shell 命令受 allowlist、guardrail 与人工审批约束，运行过程会写入 SQLite timeline、memory 和 interactive session。当前方案 A 已补强为可用代码开发链路：agent 会拿到工具协议、工作区、允许命令和反馈，按“查看 -> 修改 -> 验证 -> 完成”的路径执行小型代码任务。
 
 ## 功能概览

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -30,6 +30,28 @@ async function createGitWebWorkspace() {
   await git(root, ["add", "README.md"]);
   await git(root, ["commit", "-m", "initial"]);
   return { id: "demo", name: "Demo", root, allowedCommands: [] };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+}
+
+async function waitForRunStatus(
+  app: ReturnType<typeof createServer>,
+  runId: string,
+  status: string
+): Promise<Record<string, unknown>> {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const response = await app.inject({ method: "GET", url: `/api/runs/${runId}/timeline` });
+    const payload = response.json() as Record<string, unknown>;
+    if (payload.status === status) return payload;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Timed out waiting for run ${runId} to reach ${status}`);
 }
 
 describe("web server", () => {
@@ -155,16 +177,124 @@ workspaces:
 
     expect(response.statusCode).toBe(303);
     expect(completeCalls).toBe(1);
-    expect(response.headers.location).toMatch(/^\/runs\/[0-9a-f-]+$/);
-    const id = response.headers.location.slice("/runs/".length);
+    expect(response.headers.location).toMatch(/^\/\?sessionId=[0-9a-f-]+&runId=[0-9a-f-]+$/);
+    const id = response.headers.location.split("&runId=")[1];
     const run = await app.inject({ method: "GET", url: `/api/runs/${id}` });
     expect(run.json()).toEqual(expect.objectContaining({ workspaceId: "demo-ts" }));
     expect(run.body).not.toContain("attacker");
 
-    const page = await app.inject({ method: "GET", url: `/runs/${id}` });
+    const page = await app.inject({ method: "GET", url: response.headers.location });
     expect(page.statusCode).toBe(200);
-    expect(page.body).toContain("运行时间线");
+    expect(page.body).toContain("chat-session-thread");
+    expect(page.body).toContain("chat-run-result");
+    expect(page.body).toContain("run tests");
+    expect(page.body).toContain("done");
+    expect(page.body).toContain(`/runs/${id}`);
     expect(page.body).toContain("finish");
+  });
+
+  it("continues browser chat submissions in one inline conversation thread", async () => {
+    const responses = [
+      JSON.stringify({ type: "finish", summary: "first done" }),
+      JSON.stringify({ type: "finish", summary: "second done" })
+    ];
+    let responseIndex = 0;
+    const app = createServer({
+      workspaces,
+      providerFactory: () => ({
+        async complete() {
+          const response = responses[responseIndex];
+          responseIndex += 1;
+          return response;
+        }
+      })
+    });
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "workspaceId=demo-ts&provider=mock&task=first+task"
+    });
+    const firstLocation = first.headers.location;
+    const sessionId = firstLocation.match(/sessionId=([^&]+)/)?.[1];
+
+    expect(first.statusCode).toBe(303);
+    expect(sessionId).toEqual(expect.any(String));
+    expect(firstLocation).toMatch(/^\/\?sessionId=[0-9a-f-]+&runId=[0-9a-f-]+$/);
+
+    const second = await app.inject({
+      method: "POST",
+      url: `/api/sessions/${sessionId}/runs`,
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "task=second+task&workspaceId=docs&provider=deepseek"
+    });
+
+    expect(second.statusCode).toBe(303);
+    expect(second.headers.location).toMatch(new RegExp(`^/\\?sessionId=${sessionId}&runId=[0-9a-f-]+$`));
+    const page = await app.inject({ method: "GET", url: second.headers.location });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-session-thread");
+    expect(page.body).toContain(`action="/api/sessions/${sessionId}/runs/start"`);
+    expect(page.body).toContain("first task");
+    expect(page.body).toContain("first done");
+    expect(page.body).toContain("second task");
+    expect(page.body).toContain("second done");
+    expect(page.body).toContain("Session:");
+  });
+
+  it("starts browser chat runs asynchronously and exposes a pollable timeline", async () => {
+    const release = deferred<string>();
+    let providerStarted = false;
+    const app = createServer({
+      workspaces,
+      providerFactory: () => ({
+        async complete() {
+          providerStarted = true;
+          return release.promise;
+        }
+      })
+    });
+
+    const started = await app.inject({
+      method: "POST",
+      url: "/api/runs/start",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "workspaceId=demo-ts&provider=mock&task=live+task"
+    });
+
+    expect(started.statusCode).toBe(303);
+    expect(started.headers.location).toMatch(/^\/\?sessionId=[0-9a-f-]+&runId=[0-9a-f-]+$/);
+    expect(providerStarted).toBe(true);
+
+    const runId = started.headers.location.split("&runId=")[1];
+    const running = await app.inject({ method: "GET", url: `/api/runs/${runId}/timeline` });
+    expect(running.statusCode).toBe(200);
+    expect(running.json()).toEqual({
+      id: runId,
+      status: "running",
+      approvals: [],
+      timeline: [expect.objectContaining({
+        sequence: 1,
+        kind: "run_started",
+        payload: expect.objectContaining({ kind: "run_started", task: "live task" })
+      })]
+    });
+
+    release.resolve(JSON.stringify({ type: "finish", summary: "live done" }));
+    const finished = await waitForRunStatus(app, runId, "finished");
+    expect(finished).toEqual(expect.objectContaining({
+      id: runId,
+      status: "finished",
+      timeline: expect.arrayContaining([
+        expect.objectContaining({ kind: "llm_response" }),
+        expect.objectContaining({
+          kind: "stop",
+          payload: expect.objectContaining({ reason: "finish", summary: "live done" })
+        })
+      ])
+    }));
   });
 
   it("persists WebUI runs, events, and remember actions in SQLite", async () => {
@@ -313,7 +443,7 @@ workspaces:
     });
 
     expect(continued.statusCode).toBe(303);
-    expect(continued.headers.location).toBe(`/sessions/${sessionId}`);
+    expect(continued.headers.location).toMatch(new RegExp(`^/\\?sessionId=${sessionId}&runId=[0-9a-f-]+$`));
     expect(completeCalls).toBe(1);
   });
 
@@ -395,29 +525,338 @@ workspaces:
     expect(response.json()).toEqual({ error: "Unknown run id" });
   });
 
-  it("renders a workspace selection form", async () => {
+  it("renders a chat-first workspace console", async () => {
     const app = createServer({ workspaces });
     const response = await app.inject({ method: "GET", url: "/" });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body).toContain("智能 IDE 工作台");
-    expect(response.body).toContain("workspace-rail");
+    expect(response.body).toContain("chat-app-shell");
+    expect(response.body).toContain("chat-sidebar");
+    expect(response.body).toContain("chat-thread");
+    expect(response.body).toContain("chat-message");
+    expect(response.body).toContain("chat-composer");
+    expect(response.body).toContain("chat-inspector");
     expect(response.body).toContain("task-composer");
-    expect(response.body).toContain("session-composer");
-    expect(response.body).toContain('action="/api/sessions"');
-    expect(response.body).toContain("run-inspector");
-    expect(response.body).toContain("code-viewer");
-    expect(response.body).toContain("memory-panel");
-    expect(response.body).toContain("recent-runs");
-    expect(response.body).toContain("可用命令");
+    expect(response.body).toContain('method="post" action="/api/runs/start"');
+    expect(response.body).toContain('name="workspaceId"');
+    expect(response.body).toContain('name="provider"');
+    expect(response.body).toContain('name="task"');
     expect(response.body).toContain("demo-ts");
     expect(response.body).toContain("docs");
     expect(response.body).toContain("npm test");
     expect(response.body).toContain("npm run build");
-    expect(response.body).toContain('name="provider"');
     expect(response.body).toContain('<option value="mock">mock</option>');
-    expect(response.body).toContain("<form");
     expect(response.body).not.toContain("registered-docs");
+  });
+
+  it("renders live polling hooks on the active chat run", async () => {
+    const release = deferred<string>();
+    const app = createServer({
+      workspaces,
+      providerFactory: () => ({
+        async complete() {
+          return release.promise;
+        }
+      })
+    });
+
+    const started = await app.inject({
+      method: "POST",
+      url: "/api/runs/start",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "workspaceId=demo-ts&provider=mock&task=watch+me"
+    });
+    const runId = started.headers.location.split("&runId=")[1];
+    const page = await app.inject({ method: "GET", url: started.headers.location });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-live-indicator");
+    expect(page.body).toContain(`data-live-run-id="${runId}"`);
+    expect(page.body).toContain(`data-live-after="1"`);
+    expect(page.body).toContain(`/api/runs/${runId}/timeline`);
+
+    release.resolve(JSON.stringify({ type: "finish", summary: "watched" }));
+    await waitForRunStatus(app, runId, "finished");
+  });
+
+  it("renders tool calls as readable cards inside the chat conversation", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-tool-cards-"));
+    await writeFile(join(dir, "README.md"), "# Demo\n\nReadable tool cards\n", "utf8");
+    const responses = [
+      JSON.stringify({ type: "list_files", path: ".", reason: "inspect files" }),
+      JSON.stringify({ type: "read_file", path: "README.md", reason: "read docs" }),
+      JSON.stringify({ type: "run_command", command: "node --version", reason: "verify runtime" }),
+      JSON.stringify({ type: "finish", summary: "inspected and verified" })
+    ];
+    let responseIndex = 0;
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: ["node --version"] }],
+      providerFactory: () => ({
+        async complete() {
+          const response = responses[responseIndex];
+          responseIndex += 1;
+          return response;
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo", provider: "mock", task: "inspect project" }
+    });
+    const { id: runId } = created.json() as { id: string };
+    const page = await app.inject({ method: "GET", url: `/?runId=${runId}` });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-tool-call-list");
+    expect(page.body).toContain("chat-tool-card");
+    expect(page.body).toContain("工具调用");
+    expect(page.body).toContain("列出文件");
+    expect(page.body).toContain("读取文件");
+    expect(page.body).toContain("运行命令");
+    expect(page.body).toContain("README.md");
+    expect(page.body).toContain("node --version");
+    expect(page.body).toContain("Readable tool cards");
+    expect(page.body).toContain("成功");
+  });
+
+  it("links file tool calls to the in-chat preview panel and guarded editor", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-tool-file-links-"));
+    await writeFile(join(dir, "README.md"), "# Demo\n\nOriginal preview\n", "utf8");
+    const responses = [
+      JSON.stringify({ type: "read_file", path: "README.md", reason: "inspect readme" }),
+      JSON.stringify({ type: "write_file", path: "README.md", content: "Updated from tool\n", reason: "update readme" }),
+      JSON.stringify({ type: "finish", summary: "updated readme" })
+    ];
+    let responseIndex = 0;
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }],
+      providerFactory: () => ({
+        async complete() {
+          const response = responses[responseIndex];
+          responseIndex += 1;
+          return response;
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo", provider: "mock", task: "inspect and update readme" }
+    });
+    const { id: runId } = created.json() as { id: string };
+    const page = await app.inject({ method: "GET", url: `/?runId=${runId}` });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-tool-actions");
+    expect(page.body).toContain(`href="/?workspaceId=demo&amp;file=README.md&amp;runId=${runId}"`);
+    expect(page.body).toContain('href="/workspaces/demo/files/README.md"');
+
+    const preview = await app.inject({
+      method: "GET",
+      url: `/?workspaceId=demo&file=README.md&runId=${runId}`
+    });
+
+    expect(preview.statusCode).toBe(200);
+    expect(preview.body).toContain("chat-run-result");
+    expect(preview.body).toContain("chat-file-preview");
+    expect(preview.body).toContain("inspect and update readme");
+    expect(preview.body).toContain("Updated from tool");
+    expect(preview.body).not.toContain(dir);
+  });
+
+  it("preserves session context when linking file tool calls to the chat preview", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-session-tool-file-links-"));
+    await writeFile(join(dir, "README.md"), "# Demo\n\nSession preview\n", "utf8");
+    const responses = [
+      JSON.stringify({ type: "read_file", path: "README.md", reason: "read session file" }),
+      JSON.stringify({ type: "finish", summary: "read session file" })
+    ];
+    let responseIndex = 0;
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }],
+      providerFactory: () => ({
+        async complete() {
+          const response = responses[responseIndex];
+          responseIndex += 1;
+          return response;
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "workspaceId=demo&provider=mock&task=session+file"
+    });
+    const location = created.headers.location;
+    expect(location).toEqual(expect.any(String));
+    const sessionId = location.match(/sessionId=([^&]+)/)?.[1];
+    const runId = location.match(/runId=([^&]+)/)?.[1];
+    expect(sessionId).toEqual(expect.any(String));
+    expect(runId).toEqual(expect.any(String));
+
+    const page = await app.inject({ method: "GET", url: location });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-session-thread");
+    expect(page.body).toContain(
+      `href="/?workspaceId=demo&amp;file=README.md&amp;runId=${runId}&amp;sessionId=${sessionId}"`
+    );
+  });
+
+  it("renders workspace changes as reviewable cards inside the chat conversation", async () => {
+    const workspace = await createGitWebWorkspace();
+    const responses = [
+      JSON.stringify({
+        type: "write_file",
+        path: "README.md",
+        content: "hello changed\n",
+        reason: "update docs"
+      }),
+      JSON.stringify({ type: "finish", summary: "updated docs" })
+    ];
+    let responseIndex = 0;
+    const app = createServer({
+      workspaces: [workspace],
+      providerFactory: () => ({
+        async complete() {
+          const response = responses[responseIndex];
+          responseIndex += 1;
+          return response;
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo", provider: "mock", task: "update readme" }
+    });
+    const { id: runId } = created.json() as { id: string };
+    const page = await app.inject({ method: "GET", url: `/?runId=${runId}` });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-change-panel");
+    expect(page.body).toContain("chat-change-card");
+    expect(page.body).toContain("文件变更");
+    expect(page.body).toContain("modified");
+    expect(page.body).toContain("README.md");
+    expect(page.body).toContain("/api/workspaces/demo/changes/README.md");
+    expect(page.body).toContain("/?workspaceId=demo&amp;file=README.md&amp;runId=");
+  });
+
+  it("renders pending approvals as actionable cards inside the chat conversation", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-chat-approval-"));
+    const dbPath = join(dir, "harness.sqlite");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: ["git push"] }],
+      dbPath,
+      providerFactory: () => ({
+        async complete() {
+          return JSON.stringify({ type: "run_command", command: "git push", reason: "publish release" });
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo", provider: "mock", task: "publish" }
+    });
+    const { id: runId } = created.json() as { id: string };
+    const approvalId = new EventStore(dbPath).listPendingApprovals(runId)[0]?.id;
+    const page = await app.inject({ method: "GET", url: `/?runId=${runId}` });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-approval-list");
+    expect(page.body).toContain("chat-approval-card");
+    expect(page.body).toContain("等待审批");
+    expect(page.body).toContain("git push");
+    expect(page.body).toContain("publish release");
+    expect(page.body).toContain("批准执行");
+    expect(page.body).toContain("拒绝");
+    expect(page.body).toContain(`/api/approvals/${approvalId}/approve`);
+    expect(page.body).toContain(`/api/approvals/${approvalId}/reject`);
+  });
+
+  it("keeps file navigation inside the chat workspace with a preview panel", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-chat-files-"));
+    await writeFile(join(dir, "README.md"), "# Demo\n\nChat preview\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: ["npm test"] }]
+    });
+
+    const index = await app.inject({ method: "GET", url: "/" });
+
+    expect(index.statusCode).toBe(200);
+    expect(index.body).toContain("chat-file-list");
+    expect(index.body).toContain('href="/?workspaceId=demo&amp;file=README.md"');
+    expect(index.body).toContain("README.md");
+    expect(index.body).not.toContain("/workspaces/demo/files/README.md");
+    expect(index.body).not.toContain(dir);
+
+    const preview = await app.inject({ method: "GET", url: "/?workspaceId=demo&file=README.md" });
+
+    expect(preview.statusCode).toBe(200);
+    expect(preview.body).toContain("chat-file-preview");
+    expect(preview.body).toContain("README.md");
+    expect(preview.body).toContain("Chat preview");
+    expect(preview.body).toContain("/workspaces/demo/files/README.md");
+    expect(preview.body).not.toContain(dir);
+  });
+
+  it("uses panel-level scrolling instead of global page scrolling in the chat workspace", async () => {
+    const app = createServer({ workspaces });
+    const response = await app.inject({ method: "GET", url: "/" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('<body class="chat-body">');
+    expect(response.body).toContain(".chat-body { height: 100vh; overflow: hidden;");
+    expect(response.body).toContain(".chat-app-shell { width: 100%; max-width: none; height: 100vh;");
+    expect(response.body).toContain(".chat-sidebar { min-height: 0; overflow: hidden;");
+    expect(response.body).toContain(".chat-nav { display: grid; gap: 6px; min-height: 0; overflow: auto;");
+    expect(response.body).toContain(".chat-main { min-width: 0; min-height: 0; overflow: hidden;");
+    expect(response.body).toContain(".chat-thread { min-height: 0; overflow: auto;");
+    expect(response.body).toContain(".chat-inspector { min-height: 0; overflow: auto;");
+  });
+
+  it("keeps the chat file panel concise for demonstrations", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-chat-showcase-"));
+    await mkdir(join(dir, ".superpowers", "sdd"), { recursive: true });
+    await mkdir(join(dir, "data"), { recursive: true });
+    await mkdir(join(dir, "docs", "superpowers", "plans"), { recursive: true });
+    await mkdir(join(dir, "src"), { recursive: true });
+    await mkdir(join(dir, "tests"), { recursive: true });
+    await writeFile(join(dir, "README.md"), "# Demo\n", "utf8");
+    await writeFile(join(dir, "package.json"), "{}\n", "utf8");
+    await writeFile(join(dir, "src", "index.ts"), "export {};\n", "utf8");
+    await writeFile(join(dir, "tests", "index.test.ts"), "test('ok', () => {});\n", "utf8");
+    await writeFile(join(dir, ".superpowers", "sdd", "task.md"), "noise\n", "utf8");
+    await writeFile(join(dir, "data", "harness.sqlite"), "noise\n", "utf8");
+    await writeFile(join(dir, "docs", "superpowers", "plans", "plan.md"), "noise\n", "utf8");
+    for (let index = 1; index <= 40; index += 1) {
+      await writeFile(join(dir, `extra-${String(index).padStart(2, "0")}.md`), "extra\n", "utf8");
+    }
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }]
+    });
+
+    const response = await app.inject({ method: "GET", url: "/" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain("chat-file-list");
+    expect(response.body).toContain("README.md");
+    expect(response.body).toContain("package.json");
+    expect(response.body).toContain("src/index.ts");
+    expect(response.body).toContain("tests/index.test.ts");
+    expect(response.body).not.toContain(".superpowers/sdd/task.md");
+    expect(response.body).not.toContain("data/harness.sqlite");
+    expect(response.body).not.toContain("docs/superpowers/plans/plan.md");
+    expect(response.body).not.toContain("extra-40.md");
   });
 
   it("lists files for a registered workspace without exposing its root", async () => {
@@ -445,6 +884,96 @@ workspaces:
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ path: "README.md", content: "# Demo\n" });
+  });
+
+  it("renders a workspace file browser without exposing roots", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-editor-"));
+    await writeFile(join(dir, "README.md"), "# Demo\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: ["npm test"] }]
+    });
+
+    const response = await app.inject({ method: "GET", url: "/workspaces/demo/files" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain("codex-app-shell");
+    expect(response.body).toContain("codex-app-bar");
+    expect(response.body).toContain("codex-sidebar");
+    expect(response.body).toContain("codex-editor-main");
+    expect(response.body).toContain("codex-agent-panel");
+    expect(response.body).toContain("workspace-file-browser");
+    expect(response.body).toContain("README.md");
+    expect(response.body).toContain("/workspaces/demo/files/README.md");
+    expect(response.body).not.toContain(dir);
+  });
+
+  it("renders a workspace file editor with integrated IDE styling", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-editor-"));
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "src", "index.ts"), "export const answer = 42;\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: ["npm test"] }]
+    });
+
+    const response = await app.inject({ method: "GET", url: "/workspaces/demo/files/src%2Findex.ts" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain("codex-app-shell");
+    expect(response.body).toContain("codex-app-bar");
+    expect(response.body).toContain("codex-sidebar");
+    expect(response.body).toContain("codex-editor-main");
+    expect(response.body).toContain("codex-agent-panel");
+    expect(response.body).toContain("codex-editor-tab");
+    expect(response.body).toContain("workspace-editor");
+    expect(response.body).toContain("workspace-editor-shell");
+    expect(response.body).toContain('name="content"');
+    expect(response.body).toContain("export const answer = 42;");
+    expect(response.body).toContain("保存");
+    expect(response.body).not.toContain(dir);
+  });
+
+  it("saves edited workspace files through the WebUI guardrails", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-editor-"));
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "src", "index.ts"), "old\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: ["npm test"] }]
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/workspaces/demo/files/src%2Findex.ts",
+      payload: { content: "new\n", root: "C:\\attacker" }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ path: "src/index.ts", saved: true });
+    await expect(readFile(join(dir, "src", "index.ts"), "utf8")).resolves.toBe("new\n");
+    expect(response.body).not.toContain("attacker");
+  });
+
+  it("rejects unsafe workspace file saves", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-editor-"));
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }]
+    });
+
+    const escaped = await app.inject({
+      method: "POST",
+      url: "/api/workspaces/demo/files/..%2Foutside.ts",
+      payload: { content: "x" }
+    });
+    const secret = await app.inject({
+      method: "POST",
+      url: "/api/workspaces/demo/files/src%2Fconfig.ts",
+      payload: { content: "api_key=plain-secret" }
+    });
+
+    expect(escaped.statusCode).toBe(400);
+    expect(escaped.json()).toEqual({ error: "Path escapes workspace root", ruleId: "path.escape_workspace" });
+    expect(secret.statusCode).toBe(400);
+    expect(secret.json()).toEqual({ error: "Sensitive files cannot be written", ruleId: "write.sensitive_file" });
+    expect(secret.body).not.toContain("plain-secret");
   });
 
   it("rejects file preview paths that escape the workspace", async () => {
@@ -600,11 +1129,13 @@ workspaces:
       payload: { workspaceId: "demo", provider: "mock", task: "publish" }
     });
     const { id: runId } = created.json() as { id: string };
-    const page = await app.inject({ method: "GET", url: `/runs/${runId}` });
+    const page = await app.inject({ method: "GET", url: `/?runId=${runId}` });
     const approvalId = new EventStore(dbPath).listPendingApprovals(runId)[0]?.id;
 
     expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-run-result");
     expect(page.body).toContain("approval-panel");
+    expect(page.body).toContain("chat-approval-panel");
     expect(page.body).toContain("command.publish_or_deploy");
     expect(approvalId).toEqual(expect.any(String));
 
@@ -614,7 +1145,7 @@ workspaces:
     });
 
     expect(approved.statusCode).toBe(303);
-    expect(approved.headers.location).toBe(`/runs/${runId}`);
+    expect(approved.headers.location).toBe(`/?runId=${runId}`);
     expect((await app.inject({ method: "GET", url: `/api/runs/${runId}` })).json()).toEqual(expect.objectContaining({
       status: "approval_executed"
     }));
@@ -658,7 +1189,7 @@ workspaces:
     });
 
     expect(rejected.statusCode).toBe(303);
-    expect(rejected.headers.location).toBe(`/runs/${runId}`);
+    expect(rejected.headers.location).toBe(`/?runId=${runId}`);
     expect((await app.inject({ method: "GET", url: `/api/runs/${runId}` })).json()).toEqual(expect.objectContaining({
       status: "approval_rejected"
     }));

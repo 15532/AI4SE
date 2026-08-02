@@ -315,7 +315,7 @@ export class EventStore {
             : reason === "approval_rejected"
               ? "approval_rejected"
               : reason === undefined
-                ? "unknown"
+                ? "running"
                 : "blocked";
 
     return {
