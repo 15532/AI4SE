@@ -19,6 +19,7 @@ import {
   renderSession,
   renderWorkspaceFileEditor,
   renderWorkspaceFiles,
+  type PublicChatDiffPreview,
   type PublicChatFilePreview,
   type PublicChatRun,
   type PublicChatSession,
@@ -357,13 +358,29 @@ export function createServer(input: {
           filePreview = undefined;
         }
       }
+      const selectedDiff = url.searchParams.get("diff");
+      let diffPreview: PublicChatDiffPreview | undefined;
+      if (activeWorkspace !== undefined && selectedDiff !== null) {
+        try {
+          const diff = await readWorkspaceDiff(activeWorkspace, selectedDiff);
+          if (diff.ok) diffPreview = {
+            workspaceId: activeWorkspace.id,
+            path: diff.path,
+            diff: diff.diff,
+            status: workspaceChanges.find((change) => change.path === diff.path)?.status
+          };
+        } catch {
+          diffPreview = undefined;
+        }
+      }
       return response(200, renderIndex(publicWorkspaces(), providers, publicRun, {
         activeWorkspaceId,
         activeSessionId: chatSession?.id ?? sessionId ?? undefined,
         activeRunId: publicRun?.id ?? runId ?? undefined,
         workspaceFiles,
         workspaceChanges,
-        filePreview
+        filePreview,
+        diffPreview
       }, chatSession), "text/html; charset=utf-8");
     }
     if (method === "GET" && url.pathname === "/api/workspaces") {

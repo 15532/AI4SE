@@ -52,6 +52,12 @@ export type PublicChatFilePreview = {
   content: string;
   status?: string;
 };
+export type PublicChatDiffPreview = {
+  workspaceId: string;
+  path: string;
+  diff: string;
+  status?: string;
+};
 export type PublicChatWorkspaceFiles = {
   workspaceId: string;
   files: PublicWorkspaceFile[];
@@ -249,6 +255,14 @@ const baseStyles = `
       .chat-tool-actions { display: flex; gap: 8px; flex-wrap: wrap; }
       .chat-tool-actions a { min-height: 28px; display: inline-flex; align-items: center; padding: 0 9px; border: 1px solid #e5e7eb; border-radius: 7px; background: #f9fafb; color: #2563eb; font-size: 12px; text-decoration: none; }
       .chat-tool-actions a:hover { background: #eef2ff; border-color: #c7d2fe; }
+      .chat-context-attachments { display: grid; grid-template-columns: minmax(0, 760px); gap: 10px; margin-left: 46px; }
+      .chat-context-attachment { display: grid; gap: 8px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; background: #fbfcfd; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+      .chat-context-attachment header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .chat-context-attachment strong { overflow-wrap: anywhere; }
+      .chat-attachment-kind { color: #6b7280; font-size: 12px; font-weight: 700; }
+      .chat-attachment-meta { display: flex; gap: 6px; flex-wrap: wrap; color: #6b7280; font-size: 12px; }
+      .chat-attachment-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      .chat-attachment-actions a { min-height: 28px; display: inline-flex; align-items: center; padding: 0 9px; border: 1px solid #e5e7eb; border-radius: 7px; background: #fff; color: #2563eb; font-size: 12px; text-decoration: none; }
       .chat-change-panel, .chat-approval-list { display: grid; gap: 8px; }
       .chat-change-panel header, .chat-approval-list > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .chat-change-panel h3, .chat-approval-list h3 { color: #6b7280; font-size: 12px; text-transform: uppercase; }
@@ -295,11 +309,22 @@ const baseStyles = `
       .chat-inline-editor textarea { width: 100%; min-height: 220px; max-height: 420px; resize: vertical; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fbfcfd; color: #1f2937; font: 12px/1.55 Consolas, "Cascadia Mono", monospace; }
       .chat-inline-editor footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #6b7280; font-size: 12px; }
       .chat-inline-editor button { min-height: 32px; padding: 0 11px; border-radius: 8px; font-size: 13px; }
+      .chat-diff-review { gap: 9px; }
+      .chat-diff-review header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .chat-diff-review h2 { color: #111827; font-size: 13px; text-transform: none; }
+      .chat-diff-review a { color: #2563eb; font-size: 12px; text-decoration: none; }
+      .chat-diff-block { max-height: 520px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #fbfcfd; font: 12px/1.55 Consolas, "Cascadia Mono", monospace; }
+      .chat-diff-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); min-width: max-content; }
+      .chat-diff-line-number { padding: 0 9px; color: #9ca3af; text-align: right; user-select: none; border-right: 1px solid #e5e7eb; background: #f1f5f9; }
+      .chat-diff-line { padding: 0 10px; white-space: pre-wrap; color: #374151; }
+      .chat-diff-line.addition { background: #ecfdf3; color: #047857; }
+      .chat-diff-line.deletion { background: #fff1f2; color: #be123c; }
+      .chat-diff-line.header { background: #eef2ff; color: #3730a3; font-weight: 700; }
       @media (max-width: 1060px) { .ide-shell { grid-template-columns: 1fr 1fr; } .run-inspector { grid-column: 1 / -1; } .run-meta { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 1060px) { .workspace-editor-layout { grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); } .workspace-editor-note { grid-column: 1 / -1; } }
       @media (max-width: 1100px) { .codex-app-shell { grid-template-columns: 240px minmax(0, 1fr); } .codex-agent-panel { display: none; } }
       @media (max-width: 1180px) { .chat-app-shell { grid-template-columns: 230px minmax(0, 1fr); } .chat-inspector { display: none; } }
-      @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta, .session-panels, .session-dashboard, .workspace-editor-layout { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } .codex-app-shell { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(520px, 1fr); padding: 0; } .codex-app-bar, .codex-sidebar, .codex-editor-main { grid-column: 1; grid-row: auto; } .codex-agent-panel { display: grid; grid-column: 1; grid-row: auto; } .codex-sidebar { max-height: 240px; border-right: 0; border-bottom: 1px solid #d9dee7; } .chat-app-shell { grid-template-columns: 1fr; height: 100vh; min-height: 0; padding: 0; overflow: hidden; } .chat-sidebar, .chat-inspector { display: none; } .chat-thread, .chat-composer-wrap { padding-left: 16px; padding-right: 16px; } .chat-main { min-height: 0; } .chat-message { grid-template-columns: 28px minmax(0, 1fr); } .chat-run-meta { grid-template-columns: 1fr; } }
+      @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta, .session-panels, .session-dashboard, .workspace-editor-layout { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } .codex-app-shell { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(520px, 1fr); padding: 0; } .codex-app-bar, .codex-sidebar, .codex-editor-main { grid-column: 1; grid-row: auto; } .codex-agent-panel { display: grid; grid-column: 1; grid-row: auto; } .codex-sidebar { max-height: 240px; border-right: 0; border-bottom: 1px solid #d9dee7; } .chat-app-shell { grid-template-columns: 1fr; height: 100vh; min-height: 0; padding: 0; overflow: hidden; } .chat-sidebar, .chat-inspector { display: none; } .chat-thread, .chat-composer-wrap { padding-left: 16px; padding-right: 16px; } .chat-main { min-height: 0; } .chat-message { grid-template-columns: 28px minmax(0, 1fr); } .chat-context-attachments { margin-left: 40px; grid-template-columns: minmax(0, 1fr); } .chat-run-meta { grid-template-columns: 1fr; } }
 `;
 
 function eventLabel(kind: string): string {
@@ -466,7 +491,7 @@ function renderChatChangePanel(run: PublicChatRun): string {
 
   const cards = changes.map((change) => {
     const previewHref = `/?workspaceId=${encodeURIComponent(run.workspaceId)}&file=${encodeURIComponent(change.path)}&runId=${encodeURIComponent(run.id)}`;
-    const diffHref = `/api/workspaces/${encodeURIComponent(run.workspaceId)}/changes/${encodeURIComponent(change.path)}`;
+    const diffHref = `/?workspaceId=${encodeURIComponent(run.workspaceId)}&diff=${encodeURIComponent(change.path)}&runId=${encodeURIComponent(run.id)}`;
     return `
                 <article class="chat-change-card">
                   <header>
@@ -682,6 +707,97 @@ function renderChatCodePreview(content: string, status?: string): string {
             </pre>`;
 }
 
+function diffLineKind(line: string): "addition" | "deletion" | "header" | "context" {
+  if (line.startsWith("+") && !line.startsWith("+++")) return "addition";
+  if (line.startsWith("-") && !line.startsWith("---")) return "deletion";
+  if (line.startsWith("diff --git") || line.startsWith("@@") || line.startsWith("---") || line.startsWith("+++")) return "header";
+  return "context";
+}
+
+function renderChatDiffPreview(diff: string): string {
+  const lines = previewLines(diff);
+  const rows = lines.map((line, index) => {
+    const kind = diffLineKind(line);
+    return `
+                <span class="chat-diff-row">
+                  <span class="chat-diff-line-number">${index + 1}</span>
+                  <span class="chat-diff-line ${kind}">${escapeHtml(line)}</span>
+                </span>`;
+  }).join("");
+  return `<div class="chat-diff-block">${rows}
+            </div>`;
+}
+
+function renderChatContextAttachments(input: {
+  activeRun?: PublicChatRun;
+  filePreview?: PublicChatFilePreview;
+  filePreviewLines: number;
+  filePreviewStatus?: string;
+  filePreviewDiffHref?: string;
+  filePreviewEditorHref?: string;
+  diffPreview?: PublicChatDiffPreview;
+  diffPreviewStatus?: string;
+  diffFileHref?: string;
+}): string {
+  const attachments: string[] = [];
+  if (input.filePreview !== undefined) {
+    attachments.push(`
+            <article class="chat-context-attachment" data-attachment-kind="file">
+              <header>
+                <span class="chat-attachment-kind">文件预览</span>
+                <strong>${escapeHtml(input.filePreview.path)}</strong>
+              </header>
+              <div class="chat-attachment-meta">
+                <span>${input.filePreviewLines} 行</span>
+                <span>${input.filePreview.content.length} 字符</span>
+                ${input.filePreviewStatus === undefined ? "" : `<span>${escapeHtml(input.filePreviewStatus)}</span>`}
+              </div>
+              <div class="chat-attachment-actions">
+                ${input.filePreviewDiffHref === undefined ? "" : `<a href="${escapeHtml(input.filePreviewDiffHref)}">查看 diff</a>`}
+                ${input.filePreviewEditorHref === undefined ? "" : `<a href="${escapeHtml(input.filePreviewEditorHref)}">打开编辑器</a>`}
+              </div>
+            </article>`);
+  }
+  if (input.diffPreview !== undefined) {
+    attachments.push(`
+            <article class="chat-context-attachment" data-attachment-kind="diff">
+              <header>
+                <span class="chat-attachment-kind">Diff 审查</span>
+                <strong>${escapeHtml(input.diffPreview.path)}</strong>
+              </header>
+              <div class="chat-attachment-meta">
+                ${input.diffPreviewStatus === undefined ? "" : `<span>${escapeHtml(input.diffPreviewStatus)}</span>`}
+                <span>${previewLines(input.diffPreview.diff).length} 行 diff</span>
+              </div>
+              <div class="chat-attachment-actions">
+                ${input.diffFileHref === undefined ? "" : `<a href="${escapeHtml(input.diffFileHref)}">打开文件</a>`}
+              </div>
+            </article>`);
+  }
+  const approvals = input.activeRun?.approvals ?? [];
+  if (approvals.length > 0) {
+    const firstApproval = approvals[0];
+    const action = isRecord(firstApproval.action) ? firstApproval.action : {};
+    const target = actionTarget(action);
+    attachments.push(`
+            <article class="chat-context-attachment" data-attachment-kind="approval">
+              <header>
+                <span class="chat-attachment-kind">人工审批</span>
+                <strong>${approvals.length} 个待审批</strong>
+              </header>
+              ${target === "" ? "" : `<div class="chat-attachment-meta"><span>${escapeHtml(target)}</span></div>`}
+              <div class="chat-attachment-actions">
+                <a href="/api/approvals/${escapeHtml(encodeURIComponent(firstApproval.id))}/approve">批准执行</a>
+                <a href="/api/approvals/${escapeHtml(encodeURIComponent(firstApproval.id))}/reject">拒绝</a>
+              </div>
+            </article>`);
+  }
+  return attachments.length === 0
+    ? ""
+    : `<section class="chat-context-attachments" aria-label="当前对话附件">${attachments.join("")}
+          </section>`;
+}
+
 export function renderIndex(
   workspaces: PublicWorkspace[],
   providers: PublicProvider[] = [{ id: "mock" }],
@@ -693,6 +809,7 @@ export function renderIndex(
     workspaceFiles?: PublicChatWorkspaceFiles;
     workspaceChanges?: PublicWorkspaceChange[];
     filePreview?: PublicChatFilePreview;
+    diffPreview?: PublicChatDiffPreview;
   },
   chatSession?: PublicChatSession
 ): string {
@@ -729,10 +846,13 @@ export function renderIndex(
   const filePreviewStatus = filePreview?.status ?? fileContext?.workspaceChanges?.find((change) => change.path === filePreview?.path)?.status;
   const filePreviewDiffHref = filePreview === undefined || filePreviewStatus === undefined
     ? undefined
-    : `/api/workspaces/${encodeURIComponent(filePreview.workspaceId)}/changes/${encodeURIComponent(filePreview.path)}`;
+    : `/?workspaceId=${encodeURIComponent(filePreview.workspaceId)}&diff=${encodeURIComponent(filePreview.path)}${sessionQuery}${runQuery}`;
   const filePreviewReturnTo = filePreview === undefined
     ? undefined
     : `/?workspaceId=${encodeURIComponent(filePreview.workspaceId)}&file=${encodeURIComponent(filePreview.path)}${sessionQuery}${runQuery}`;
+  const filePreviewEditorHref = filePreview === undefined
+    ? undefined
+    : fileHref(filePreview.workspaceId, filePreview.path);
   const filePreviewPanel = filePreview === undefined
     ? `<div class="chat-inspector-card"><strong>未选择文件</strong><span>从左侧文件列表打开预览，主对话会保持不变。</span></div>`
     : `<div class="chat-inspector-card chat-file-preview">
@@ -756,6 +876,35 @@ export function renderIndex(
               </footer>
             </form>
           </div>`;
+  const diffPreview = fileContext?.diffPreview;
+  const diffPreviewStatus = diffPreview?.status ?? fileContext?.workspaceChanges?.find((change) => change.path === diffPreview?.path)?.status;
+  const diffFileHref = diffPreview === undefined
+    ? undefined
+    : `/?workspaceId=${encodeURIComponent(diffPreview.workspaceId)}&file=${encodeURIComponent(diffPreview.path)}${sessionQuery}${runQuery}`;
+  const diffPreviewPanel = diffPreview === undefined
+    ? ""
+    : `<div class="chat-inspector-card chat-diff-review" data-diff-path="${escapeHtml(diffPreview.path)}"${diffPreviewStatus === undefined ? "" : ` data-diff-status="${escapeHtml(diffPreviewStatus)}"`}>
+            <header>
+              <h2>${escapeHtml(diffPreview.path)}</h2>
+              ${diffFileHref === undefined ? "" : `<a href="${escapeHtml(diffFileHref)}">打开文件</a>`}
+            </header>
+            <div class="chat-file-meta">
+              ${diffPreviewStatus === undefined ? "" : `<span class="chat-file-stat">${escapeHtml(diffPreviewStatus)}</span>`}
+              <span class="chat-file-stat">${previewLines(diffPreview.diff).length} 行 diff</span>
+            </div>
+            ${renderChatDiffPreview(diffPreview.diff)}
+          </div>`;
+  const contextAttachments = renderChatContextAttachments({
+    activeRun,
+    filePreview,
+    filePreviewLines,
+    filePreviewStatus,
+    filePreviewDiffHref,
+    filePreviewEditorHref,
+    diffPreview,
+    diffPreviewStatus,
+    diffFileHref
+  });
   const memoryItems = workspaces.flatMap((workspace) =>
     (workspace.memories ?? []).map((memory) => `<div class="chat-inspector-card"><strong>${escapeHtml(workspace.id)} / ${escapeHtml(memory.key)}</strong><span>${escapeHtml(memory.value)}</span></div>`)
   ).join("");
@@ -824,6 +973,7 @@ export function renderIndex(
               </div>
             </div>
           </article>
+          ${contextAttachments}
           ${renderChatSessionThread(chatSession, activeRun)}
         </section>
         <div class="chat-composer-wrap">
@@ -861,6 +1011,7 @@ export function renderIndex(
         </section>
         <section class="chat-inspector-section">
           <h2>文件预览</h2>
+          ${diffPreviewPanel}
           ${filePreviewPanel}
         </section>
         <section class="chat-inspector-section">

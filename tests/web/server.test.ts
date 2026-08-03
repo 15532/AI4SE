@@ -745,7 +745,7 @@ workspaces:
     expect(page.body).toContain("文件变更");
     expect(page.body).toContain("modified");
     expect(page.body).toContain("README.md");
-    expect(page.body).toContain("/api/workspaces/demo/changes/README.md");
+    expect(page.body).toContain("/?workspaceId=demo&amp;diff=README.md&amp;runId=");
     expect(page.body).toContain("/?workspaceId=demo&amp;file=README.md&amp;runId=");
   });
 
@@ -774,6 +774,9 @@ workspaces:
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain("chat-approval-list");
     expect(page.body).toContain("chat-approval-card");
+    expect(page.body).toContain("chat-context-attachments");
+    expect(page.body).toContain('data-attachment-kind="approval"');
+    expect(page.body).toContain("1 个待审批");
     expect(page.body).toContain("等待审批");
     expect(page.body).toContain("git push");
     expect(page.body).toContain("publish release");
@@ -818,14 +821,43 @@ workspaces:
 
     expect(preview.statusCode).toBe(200);
     expect(preview.body).toContain("chat-code-preview");
+    expect(preview.body).toContain("chat-context-attachments");
+    expect(preview.body).toContain('data-attachment-kind="file"');
+    expect(preview.body).toContain("README.md");
+    expect(preview.body).toContain("2 行");
+    expect(preview.body).toContain("/?workspaceId=demo&amp;diff=README.md");
     expect(preview.body).toContain('data-lines="2"');
     expect(preview.body).toContain('data-change-status="modified"');
     expect(preview.body).toContain('<span class="chat-code-line-number">1</span>');
     expect(preview.body).toContain('<span class="chat-code-line-number">2</span>');
     expect(preview.body).toContain("first line");
     expect(preview.body).toContain("second line");
-    expect(preview.body).toContain("/api/workspaces/demo/changes/README.md");
+    expect(preview.body).toContain("/?workspaceId=demo&amp;diff=README.md");
     expect(preview.body).not.toContain(workspace.root);
+  });
+
+  it("renders a readable diff review panel inside the chat inspector", async () => {
+    const workspace = await createGitWebWorkspace();
+    await writeFile(join(workspace.root, "README.md"), "hello changed\nnew line\n", "utf8");
+    const app = createServer({ workspaces: [workspace] });
+
+    const page = await app.inject({ method: "GET", url: "/?workspaceId=demo&diff=README.md&runId=run-123" });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-diff-review");
+    expect(page.body).toContain("chat-context-attachments");
+    expect(page.body).toContain('data-attachment-kind="diff"');
+    expect(page.body).toContain("README.md");
+    expect(page.body).toContain("modified");
+    expect(page.body).toContain('data-diff-path="README.md"');
+    expect(page.body).toContain('data-diff-status="modified"');
+    expect(page.body).toContain("diff --git a/README.md b/README.md");
+    expect(page.body).toContain('<span class="chat-diff-line-number">1</span>');
+    expect(page.body).toContain('<span class="chat-diff-line deletion">-hello</span>');
+    expect(page.body).toContain('<span class="chat-diff-line addition">+hello changed</span>');
+    expect(page.body).toContain('<span class="chat-diff-line addition">+new line</span>');
+    expect(page.body).toContain("/?workspaceId=demo&amp;file=README.md&amp;runId=run-123");
+    expect(page.body).not.toContain(workspace.root);
   });
 
   it("renders an inline guarded editor inside the chat file preview panel", async () => {
