@@ -20,7 +20,7 @@
 
 右侧文件预览现在使用内嵌代码面板显示：包含行号、行数/字符数元信息和当前 git 变更状态；当文件处于 modified/untracked 等状态时，会直接提供对话内 diff 面板入口，便于在同一工作台中快速核对 agent 的修改。
 
-右侧 Inspector 也提供内联编辑表单。保存时仍复用 `POST /api/workspaces/<workspace-id>/files/<relative-path>`、workspace guardrail 与 `write_file` 工具分发，成功后回到原对话 URL 并继续保留当前 workspace、file、run/session 参数。
+右侧 Inspector 也提供内联编辑表单。保存时仍复用 `POST /api/workspaces/<workspace-id>/files/<relative-path>`、workspace guardrail 与 `write_file` 工具分发，成功后回到原对话 URL 并继续保留当前 workspace、file、run/session 参数；页面会在文件预览元信息中显示 `已保存` 状态，便于确认编辑闭环已经完成。
 
 ## 对话内变更与审批展示 V1
 
@@ -30,7 +30,7 @@
 
 主对话流现在会渲染 `当前对话附件`：当用户在同一工作台中打开文件、diff 或遇到待审批动作时，中间对话区域会出现轻量附件卡片，展示文件路径、行数、变更状态、diff/编辑入口或审批入口。右侧 Inspector 继续负责展示详细代码和逐行 diff，左侧文件栏仍只是导航面板，整体交互保持“对话是主线，文件和状态是上下文面板”。
 
-左侧栏现在也会为当前 workspace 展示最近对话入口。每条最近 run 都链接回同一个对话首页，并携带 `workspaceId` 与 `runId`，用户可以从侧边栏回到最近任务而不进入单独的 timeline 页面。
+左侧栏现在也会为当前 workspace 展示真实对话入口和最近运行入口。`对话` 区来自持久化 session/thread，并携带 `workspaceId`、`sessionId` 与最后一次 `runId` 回到同一个对话首页；`最近对话` 区保留 run 级快捷入口。用户可以从侧边栏回到历史任务而不进入单独的 timeline 页面。
 
 ## Browser Editor V1
 
@@ -57,7 +57,7 @@ http://127.0.0.1:3000/workspaces/demo-ts/files
 - Action 协议与解析器：支持 `list_files`、`read_file`、`write_file`、`run_command`、`remember`、`finish` 等结构化动作。
 - Workspace 注册与边界控制：只能访问配置中注册的 workspace，阻止路径逃逸和符号链接逃逸。
 - 受限工具分发器：文件工具和 shell 工具统一经过 allowlist、路径归一化和敏感信息脱敏。
-- Agent 主循环：provider 输出 Action，harness 执行动作并回灌观察结果；`invalid_action` 和被护栏拦截的动作会作为反馈进入下一轮，直到 `finish` 或达到最大迭代次数。
+- Agent 主循环：provider 输出 Action，harness 执行动作并回灌观察结果；解析器保持严格 schema，同时兼容常见 provider 输出变体，例如 markdown `json` 代码块和 `{ "action": "finish" }` 这类 legacy 字段；`invalid_action` 和被护栏拦截的动作会作为反馈进入下一轮，直到 `finish` 或达到最大迭代次数。
 - 人工审批 V1：allowlist 内的发布/部署命令会暂停为 `pending_approval`，由 WebUI 中的审批卡片批准或拒绝；未进入 allowlist 的命令仍直接拦截。
 - 事件与记忆存储：run、event、timeline、memory、interactive session 持久化到 SQLite。
 - CLI 与 WebUI：命令行和浏览器都能创建 run；WebUI 可创建 session、继续提交后续指令，并查看运行结果、工作区文件和 git diff。

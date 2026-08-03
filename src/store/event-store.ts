@@ -90,14 +90,14 @@ export class EventStore {
       ? this.db.prepare(`
         SELECT id, workspace_id, provider, title, created_at, updated_at
         FROM sessions
-        ORDER BY rowid DESC
+        ORDER BY updated_at DESC, rowid DESC
         LIMIT ?
       `).all(limit)
       : this.db.prepare(`
         SELECT id, workspace_id, provider, title, created_at, updated_at
         FROM sessions
         WHERE workspace_id = ?
-        ORDER BY rowid DESC
+        ORDER BY updated_at DESC, rowid DESC
         LIMIT ?
       `).all(input.workspaceId, limit);
 

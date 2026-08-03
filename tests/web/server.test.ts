@@ -578,6 +578,41 @@ workspaces:
     expect(page.body).not.toContain(dir);
   });
 
+  it("renders recent interactive sessions as chat threads in the sidebar", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-recent-sessions-"));
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }],
+      providerFactory: () => ({
+        async complete() {
+          return JSON.stringify({ type: "finish", summary: "thread done" });
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { workspaceId: "demo", provider: "mock", title: "Fix sidebar thread" }
+    });
+    const { id: sessionId } = created.json() as { id: string };
+    const run = await app.inject({
+      method: "POST",
+      url: `/api/sessions/${sessionId}/runs`,
+      payload: { task: "continue thread" }
+    });
+    const { id: runId } = run.json() as { id: string };
+    const page = await app.inject({ method: "GET", url: "/" });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-session-list");
+    expect(page.body).toContain('data-nav-section="sessions"');
+    expect(page.body).toContain(`href="/?workspaceId=demo&amp;sessionId=${sessionId}&amp;runId=${runId}"`);
+    expect(page.body).toContain('aria-label="打开对话 Fix sidebar thread"');
+    expect(page.body).toContain("Fix sidebar thread");
+    expect(page.body).toContain("finished");
+    expect(page.body).not.toContain(dir);
+  });
+
   it("renders live polling hooks on the active chat run", async () => {
     const release = deferred<string>();
     const app = createServer({
@@ -941,6 +976,22 @@ workspaces:
 
     expect(blockedRedirect.statusCode).toBe(303);
     expect(blockedRedirect.headers.location).toBe("/workspaces/demo/files/README.md?saved=1");
+  });
+
+  it("shows an inline saved state after chat file edits return to the conversation", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-chat-saved-state-"));
+    await writeFile(join(dir, "README.md"), "saved from chat\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }]
+    });
+
+    const preview = await app.inject({ method: "GET", url: "/?workspaceId=demo&file=README.md&saved=1" });
+
+    expect(preview.statusCode).toBe(200);
+    expect(preview.body).toContain("chat-save-status");
+    expect(preview.body).toContain("已保存");
+    expect(preview.body).toContain("saved from chat");
+    expect(preview.body).not.toContain(dir);
   });
 
   it("uses panel-level scrolling instead of global page scrolling in the chat workspace", async () => {

@@ -4,6 +4,7 @@ export type PublicWorkspace = {
   allowedCommands: string[];
   memories?: Array<{ key: string; value: string }>;
   recentRuns?: Array<{ id: string; task: string; status: string; summary?: string }>;
+  recentSessions?: Array<{ id: string; title: string; provider: string; lastRunId?: string; lastRunStatus?: string }>;
 };
 export type PublicWorkspaceChange = {
   path: string;
@@ -214,11 +215,11 @@ const baseStyles = `
       .chat-file-list a:hover, .chat-file-list a[aria-current="page"] { background: #eceef2; color: #111827; }
       .chat-file-list span { color: #9ca3af; }
       .chat-file-list code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; font-family: Arial, "Microsoft YaHei", sans-serif; }
-      .chat-recent-run-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-      .chat-recent-run-list a { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 8px; align-items: center; min-height: 30px; padding: 6px 8px; border-radius: 8px; color: #4b5563; text-decoration: none; font-size: 13px; line-height: 1.25; }
-      .chat-recent-run-list a:hover, .chat-recent-run-list a[aria-current="page"] { background: #eceef2; color: #111827; }
-      .chat-recent-run-list strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-      .chat-recent-run-list span { color: #9ca3af; font-size: 12px; white-space: nowrap; }
+      .chat-recent-run-list, .chat-session-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+      .chat-recent-run-list a, .chat-session-list a { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 8px; align-items: center; min-height: 30px; padding: 6px 8px; border-radius: 8px; color: #4b5563; text-decoration: none; font-size: 13px; line-height: 1.25; }
+      .chat-recent-run-list a:hover, .chat-recent-run-list a[aria-current="page"], .chat-session-list a:hover, .chat-session-list a[aria-current="page"] { background: #eceef2; color: #111827; }
+      .chat-recent-run-list strong, .chat-session-list strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+      .chat-recent-run-list span, .chat-session-list span { color: #9ca3af; font-size: 12px; white-space: nowrap; }
       .chat-sidebar-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 8px 0; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 13px; }
       .chat-main { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: 52px minmax(0, 1fr) auto; background: #ffffff; }
       .chat-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 20px; border-bottom: 1px solid #eef0f3; }
@@ -312,6 +313,7 @@ const baseStyles = `
       .chat-file-preview-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .chat-file-meta { display: flex; gap: 6px; flex-wrap: wrap; }
       .chat-file-stat { display: inline-flex; align-items: center; min-height: 24px; padding: 0 7px; border-radius: 999px; background: #f3f4f6; color: #4b5563; font-size: 12px; }
+      .chat-save-status { display: inline-flex; align-items: center; min-height: 24px; padding: 0 7px; border-radius: 999px; background: #ecfdf3; color: #047857; font-size: 12px; font-weight: 700; }
       .chat-code-preview { max-height: 420px; margin: 0; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; color: #1f2937; font-size: 12px; line-height: 1.55; }
       .chat-code-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); min-width: max-content; }
       .chat-code-line-number { padding: 0 9px; color: #9ca3af; text-align: right; user-select: none; border-right: 1px solid #e5e7eb; background: #f1f5f9; }
@@ -843,6 +845,7 @@ export function renderIndex(
     workspaceChanges?: PublicWorkspaceChange[];
     filePreview?: PublicChatFilePreview;
     diffPreview?: PublicChatDiffPreview;
+    saved?: boolean;
   },
   chatSession?: PublicChatSession
 ): string {
@@ -881,7 +884,17 @@ export function renderIndex(
       const active = activeRunId === run.id ? ' aria-current="page"' : "";
       return `<li><a${active} href="${escapeHtml(href)}" aria-label="打开最近对话 ${escapeHtml(run.task)}"><strong>${escapeHtml(run.task)}</strong><span>${escapeHtml(run.status)}</span></a></li>`;
     })).join("");
+  const sidebarSessions = workspaces
+    .filter((workspace) => activeWorkspaceId === undefined || workspace.id === activeWorkspaceId)
+    .flatMap((workspace) => (workspace.recentSessions ?? []).map((session) => {
+      const runPart = session.lastRunId === undefined ? "" : `&runId=${encodeURIComponent(session.lastRunId)}`;
+      const href = `/?workspaceId=${encodeURIComponent(workspace.id)}&sessionId=${encodeURIComponent(session.id)}${runPart}`;
+      const active = fileContext?.activeSessionId === session.id ? ' aria-current="page"' : "";
+      const status = session.lastRunStatus ?? session.provider;
+      return `<li><a${active} href="${escapeHtml(href)}" aria-label="打开对话 ${escapeHtml(session.title)}"><strong>${escapeHtml(session.title)}</strong><span>${escapeHtml(status)}</span></a></li>`;
+    })).join("");
   const filePreview = fileContext?.filePreview;
+  const fileSaved = fileContext?.saved === true && filePreview !== undefined;
   const filePreviewLines = filePreview === undefined ? 0 : previewLines(filePreview.content).length;
   const filePreviewStatus = filePreview?.status ?? fileContext?.workspaceChanges?.find((change) => change.path === filePreview?.path)?.status;
   const filePreviewDiffHref = filePreview === undefined || filePreviewStatus === undefined
@@ -905,6 +918,7 @@ export function renderIndex(
               <span class="chat-file-stat">${filePreviewLines} 行</span>
               <span class="chat-file-stat">${filePreview.content.length} 字符</span>
               ${filePreviewStatus === undefined ? "" : `<span class="chat-file-stat">${escapeHtml(filePreviewStatus)}</span>`}
+              ${fileSaved ? '<span class="chat-save-status">已保存</span>' : ""}
             </div>
             ${renderChatCodePreview(filePreview.content, filePreviewStatus)}
             <form class="chat-inline-editor" method="post" action="/api/workspaces/${escapeHtml(encodeURIComponent(filePreview.workspaceId))}/files/${escapeHtml(encodeURIComponent(filePreview.path))}">
@@ -978,6 +992,10 @@ export function renderIndex(
             <div class="chat-nav-title">工具</div>
             <a class="chat-nav-item" href="/"><span>+</span><span>新对话</span></a>
             ${fileLinks}
+          </section>
+          <section class="chat-nav-section" data-nav-section="sessions">
+            <div class="chat-nav-title">对话</div>
+            <ul class="chat-session-list">${sidebarSessions || '<li><span class="chat-nav-item"><span>·</span><span>暂无对话</span></span></li>'}</ul>
           </section>
           <section class="chat-nav-section" data-nav-section="recent-runs">
             <div class="chat-nav-title">最近对话</div>

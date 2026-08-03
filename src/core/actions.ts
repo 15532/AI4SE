@@ -70,10 +70,24 @@ function invalidShape(raw: string, reason: string): ParseActionResult {
   };
 }
 
+function unwrapMarkdownJson(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenced?.[1] ?? raw;
+}
+
+function normalizeProviderAction(value: unknown): unknown {
+  if (!isRecord(value) || typeof value.type === "string" || typeof value.action !== "string") {
+    return value;
+  }
+  const { action, ...rest } = value;
+  return { type: action, ...rest };
+}
+
 export function parseAction(raw: string): ParseActionResult {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(unwrapMarkdownJson(raw));
   } catch {
     return {
       ok: false,
@@ -85,10 +99,11 @@ export function parseAction(raw: string): ParseActionResult {
       }
     };
   }
+  const normalized = normalizeProviderAction(parsed);
 
-  if (!isAction(parsed)) {
+  if (!isAction(normalized)) {
     return invalidShape(raw, "Action must be a supported object with the exact required fields");
   }
 
-  return { ok: true, action: parsed };
+  return { ok: true, action: normalized };
 }

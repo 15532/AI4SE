@@ -175,6 +175,19 @@ describe("EventStore", () => {
     expect(store.listSessions({ limit: 1 })).toHaveLength(1);
   });
 
+  it("orders recent sessions by latest activity instead of creation time", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const first = store.createSession({ workspaceId: "demo", provider: "mock", title: "First" });
+    const second = store.createSession({ workspaceId: "demo", provider: "mock", title: "Second" });
+    (store as unknown as { db: { prepare(sql: string): { run(...args: unknown[]): unknown } } }).db
+      .prepare("UPDATE sessions SET updated_at = ? WHERE id = ?")
+      .run("2099-01-01 00:00:00", first);
+
+    expect(store.listSessions({ workspaceId: "demo", limit: 1 }).map((session) => session.id)).toEqual([first]);
+    expect(store.listSessions({ workspaceId: "demo", limit: 5 }).map((session) => session.id)).toEqual([first, second]);
+  });
+
   it("creates and decides approval records without leaking secret-like action content", async () => {
     const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
     const store = new EventStore(join(dir, "test.sqlite"));

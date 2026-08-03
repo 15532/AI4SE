@@ -73,12 +73,24 @@ function publicWorkspace(
       status: summary.status,
       ...(summary.summary === undefined ? {} : { summary: summary.summary })
     })) ?? [];
+  const recentSessions = eventStore?.listSessions({ workspaceId: workspace.id, limit: 8 })
+    .map((session) => {
+      const lastRun = eventStore.listSessionRuns(session.id, 1)[0];
+      const summary = lastRun === undefined ? undefined : eventStore.summarizeRun(lastRun.id);
+      return {
+        id: session.id,
+        title: session.title,
+        provider: session.provider,
+        ...(summary === undefined ? {} : { lastRunId: summary.id, lastRunStatus: summary.status })
+      };
+    }) ?? [];
   return redactValue({
     id: workspace.id,
     name: workspace.name,
     allowedCommands: workspace.allowedCommands,
     ...(memories.length === 0 ? {} : { memories }),
-    ...(recentRuns.length === 0 ? {} : { recentRuns })
+    ...(recentRuns.length === 0 ? {} : { recentRuns }),
+    ...(recentSessions.length === 0 ? {} : { recentSessions })
   }) as PublicWorkspace;
 }
 
@@ -381,7 +393,8 @@ export function createServer(input: {
         workspaceFiles,
         workspaceChanges,
         filePreview,
-        diffPreview
+        diffPreview,
+        saved: url.searchParams.get("saved") === "1"
       }, chatSession), "text/html; charset=utf-8");
     }
     if (method === "GET" && url.pathname === "/api/workspaces") {
