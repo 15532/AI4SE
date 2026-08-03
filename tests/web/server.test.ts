@@ -9,6 +9,7 @@ import type { LLMProvider } from "../../src/core/providers";
 import { EventStore } from "../../src/store/event-store";
 import { MemoryStore } from "../../src/store/memory-store";
 import { HarnessRegistry } from "../../src/config/harness-config";
+import { EncryptedFileKeychainAdapter } from "../../src/credentials/keychain-adapter";
 
 const execFileAsync = promisify(execFile);
 
@@ -1264,6 +1265,70 @@ workspaces:
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ error: "Missing API key for provider deepseek" });
     expect(response.body).not.toContain("HARNESS_TEST_MISSING_DEEPSEEK_KEY");
+  });
+
+  it("uses encrypted credentials for WebUI DeepSeek runs before environment fallback", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-credentials-"));
+    const storePath = join(dir, "credentials.enc.json");
+    const adapter = new EncryptedFileKeychainAdapter({
+      storePath,
+      masterPassword: "web-master-password"
+    });
+    await adapter.set("coding-agent-harness", "deepseek", "stored-web-secret");
+
+    const previousStore = process.env.HARNESS_CREDENTIAL_STORE_PATH;
+    const previousMaster = process.env.HARNESS_MASTER_PASSWORD;
+    const previousEnvKey = process.env.HARNESS_TEST_WEB_DEEPSEEK_KEY;
+    const previousFetch = globalThis.fetch;
+    const requests: RequestInit[] = [];
+    process.env.HARNESS_CREDENTIAL_STORE_PATH = storePath;
+    process.env.HARNESS_MASTER_PASSWORD = "web-master-password";
+    process.env.HARNESS_TEST_WEB_DEEPSEEK_KEY = "env-web-secret";
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      requests.push(init ?? {});
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "{\"type\":\"finish\",\"summary\":\"credential ok\"}" } }]
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+
+    try {
+      const app = createServer({
+        registry: new HarnessRegistry({
+          mode: "webui",
+          maxIterations: 3,
+          workspaces,
+          providers: [{
+            id: "deepseek",
+            type: "deepseek-compatible",
+            baseUrl: "https://api.deepseek.com",
+            model: "deepseek-v4-flash",
+            apiKeyEnv: "HARNESS_TEST_WEB_DEEPSEEK_KEY",
+            thinking: "disabled"
+          }]
+        })
+      });
+
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/runs",
+        payload: { workspaceId: "demo-ts", provider: "deepseek", task: "finish" }
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(requests[0].headers).toEqual(expect.objectContaining({
+        authorization: "Bearer stored-web-secret"
+      }));
+      expect(response.body).not.toContain("stored-web-secret");
+      expect(response.body).not.toContain("env-web-secret");
+    } finally {
+      if (previousStore === undefined) delete process.env.HARNESS_CREDENTIAL_STORE_PATH;
+      else process.env.HARNESS_CREDENTIAL_STORE_PATH = previousStore;
+      if (previousMaster === undefined) delete process.env.HARNESS_MASTER_PASSWORD;
+      else process.env.HARNESS_MASTER_PASSWORD = previousMaster;
+      if (previousEnvKey === undefined) delete process.env.HARNESS_TEST_WEB_DEEPSEEK_KEY;
+      else process.env.HARNESS_TEST_WEB_DEEPSEEK_KEY = previousEnvKey;
+      globalThis.fetch = previousFetch;
+    }
   });
 
   it("renders timeline events as harness mechanism sections", async () => {

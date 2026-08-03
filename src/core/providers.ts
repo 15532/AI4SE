@@ -5,6 +5,7 @@ export type LLMProvider = {
 };
 
 type FetchImpl = (url: string, init: RequestInit) => Promise<Response>;
+type ApiKeyResolver = () => string | undefined | Promise<string | undefined>;
 
 export class MockLLMProvider implements LLMProvider {
   private readonly responses: string[];
@@ -26,6 +27,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
   private readonly baseUrl: string;
   private readonly model: string;
   private readonly apiKey: string | undefined;
+  private readonly apiKeyResolver: ApiKeyResolver | undefined;
   private readonly thinking: "enabled" | "disabled";
   private readonly fetchImpl: FetchImpl;
 
@@ -34,6 +36,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     baseUrl: string;
     model: string;
     apiKey?: string;
+    apiKeyResolver?: ApiKeyResolver;
     thinking?: "enabled" | "disabled";
     fetchImpl?: FetchImpl;
   }) {
@@ -41,19 +44,21 @@ export class OpenAICompatibleProvider implements LLMProvider {
     this.baseUrl = input.baseUrl.replace(/\/+$/, "");
     this.model = input.model;
     this.apiKey = input.apiKey;
+    this.apiKeyResolver = input.apiKeyResolver;
     this.thinking = input.thinking ?? "disabled";
     this.fetchImpl = input.fetchImpl ?? fetch;
   }
 
   async complete(input: { task: string; context: string }): Promise<string> {
-    if (this.apiKey === undefined || this.apiKey.trim() === "") {
+    const apiKey = this.apiKey ?? await this.apiKeyResolver?.();
+    if (apiKey === undefined || apiKey.trim() === "") {
       throw new Error(`Missing API key for provider ${this.id}`);
     }
 
     const response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
-        authorization: `Bearer ${this.apiKey}`,
+        authorization: `Bearer ${apiKey}`,
         "content-type": "application/json"
       },
       body: JSON.stringify({
@@ -103,7 +108,12 @@ export class OpenAICompatibleProvider implements LLMProvider {
 
 export function createProvider(
   config: ProviderConfig,
-  options: { env?: NodeJS.ProcessEnv; fetchImpl?: FetchImpl; mockResponses?: string[] } = {}
+  options: {
+    env?: NodeJS.ProcessEnv;
+    fetchImpl?: FetchImpl;
+    mockResponses?: string[];
+    credentialResolver?: (providerId: string, envName: string) => string | undefined | Promise<string | undefined>;
+  } = {}
 ): LLMProvider {
   if (config.type === "mock") {
     return new MockLLMProvider(options.mockResponses ?? [JSON.stringify({ type: "finish", summary: "Mock run completed" })]);
@@ -113,7 +123,10 @@ export function createProvider(
     id: config.id,
     baseUrl: config.baseUrl,
     model: config.model,
-    apiKey: (options.env ?? process.env)[config.apiKeyEnv],
+    apiKey: options.credentialResolver === undefined ? (options.env ?? process.env)[config.apiKeyEnv] : undefined,
+    apiKeyResolver: options.credentialResolver === undefined
+      ? undefined
+      : () => options.credentialResolver?.(config.id, config.apiKeyEnv),
     thinking: config.thinking,
     fetchImpl: options.fetchImpl
   });

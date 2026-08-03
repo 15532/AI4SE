@@ -4,9 +4,9 @@
 
 - 真实 API key、provider token 或其他密钥不得提交到仓库。
 - 不得在终端输出、日志、SQLite、运行历史、CI 日志或 WebUI response 中打印或返回真实 key。
-- `.env` 只能作为显式启用的本地开发 fallback，且应理解明文存储风险。
-- 当前 `CredentialManager` v1 使用测试用内存 adapter；环境变量 fallback 仅在显式开启时可用。真实 OS keychain 不属于当前 v1 实现。
-- DeepSeek provider 从 `DEEPSEEK_API_KEY` 读取真实 key。真实值只能来自未提交的 `.env`、系统环境变量或部署平台 secret；`.env.example` 只能保留变量名和占位值。
+- `.env` 只能保存非密钥配置和本地开发 fallback，且应理解明文存储风险。
+- 当前 `CredentialManager` v2 默认使用加密凭据文件：`HARNESS_CREDENTIAL_STORE_PATH` 指向密文 JSON，`HARNESS_MASTER_PASSWORD` 用于派生 AES-256-GCM 密钥。主密码不得提交到仓库。
+- DeepSeek provider 优先从加密凭据文件读取真实 key，其次才从 `DEEPSEEK_API_KEY` 读取受控环境变量 fallback。真实值只能来自加密凭据文件、未提交的 `.env`、系统环境变量或部署平台 secret；`.env.example` 只能保留变量名和空值。
 - SQLite 写入边界会对 task、event payload、memory key/value 中的常见 password、api_key、credential、token、secret 和 `sk-...` 形态做脱敏。该防线不能替代凭据管理，任务与 memory 输入仍不得包含真实 secret。
 
 ## WebUI 边界
@@ -17,7 +17,7 @@ WebUI real-run 只能选择共享 YAML registry 中预注册的 workspace id，�
 
 WebUI v1 没有 password。它仅适合受信任网络或短期课程演示，不应作为直接暴露公网的长期服务。长期公网部署必须放在 Nginx 或其他反向代理、认证与网络边界之后，例如 basic auth、SSO、VPN 或等效访问控制。不要将 `3000` 端口直接暴露给公网。
 
-服务器部署时，`DEEPSEEK_API_KEY` 应来自反向代理、进程管理器、Docker Compose 变量替换、平台 secret 或系统环境变量。不要把真实 key 写入镜像、compose 文件、示例 env 文件或仓库配置。`HARNESS_DB_PATH` 所在目录应挂载为持久化目录，并限制文件权限。
+服务器部署时，`HARNESS_MASTER_PASSWORD` 应来自反向代理、进程管理器、Docker Compose 变量替换、平台 secret 或系统环境变量。真实 DeepSeek key 推荐写入持久化数据卷中的加密凭据文件，`DEEPSEEK_API_KEY` 只作为短期 fallback。不要把真实 key 或主密码写入镜像、compose 文件、示例 env 文件或仓库配置。`HARNESS_DB_PATH` 和 `HARNESS_CREDENTIAL_STORE_PATH` 所在目录应挂载为持久化目录，并限制文件权限。
 
 ## 提交前检查清单
 

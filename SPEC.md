@@ -19,7 +19,7 @@
 - 测试策略：mock/stub LLM 做确定性测试；DeepSeek provider 使用 fake fetch 测试请求格式，不依赖真实网络
 - 分发方式：Docker 镜像 + Docker Compose，通过 Nginx 部署到云服务器
 - 状态存储：SQLite
-- 凭据存储：优先使用操作系统钥匙串；`.env` 仅作为显式启用的开发 fallback
+- 凭据存储：优先使用 `HARNESS_MASTER_PASSWORD` 保护的加密凭据文件；`.env` / 环境变量仅作为受控 fallback
 - WebUI 策略：WebUI 可以触发真实 harness run，但只能针对预注册 workspace，并且必须使用与 CLI 相同的 guardrail 和 allowlist
 - 前端策略：当前 WebUI 是轻量智能 IDE 壳层，用于演示 harness run、workspace、任务编排与 timeline inspector；Open Design 作为方案 B 后续视觉系统和交互原型的设计参考
 - 方案 A 当前目标：可用 Coding Agent Loop V1，支持模型读取上下文、选择工具、修改文件、运行 allowlist 验证命令、根据反馈修正并最终 finish
@@ -292,10 +292,10 @@ WebUI v1 能力：
 
 对策：
 
-- OS keychain 是主凭据存储。
+- 加密凭据文件是主凭据存储，默认路径为 `data/credentials.enc.json`，由 `HARNESS_MASTER_PASSWORD` 派生密钥保护。
 - CLI 支持 `credentials status`、`credentials set`、`credentials clear`。
 - `credentials status` 只显示 provider 和是否存在 key，不显示 secret value。
-- `.env` 只是显式启用的开发 fallback。
+- `.env` / `DEEPSEEK_API_KEY` 只是受控 fallback，优先级低于加密凭据文件。
 - `.env` 和常见 secret files 被 Git ignore。
 - Event store 和 WebUI response 必须 redact secret-like values。
 - 真实 provider run 在缺少 key 时失败为结构化 `credential_missing` feedback。
@@ -422,7 +422,7 @@ npm run demo:coding-task
 ## 18. 风险与未决问题
 
 - 根据用户决定，v1 WebUI 不设置 password；公网 real-run 部署是已知风险，应视为受信任网络或短期演示环境。
-- OS keychain 在 Windows、Linux、Docker 中行为不同；测试必须使用 fake keychain adapter。
+- 加密凭据文件依赖 `HARNESS_MASTER_PASSWORD`；部署时必须把主密码交给受控 secret 管理，不得写入镜像或仓库。
 - test/lint/typecheck failure output parsing 首版应保持简单、确定。
 - 当前 WebUI 是轻量智能 IDE 壳层，适合演示 harness 机制；若要升级为完整智能 IDE，还需要继续实现浏览器内编辑器和更完整的 Open Design 视觉系统。
-- DeepSeek provider 已可接入真实模型，但真实 API key 仍依赖环境变量；OS keychain 持久化留作后续增强。
+- DeepSeek provider 已可接入真实模型，真实 API key 优先来自加密凭据文件，其次来自 `DEEPSEEK_API_KEY` fallback。

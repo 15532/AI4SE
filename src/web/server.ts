@@ -3,6 +3,7 @@ import { createServer as createHttpServer, type IncomingMessage, type ServerResp
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { HarnessRegistry, loadHarnessRegistry } from "../config/harness-config.js";
+import { createDefaultCredentialManager } from "../credentials/default-credential-manager.js";
 import { runAgentLoop } from "../core/loop.js";
 import { createProvider, type LLMProvider } from "../core/providers.js";
 import { listWorkspaceChanges, readWorkspaceDiff } from "../runtime/diff-inspector.js";
@@ -211,6 +212,7 @@ export function createServer(input: {
   });
   const eventStore = new EventStore(input.dbPath ?? ":memory:");
   const memoryStore = new MemoryStore(input.dbPath ?? ":memory:");
+  const credentials = createDefaultCredentialManager(process.env);
   const providers: PublicProvider[] = publicWebProviders(registry);
   const publicWorkspaces = () => registry.listWorkspaces().map((workspace) => publicWorkspace(workspace, memoryStore, eventStore));
 
@@ -301,7 +303,9 @@ export function createServer(input: {
   }): string => {
     const providerConfig = registry.getProvider(start.provider);
     if (providerConfig === undefined) throw new Error("Unsupported provider");
-    const provider = input.providerFactory?.(start.provider) ?? createProvider(providerConfig);
+    const provider = input.providerFactory?.(start.provider) ?? createProvider(providerConfig, {
+      credentialResolver: (providerId, envName) => credentials.resolve(providerId, envName)
+    });
     const runId = eventStore.createRun({
       task: start.task,
       workspaceId: start.workspace.id,
@@ -501,7 +505,9 @@ export function createServer(input: {
 
       let result: Awaited<ReturnType<typeof runAgentLoop>>;
       try {
-        const provider = input.providerFactory?.(session.provider) ?? createProvider(providerConfig);
+        const provider = input.providerFactory?.(session.provider) ?? createProvider(providerConfig, {
+          credentialResolver: (providerId, envName) => credentials.resolve(providerId, envName)
+        });
         result = await runAgentLoop({
           task: payload.task,
           workspace,
@@ -702,7 +708,9 @@ export function createServer(input: {
         : undefined;
       let result: Awaited<ReturnType<typeof runAgentLoop>>;
       try {
-        const provider = input.providerFactory?.(payload.provider) ?? createProvider(providerConfig);
+        const provider = input.providerFactory?.(payload.provider) ?? createProvider(providerConfig, {
+          credentialResolver: (providerId, envName) => credentials.resolve(providerId, envName)
+        });
         result = await runAgentLoop({
           task: payload.task,
           workspace,

@@ -120,4 +120,41 @@ workspaces:
     expect(stdout.text()).toContain('"source":"env"');
     expect(stdout.text()).not.toContain(secret);
   });
+
+  it("persists CLI credentials in an encrypted file store", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-cli-credentials-"));
+    const storePath = join(dir, "credentials.enc.json");
+    const setOut = outputBuffer();
+
+    await runCli(["credentials", "set", "--provider", "deepseek"], {
+      stdout: setOut,
+      stderr: outputBuffer(),
+      env: {
+        HARNESS_CREDENTIAL_STORE_PATH: storePath,
+        HARNESS_MASTER_PASSWORD: "test-master-password",
+        HARNESS_CREDENTIAL_VALUE: "ds-cli-secret-value"
+      }
+    });
+
+    const rawStore = await readFile(storePath, "utf8");
+    expect(rawStore).not.toContain("ds-cli-secret-value");
+    expect(rawStore).not.toContain("deepseek");
+    expect(JSON.parse(setOut.text())).toEqual({ provider: "deepseek", set: true });
+
+    const statusOut = outputBuffer();
+    await runCli(["credentials", "status", "--provider", "deepseek"], {
+      stdout: statusOut,
+      stderr: outputBuffer(),
+      env: {
+        HARNESS_CREDENTIAL_STORE_PATH: storePath,
+        HARNESS_MASTER_PASSWORD: "test-master-password"
+      }
+    });
+
+    expect(JSON.parse(statusOut.text())).toEqual({
+      provider: "deepseek",
+      exists: true,
+      source: "keychain"
+    });
+  });
 });

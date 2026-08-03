@@ -30,10 +30,10 @@ npm run check:acceptance -- -SkipDemos
 - 至少 3 个职责清晰的功能模块：当前实现拆分为 `src/core/`、`src/runtime/`、`src/store/`、`src/config/`、`src/web/`、`src/cli/` 等模块，职责分别覆盖 agent loop、工具与 workspace、安全边界、状态持久化、配置、WebUI 和 CLI。
 - 可一键运行的测试：`npm test` 可在无网络情况下运行全部 Vitest 测试；`npm run check:acceptance` 会进一步串联 build、test 和 demo。
 - Mock 或 stub 测试：mock provider 是必做能力，用于无网络确定性验证 action parsing、guardrail、feedback、memory 和 finish 流程。
-- 真实 LLM 接入：DeepSeek 作为默认 WebUI provider，通过 `DEEPSEEK_API_KEY` 从环境变量读取真实 key。
+- 真实 LLM 接入：DeepSeek 作为默认 WebUI provider，优先通过加密凭据文件读取真实 key，其次才使用 `DEEPSEEK_API_KEY` 环境变量 fallback。
 - WebUI：当前 WebUI 是对话式 coding agent 工作台，普通入口默认使用 DeepSeek，文件、diff、状态和审批作为上下文面板。
 - 安全策略：workspace path boundary、命令 allowlist、guardrail、人工审批、密钥脱敏和无密码 WebUI 风险说明见 `SECURITY.md`。
-- Docker：`Dockerfile` 与 `docker-compose.yml` 可用于服务器分发；compose 通过环境变量透传 DeepSeek key，并持久化 `/app/data`。
+- Docker：`Dockerfile` 与 `docker-compose.yml` 可用于服务器分发；compose 透传 `HARNESS_MASTER_PASSWORD` 与可选 `DEEPSEEK_API_KEY`，并持久化 `/app/data`。
 
 ## 提交前人工检查
 

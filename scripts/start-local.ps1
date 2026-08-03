@@ -2,6 +2,7 @@ param(
   [int]$Port = 3000,
   [string]$ConfigPath = "config/harness.example.yaml",
   [string]$DbPath = "data/harness.sqlite",
+  [string]$CredentialStorePath = "data/credentials.enc.json",
   [switch]$SkipBuild
 )
 
@@ -27,10 +28,12 @@ if (-not $SkipBuild) {
 
 $env:HARNESS_CONFIG_PATH = $ConfigPath
 $env:HARNESS_DB_PATH = $DbPath
+$env:HARNESS_CREDENTIAL_STORE_PATH = $CredentialStorePath
 $env:PORT = [string]$Port
 
 Write-Host "WebUI 即将启动：http://127.0.0.1:$Port"
 Write-Host "配置文件：$ConfigPath"
 Write-Host "SQLite：$DbPath"
+Write-Host "凭据存储：$CredentialStorePath"
 
 node dist/src/web/server.js

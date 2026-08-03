@@ -1,6 +1,6 @@
 # 最终交付检查清单
 
-更新时间：2026-08-01
+更新时间：2026-08-03
 
 本清单用于对照 `AI4SE_Final_Project_通用要求.md` 与 `AI4SE_Final_Project_A_Coding_Agent_Harness(1).md`，跟踪当前项目离最终提交还差什么。
 
@@ -11,7 +11,7 @@
 - `SPEC_PROCESS.md`：已记录 brainstorming、关键迭代和冷启动验证反馈。
 - Harness 内核：已实现 action parser、agent loop、mock provider、DeepSeek provider、workspace boundary、guardrail、tool dispatcher、feedback、SQLite event/memory store。
 - 可用代码开发链路：方案 A 已支持上下文工具协议、allowed commands、invalid_action / safety_blocked 自修正反馈、以及临时 workspace 内的 inspect -> edit -> verify -> finish 演示。
-- WebUI：已实现方案 B 第一版轻量智能 IDE 壳层，可选择预注册 workspace 与 mock/DeepSeek provider，触发真实 harness run，并通过 timeline navigator / event detail stack 查看机制分区 timeline。
+- WebUI：已实现对话式智能代码助手壳层，普通入口默认 DeepSeek 并隐藏 mock，可在同一对话流中触发真实 harness run，文件、diff、审批和状态作为侧栏/内嵌面板展示。
 - Workspace Session V1：已实现只读文件列表/文件内容 API、workspace memory 面板、recent runs 面板，以及后续 run 的 workspace context 继承。
 - Diff Inspector V1：已实现只读 git 变更列表 API、单文件 unified diff API，以及运行详情页的 diff inspector 区块。
 - Interactive Run V1：已实现 SQLite session、session-run 关联、session 页面和继续运行 API，可在同一 workspace/provider 下连续触发真实 harness run。
@@ -21,7 +21,7 @@
 - 代码开发演示：`npm run demo:coding-task` 可在临时 workspace 中运行读文件、写修复、执行 `npm test`、finish 的确定性演示。
 - 分发：已提供 `Dockerfile` 与 `docker-compose.yml`。
 - CI：已提供 `.github/workflows/unit-test.yml` 与 `.gitlab-ci.yml`，job 名为 `unit-test`。
-- 安全文档：`SECURITY.md` 已说明凭据、WebUI 无密码风险和提交前检查。
+- 安全文档：`SECURITY.md` 已说明加密凭据文件、WebUI 访问控制风险和提交前检查。
 - 本地启动：已提供 `scripts/start-local.ps1`。
 - 提交历史：当前本地主要分支提交信息已中文化。
 
@@ -32,15 +32,15 @@
 - 线上部署 URL：最终交付清单要求提供应用可访问的 WebUI 接口；当前尚未部署到公网。
 - CI/CD 执行记录：需要最后一次 CI/CD pass 状态截图或链接。
 - GitHub PR 工作流：课程要求完整 commit 历史与 PR 工作流；当前已有 commit 历史，但 PR 创建/合并记录需由用户在 GitHub 上确认。
-- OS keychain：当前 `CredentialManager` 使用测试用内存 adapter；DeepSeek provider 已支持环境变量读取，Windows Credential Manager 或等价安全存储仍是后续增强。
-- 方案 B / Open Design：当前已完成轻量智能 IDE 壳层、Workspace Session V1、Diff Inspector V1 和 Interactive Run V1；若继续做审批流、浏览器内编辑器或更完整视觉系统，应引入 Open Design，并在 `SPEC.md` 中补充设计系统与 skill。
+- 公网访问控制：当前已有部署与安全说明；如果正式开放公网 WebUI，需要配置 Nginx Basic Auth 或等价认证，并记录最终访问方式。
+- 方案 B / Open Design：当前已完成对话式 WebUI、Workspace Session V1、Diff Inspector V1、Interactive Run V1 和 Approval V1；若继续做浏览器内编辑器或更完整视觉系统，应引入 Open Design，并在 `SPEC.md` 中补充设计系统与 skill。
 
 ## 建议下一步
 
-1. 完成方案 A 验证后，经用户确认再提交本轮修改。
-2. 用户手动 push 后，在 GitHub 上确认 CI 运行状态。
-3. 若继续方案 B，下一步实现 Approval V1，并用 Open Design 补充更完整视觉系统。
-4. 完成公网 WebUI 部署与 CI pass 记录。
+1. 提交凭据安全 V2 改动，并由用户手动 push。
+2. 完成公网 WebUI 部署与访问控制记录。
+3. 完成 Docker 构建/分发验证与 CI pass 记录。
+4. 补齐 `AGENT_LOG.md`、`SPEC_PROCESS.md`、`PLAN.md` 中最近几轮关键过程。
 5. 用户撰写 `REFLECTION.md` 初稿后，可让 AI 做润色和结构建议。
 
 ## 2026-08-02 更新：Approval V1
@@ -57,3 +57,16 @@
 - 由用户手动 push 后查看 GitHub CI 结果。
 - 公网部署前补充认证或反向代理访问控制。
 - 用户本人完成 `REFLECTION.md`。
+
+## 2026-08-03 更新：凭据安全 V2
+
+已完成：
+
+- `CredentialManager` 默认使用 AES-256-GCM 加密凭据文件，路径由 `HARNESS_CREDENTIAL_STORE_PATH` 配置，默认写入 `data/credentials.enc.json`。
+- 写入、读取或清除加密凭据需要 `HARNESS_MASTER_PASSWORD`；`.env` 和 `DEEPSEEK_API_KEY` 仅作为本地开发 fallback。
+- CLI 与 WebUI DeepSeek run 共用同一凭据解析链路，优先读取加密凭据文件，其次才读取环境变量。
+- `credentials status/set/clear` 不输出 secret 明文；测试确认加密文件不包含 provider 名或 key 明文。
+
+仍待最终交付前确认：
+
+- 正式服务器部署时应通过服务器环境变量、安全密钥管理或部署平台 secret 注入 `HARNESS_MASTER_PASSWORD`，不要把主密码写入镜像或仓库。

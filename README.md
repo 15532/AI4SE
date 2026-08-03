@@ -90,19 +90,29 @@ npm ci
 Copy-Item .env.example .env
 ```
 
-当前版本默认保留 mock provider，因此测试和机制演示不需要真实 API key。WebUI 普通入口默认使用 DeepSeek；若要在浏览器中触发真实模型运行，需要在本地未提交的 `.env` 或部署环境变量中配置 `DEEPSEEK_API_KEY`。不要把真实 secret 写入 `.env.example`、SQLite、日志或任何已提交文件。
+当前版本默认保留 mock provider，因此测试和机制演示不需要真实 API key。WebUI 普通入口默认使用 DeepSeek；若要在浏览器中触发真实模型运行，推荐先设置 `HARNESS_MASTER_PASSWORD`，再用 CLI 把真实 key 写入加密凭据文件。`DEEPSEEK_API_KEY` 仍可作为受控环境变量 fallback。不要把真实 secret 写入 `.env.example`、SQLite、日志或任何已提交文件。
 
-DeepSeek 本地配置示例：
+DeepSeek 本地安全配置示例：
 
 ```powershell
 Copy-Item .env.example .env
 notepad .env
 ```
 
-在 `.env` 中设置：
+在 `.env` 中设置主密码和凭据文件路径：
 
 ```env
-DEEPSEEK_API_KEY=你的真实 DeepSeek Key
+HARNESS_MASTER_PASSWORD=换成你本机自己的主密码
+HARNESS_CREDENTIAL_STORE_PATH=data/credentials.enc.json
+```
+
+然后用 CLI 写入 DeepSeek key。真实 key 通过环境变量传给本次命令，不会出现在命令参数、SQLite 或 WebUI 响应中：
+
+```powershell
+$env:HARNESS_CREDENTIAL_VALUE = "你的真实 DeepSeek Key"
+npm run build
+node dist/src/cli/main.js credentials set --provider deepseek
+Remove-Item Env:HARNESS_CREDENTIAL_VALUE
 ```
 
 ## 最快启动
@@ -119,7 +129,7 @@ DEEPSEEK_API_KEY=你的真实 DeepSeek Key
 - 创建本地 `data/` 目录。
 - 执行 `npm run build`。
 - 设置默认 `HARNESS_CONFIG_PATH`、`HARNESS_DB_PATH` 和 `PORT`。
-- 启动 WebUI。若未配置 `DEEPSEEK_API_KEY`，页面仍可打开，但提交 DeepSeek 任务会返回“缺少 API key”的结构化错误。
+- 启动 WebUI。若未配置加密凭据或 `DEEPSEEK_API_KEY` fallback，页面仍可打开，但提交 DeepSeek 任务会返回“缺少 API key”的结构化错误。
 
 启动后访问：
 
@@ -171,14 +181,17 @@ workspaces:
 
 - `HARNESS_CONFIG_PATH`：指定 YAML 配置路径，默认 `config/harness.example.yaml`。
 - `HARNESS_DB_PATH`：指定 SQLite 数据库路径，默认 `data/harness.sqlite`。
+- `HARNESS_CREDENTIAL_STORE_PATH`：指定加密凭据文件路径，默认 `data/credentials.enc.json`。
+- `HARNESS_MASTER_PASSWORD`：加密凭据文件主密码；未设置时不能读写加密凭据。
 - `PORT`：指定 WebUI 端口，默认 `3000`。
-- `DEEPSEEK_API_KEY`：DeepSeek provider 的真实 API key，只能放在未提交的 `.env` 或受控部署环境。
+- `DEEPSEEK_API_KEY`：DeepSeek provider 的环境变量 fallback；优先级低于加密凭据文件，只能放在受控部署环境或未提交的本地 `.env`。
 
 PowerShell 示例：
 
 ```powershell
 $env:HARNESS_CONFIG_PATH = "config/harness.example.yaml"
 $env:HARNESS_DB_PATH = "data/harness.sqlite"
+$env:HARNESS_CREDENTIAL_STORE_PATH = "data/credentials.enc.json"
 $env:PORT = "3000"
 ```
 
@@ -255,6 +268,18 @@ node dist/src/cli/main.js run --workspace demo-ts --provider deepseek --task "�
 ```
 
 运行结果会写入 `HARNESS_DB_PATH` 指向的 SQLite 文件；未设置时写入 `data/harness.sqlite`。
+
+凭据命令：
+
+```powershell
+$env:HARNESS_MASTER_PASSWORD = "换成你本机自己的主密码"
+$env:HARNESS_CREDENTIAL_VALUE = "你的真实 DeepSeek Key"
+node dist/src/cli/main.js credentials set --provider deepseek
+node dist/src/cli/main.js credentials status --provider deepseek
+Remove-Item Env:HARNESS_CREDENTIAL_VALUE
+```
+
+`credentials status` 只显示 provider、是否存在和来源，不会显示 key 明文。`credentials clear --provider deepseek` 会删除加密凭据文件中的对应条目；不会删除 `DEEPSEEK_API_KEY` 环境变量 fallback。
 
 ## 启动 WebUI
 
@@ -412,20 +437,21 @@ docker run --rm -p 3000:3000 coding-agent-harness
 docker compose up --build
 ```
 
-使用 DeepSeek 时，先在宿主机或部署平台设置真实 key，再启动 compose：
+使用 DeepSeek 时，推荐在宿主机或部署平台设置 `HARNESS_MASTER_PASSWORD`，并把 `/app/data` 持久化后通过 CLI 写入加密凭据。短期部署也可以用平台 secret 注入 `DEEPSEEK_API_KEY` fallback：
 
 ```powershell
+$env:HARNESS_MASTER_PASSWORD = "服务器主密码"
 $env:DEEPSEEK_API_KEY = "你的真实 DeepSeek Key"
 docker compose up --build
 ```
 
-Compose 会把 `DEEPSEEK_API_KEY` 作为容器环境变量传入。不要把真实 key 写入 `docker-compose.yml`、`.env.example` 或任何提交文件。
+Compose 会把 `HARNESS_MASTER_PASSWORD`、`HARNESS_CREDENTIAL_STORE_PATH` 和 `DEEPSEEK_API_KEY` 作为容器环境变量传入。不要把真实 key 或主密码写入 `docker-compose.yml`、`.env.example` 或任何提交文件。
 
 Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` 挂载为 `harness-data` named volume，用于持久化运行历史、timeline、memory 和 interactive session。镜像构建不会复制 `.env`、本地 SQLite 数据、logs 或本地 `node_modules`。容器默认启动 WebUI。
 
 服务器部署建议：
 
-- 在反向代理或平台 secret 中配置 `DEEPSEEK_API_KEY`，不要烘焙进镜像。
+- 在反向代理、进程管理器或平台 secret 中配置 `HARNESS_MASTER_PASSWORD`；真实 DeepSeek key 优先写入加密凭据文件，`DEEPSEEK_API_KEY` 只作为受控 fallback。
 - 将 `data/` 或 `/app/data` 持久化，否则重启后 session、timeline 和 memory 会丢失。
 - 修改 `config/harness.example.yaml` 或使用独立配置文件注册服务器上的 workspace；WebUI 只能选择已注册 workspace id。
 - 只把经过反向代理认证的入口暴露给访问者，不要直接暴露容器 `3000` 端口。
@@ -434,7 +460,7 @@ Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` �
 
 WebUI v1 不配置 password，仅适合受信任网络或短期课程演示。长期公网部署必须先在 Nginx、VPN、SSO、basic auth 或其他边界层配置认证与访问控制；不要把容器端口直接暴露到公网。启用 DeepSeek provider、interactive session 或人工审批后，公网无认证风险更高，因为攻击者可以持续触发真实 harness run 或诱导管理员批准高风险动作。
 
-当前 v1 已支持 DeepSeek OpenAI-compatible provider，并保留 mock provider 用于离线测试。`CredentialManager` 使用测试用内存 adapter；真实 OS keychain 留作后续增强。真实 API key 绝不能提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。
+当前 v1 已支持 DeepSeek OpenAI-compatible provider，并保留 mock provider 用于离线测试。`CredentialManager` 默认使用 AES-256-GCM 加密凭据文件，DeepSeek key 优先从该文件读取，其次才读取 `DEEPSEEK_API_KEY` fallback。真实 API key 绝不能提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。
 
 更多安全边界和发布前检查请见 [SECURITY.md](SECURITY.md)。
 

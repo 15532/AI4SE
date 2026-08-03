@@ -1,6 +1,9 @@
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CredentialManager } from "../../src/credentials/credential-manager";
-import { InMemoryKeychainAdapter } from "../../src/credentials/keychain-adapter";
+import { EncryptedFileKeychainAdapter, InMemoryKeychainAdapter } from "../../src/credentials/keychain-adapter";
 
 describe("CredentialManager", () => {
   it("reports status without revealing secret value", async () => {
@@ -126,6 +129,23 @@ describe("CredentialManager", () => {
       else process.env[key] = previous;
     }
   });
+
+  it("returns keychain credential values before environment fallback for provider requests", async () => {
+    const key = "DEEPSEEK_API_KEY";
+    const previous = process.env[key];
+    process.env[key] = "env-secret";
+
+    try {
+      const adapter = new InMemoryKeychainAdapter();
+      const manager = new CredentialManager(adapter, { allowEnvFallback: true });
+      await manager.set("deepseek", "stored-secret");
+
+      await expect(manager.resolve("deepseek", "DEEPSEEK_API_KEY")).resolves.toBe("stored-secret");
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
+  });
 });
 
 describe("InMemoryKeychainAdapter", () => {
@@ -138,5 +158,36 @@ describe("InMemoryKeychainAdapter", () => {
     await expect(adapter.get("service-a", "account-a")).resolves.toBe("secret-a");
     await expect(adapter.get("service-a", "account-b")).resolves.toBe("secret-b");
     await expect(adapter.get("service-b", "account-a")).resolves.toBeUndefined();
+  });
+});
+
+describe("EncryptedFileKeychainAdapter", () => {
+  it("persists encrypted credentials without storing plaintext", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-credentials-"));
+    const storePath = join(dir, "credentials.enc.json");
+
+    const first = new EncryptedFileKeychainAdapter({
+      storePath,
+      masterPassword: "correct horse battery staple"
+    });
+    await first.set("coding-agent-harness", "deepseek", "ds-test-secret-value");
+
+    const raw = await readFile(storePath, "utf8");
+    expect(raw).not.toContain("ds-test-secret-value");
+    expect(raw).not.toContain("deepseek");
+
+    const second = new EncryptedFileKeychainAdapter({
+      storePath,
+      masterPassword: "correct horse battery staple"
+    });
+    await expect(second.get("coding-agent-harness", "deepseek")).resolves.toBe("ds-test-secret-value");
+  });
+
+  it("requires a master password before reading or writing encrypted credentials", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-credentials-"));
+    const adapter = new EncryptedFileKeychainAdapter({ storePath: join(dir, "credentials.enc.json") });
+
+    await expect(adapter.set("coding-agent-harness", "deepseek", "secret"))
+      .rejects.toThrow("HARNESS_MASTER_PASSWORD is required");
   });
 });

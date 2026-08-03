@@ -25,6 +25,13 @@ export class CredentialManager {
     return { provider, exists: false };
   }
 
+  async resolve(provider: string, envName = environmentName(provider)): Promise<string | undefined> {
+    const keychainValue = await this.adapter.get(SERVICE, provider);
+    if (keychainValue !== undefined) return keychainValue;
+    if (!this.options.allowEnvFallback) return undefined;
+    return process.env[envName];
+  }
+
   async set(provider: string, value: string): Promise<void> {
     await this.adapter.set(SERVICE, provider, value);
   }

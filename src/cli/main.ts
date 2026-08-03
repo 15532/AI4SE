@@ -3,8 +3,7 @@
 import "dotenv/config";
 import { Command } from "commander";
 import { loadHarnessRegistry } from "../config/harness-config.js";
-import { CredentialManager } from "../credentials/credential-manager.js";
-import { InMemoryKeychainAdapter } from "../credentials/keychain-adapter.js";
+import { createDefaultCredentialManager } from "../credentials/default-credential-manager.js";
 import { runMechanismDemo } from "../demo/mechanisms.js";
 import { runAgentLoop } from "../core/loop.js";
 import { createProvider } from "../core/providers.js";
@@ -40,7 +39,7 @@ async function withEnvironment<T>(env: NodeJS.ProcessEnv | undefined, operation:
 export function createProgram(options: CliOptions = {}): Command {
   const stdout = options.stdout ?? process.stdout;
   const stderr = options.stderr ?? process.stderr;
-  const credentials = new CredentialManager(new InMemoryKeychainAdapter(), { allowEnvFallback: true });
+  const credentials = createDefaultCredentialManager(process.env);
   const program = new Command();
 
   program
@@ -71,7 +70,9 @@ export function createProgram(options: CliOptions = {}): Command {
       const result = await runAgentLoop({
         task: commandOptions.task,
         workspace,
-        provider: createProvider(providerConfig),
+        provider: createProvider(providerConfig, {
+          credentialResolver: (providerId, envName) => credentials.resolve(providerId, envName)
+        }),
         maxIterations: registry.maxIterations,
         mode: registry.mode,
         eventStore,

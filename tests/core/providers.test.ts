@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OpenAICompatibleProvider } from "../../src/core/providers";
+import { createProvider, OpenAICompatibleProvider } from "../../src/core/providers";
 
 describe("OpenAICompatibleProvider", () => {
   it("calls the DeepSeek chat completions API and returns message content", async () => {
@@ -104,5 +104,32 @@ describe("OpenAICompatibleProvider", () => {
     expect(messages[0].content).toContain("after writing code, run an allowed verification command");
     expect(messages[0].content).toContain("if feedback reports invalid_action, return a corrected JSON action");
     expect(messages[0].content).toContain("do not finish just because the user greeted you");
+  });
+
+  it("uses credential resolver before environment variables when creating providers", async () => {
+    const requests: Array<{ init: RequestInit }> = [];
+    const provider = createProvider({
+      id: "deepseek",
+      type: "deepseek-compatible",
+      baseUrl: "https://api.deepseek.com",
+      model: "deepseek-v4-flash",
+      apiKeyEnv: "DEEPSEEK_API_KEY",
+      thinking: "disabled"
+    }, {
+      env: { DEEPSEEK_API_KEY: "env-secret" },
+      credentialResolver: async () => "stored-secret",
+      fetchImpl: async (_url, init) => {
+        requests.push({ init });
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: "{\"type\":\"finish\",\"summary\":\"done\"}" } }]
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+    });
+
+    await provider.complete({ task: "finish", context: "context" });
+
+    expect(requests[0].init.headers).toEqual(expect.objectContaining({
+      authorization: "Bearer stored-secret"
+    }));
   });
 });
