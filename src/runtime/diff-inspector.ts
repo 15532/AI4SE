@@ -45,15 +45,26 @@ function statusPriority(status: WorkspaceChangeStatus): number {
   }
 }
 
-function parseStatus(output: string): WorkspaceChange[] {
+function stripWorkspacePrefix(relativePath: string, workspacePrefix: string): string | undefined {
+  if (workspacePrefix === "") return relativePath;
+  return relativePath === workspacePrefix
+    ? ""
+    : relativePath.startsWith(`${workspacePrefix}/`)
+      ? relativePath.slice(workspacePrefix.length + 1)
+      : undefined;
+}
+
+function parseStatus(output: string, workspacePrefix = ""): WorkspaceChange[] {
   return output
     .split(/\r?\n/)
     .filter((line) => line.trim() !== "")
-    .map((line) => {
+    .flatMap((line) => {
       const rawPath = line.slice(3);
       const renameTarget = rawPath.includes(" -> ") ? rawPath.split(" -> ").at(-1) ?? rawPath : rawPath;
+      const path = stripWorkspacePrefix(toPortablePath(renameTarget), workspacePrefix);
+      if (path === undefined || path === "") return [];
       return {
-        path: renameTarget,
+        path,
         status: statusFromPorcelain(line.slice(0, 2))
       };
     })
@@ -92,13 +103,27 @@ function isSamePath(left: string, right: string): boolean {
     : normalizedLeft === normalizedRight;
 }
 
-async function resolveGitRoot(workspace: WorkspaceConfig): Promise<{ ok: true; root: string } | { ok: false; error: string }> {
+function isWithinPath(root: string, target: string): boolean {
+  const relative = path.relative(root, target);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+}
+
+async function resolveGitContext(workspace: WorkspaceConfig): Promise<
+  { ok: true; gitRoot: string; workspaceRoot: string; workspacePrefix: string }
+  | { ok: false; error: string }
+> {
   try {
-    const root = await realpath(workspace.root);
-    const topLevel = (await runGit(root, ["rev-parse", "--show-toplevel"])).trim();
-    return isSamePath(root, topLevel)
-      ? { ok: true, root }
-      : { ok: false, error: "Workspace is not a git repository" };
+    const workspaceRoot = await realpath(workspace.root);
+    const gitRoot = await realpath((await runGit(workspaceRoot, ["rev-parse", "--show-toplevel"])).trim());
+    if (!isSamePath(workspaceRoot, gitRoot) && !isWithinPath(gitRoot, workspaceRoot)) {
+      return { ok: false, error: "Workspace is not a git repository" };
+    }
+    return {
+      ok: true,
+      gitRoot,
+      workspaceRoot,
+      workspacePrefix: toPortablePath(path.relative(gitRoot, workspaceRoot))
+    };
   } catch {
     return { ok: false, error: "Workspace is not a git repository" };
   }
@@ -113,12 +138,13 @@ function resolveRelativePath(workspace: WorkspaceConfig, relativePath: string): 
 export async function listWorkspaceChanges(
   workspace: WorkspaceConfig
 ): Promise<{ ok: true; changes: WorkspaceChange[] } | { ok: false; error: string }> {
-  const root = await resolveGitRoot(workspace);
-  if (!root.ok) return root;
+  const context = await resolveGitContext(workspace);
+  if (!context.ok) return context;
 
   try {
-    const output = await runGit(root.root, ["status", "--porcelain=v1"]);
-    return { ok: true, changes: parseStatus(output) };
+    const pathspec = context.workspacePrefix === "" ? "." : context.workspacePrefix;
+    const output = await runGit(context.gitRoot, ["status", "--porcelain=v1", "--untracked-files=all", "--", pathspec]);
+    return { ok: true, changes: parseStatus(output, context.workspacePrefix) };
   } catch (error) {
     return { ok: false, error: gitError(error) };
   }
@@ -162,11 +188,14 @@ export async function readWorkspaceDiff(
       : { ok: true, path: pathResult.path, diff };
   }
 
-  const root = await resolveGitRoot(workspace);
-  if (!root.ok) return root;
+  const context = await resolveGitContext(workspace);
+  if (!context.ok) return context;
 
   try {
-    const diff = await runGit(root.root, ["diff", "--no-ext-diff", "--", pathResult.path]);
+    const gitRelativePath = context.workspacePrefix === ""
+      ? pathResult.path
+      : `${context.workspacePrefix}/${pathResult.path}`;
+    const diff = await runGit(context.gitRoot, ["diff", "--no-ext-diff", "--", gitRelativePath]);
     if (diff === "") return { ok: false, error: "File has no diff" };
     if (diff.length > (options.maxBytes ?? defaultDiffLimit)) {
       return { ok: false, error: "Diff is too large to preview" };

@@ -9,7 +9,8 @@ describe("local startup script", () => {
     const script = readFileSync(scriptPath, "utf8");
 
     expect(script).toContain("param(");
-    expect(script).toContain("[int]$Port = 3000");
+    expect(script).toContain("[int]$Port = 3100");
+    expect(script).toContain('[string]$HostName = "127.0.0.1"');
     expect(script).toContain("npm ci");
     expect(script).toContain("npm run build");
     expect(script).toContain("data");
@@ -18,6 +19,8 @@ describe("local startup script", () => {
     expect(script).toContain("HARNESS_CREDENTIAL_STORE_PATH");
     expect(script).toContain("WEBUI_ADMIN_USER");
     expect(script).toContain("WEBUI_ADMIN_PASSWORD");
+    expect(script).toContain("$env:HOST = $HostName");
     expect(script).toContain("dist/src/web/server.js");
+    expect(script).toContain("WebUI URL:");
   });
 });

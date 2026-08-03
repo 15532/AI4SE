@@ -882,11 +882,12 @@ export function createDefaultServer(options: { configPath?: string; dbPath?: str
 
 export async function startStandaloneWebServer(): Promise<void> {
   const port = Number(process.env.PORT ?? 3000);
+  const host = process.env.HOST ?? "0.0.0.0";
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("PORT must be an integer between 1 and 65535");
   }
-  await createDefaultServer().listen(port, "0.0.0.0");
-  console.log(`WebUI is listening on http://0.0.0.0:${port}`);
+  await createDefaultServer().listen(port, host);
+  console.log(`WebUI is listening on http://${host}:${port}`);
 }
 
 async function readBody(request: IncomingMessage): Promise<unknown> {

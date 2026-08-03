@@ -28,6 +28,11 @@ describe("buildContext", () => {
     expect(context).toContain("run_command");
     expect(context).toContain("Allowed commands");
     expect(context).toContain("npm test");
+    expect(context).toContain("If the task asks for a small new feature or algorithm");
+    expect(context).toContain("Do not keep calling list_files");
+    expect(context).toContain("Write finish.summary in Chinese");
+    expect(context).toContain("changed files");
+    expect(context).toContain("verification result");
     expect(context).toContain("Recent feedback");
     expect(context).toContain("test_failed");
     expect(context).toContain("Recent runs");

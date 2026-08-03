@@ -1,5 +1,6 @@
 param(
-  [int]$Port = 3000,
+  [int]$Port = 3100,
+  [string]$HostName = "127.0.0.1",
   [string]$ConfigPath = "config/harness.example.yaml",
   [string]$DbPath = "data/harness.sqlite",
   [string]$CredentialStorePath = "data/credentials.enc.json",
@@ -15,7 +16,7 @@ $projectRoot = Resolve-Path (Join-Path $scriptDir "..")
 Set-Location $projectRoot
 
 if (-not (Test-Path -LiteralPath "node_modules")) {
-  Write-Host "node_modules 不存在，正在执行 npm ci..."
+  Write-Host "node_modules is missing; running npm ci..."
   npm ci
 }
 
@@ -24,7 +25,7 @@ if (-not (Test-Path -LiteralPath "data")) {
 }
 
 if (-not $SkipBuild) {
-  Write-Host "正在构建 TypeScript..."
+  Write-Host "Building TypeScript..."
   npm run build
 }
 
@@ -34,15 +35,16 @@ $env:HARNESS_CREDENTIAL_STORE_PATH = $CredentialStorePath
 $env:WEBUI_ADMIN_USER = $WebUiAdminUser
 $env:WEBUI_ADMIN_PASSWORD = $WebUiAdminPassword
 $env:PORT = [string]$Port
+$env:HOST = $HostName
 
-Write-Host "WebUI 即将启动：http://127.0.0.1:$Port"
-Write-Host "配置文件：$ConfigPath"
-Write-Host "SQLite：$DbPath"
-Write-Host "凭据存储：$CredentialStorePath"
+Write-Host "WebUI URL: http://${HostName}:$Port"
+Write-Host "Config file: $ConfigPath"
+Write-Host "SQLite DB: $DbPath"
+Write-Host "Credential store: $CredentialStorePath"
 if ($WebUiAdminPassword -eq "") {
-  Write-Host "WebUI 认证：未启用（本地默认）"
+  Write-Host "WebUI auth: disabled for local development"
 } else {
-  Write-Host "WebUI 认证：已启用 Basic Auth，用户 $WebUiAdminUser"
+  Write-Host "WebUI auth: Basic Auth enabled for user $WebUiAdminUser"
 }
 
 node dist/src/web/server.js

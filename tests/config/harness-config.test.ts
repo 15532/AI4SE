@@ -1,10 +1,21 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadHarnessRegistry } from "../../src/config/harness-config";
 
 describe("loadHarnessRegistry", () => {
+  it("keeps the example DeepSeek workspace in a clean sandbox instead of the harness repository root", () => {
+    const registry = loadHarnessRegistry("config/harness.example.yaml");
+
+    expect(registry.listWorkspaces()[0]).toEqual({
+      id: "deepseek-sandbox",
+      name: "DeepSeek Sandbox",
+      root: resolve("workspaces/deepseek-sandbox"),
+      allowedCommands: ["npm test", "npm run build"]
+    });
+  });
+
   it("loads multiple registered workspaces and execution settings from YAML", async () => {
     const dir = await mkdtemp(join(tmpdir(), "harness-config-"));
     const configPath = join(dir, "harness.yaml");

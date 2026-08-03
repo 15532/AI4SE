@@ -76,8 +76,13 @@ export class OpenAICompatibleProvider implements LLMProvider {
               "Do not use \"action\" as a field name.",
               "Valid action type values are read_file, write_file, list_files, run_command, remember, and finish.",
               "For a completed task, return exactly this shape: {\"type\":\"finish\",\"summary\":\"DeepSeek connected\"}.",
+              "finish.summary must be written in Chinese and be specific: mention changed files, what was implemented or skipped, and the verification result.",
+              "A good finish.summary is 2-4 Chinese sentences, not a short English phrase.",
               "As a coding agent, inspect the workspace before editing.",
               "after writing code, run an allowed verification command.",
+              "When the task asks for a new small program or algorithm, create or update files in the current workspace.",
+              "Do not repeatedly list files after you already know the project layout; read a likely file, write the change, then verify.",
+              "finish after successful verification instead of repeating read_file, list_files, or write_file.",
               "if feedback reports invalid_action, return a corrected JSON action.",
               "if feedback reports safety_blocked, choose a safer allowed action.",
               "do not finish just because the user greeted you; finish only when the task is complete or no code action is needed."

@@ -587,12 +587,24 @@ workspaces:
 
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain("chat-app-shell");
+    expect(response.body).toContain('data-sidebar-collapsed="false"');
+    expect(response.body).toContain('data-inspector-closed="false"');
     expect(response.body).toContain("chat-sidebar");
     expect(response.body).toContain("chat-thread");
     expect(response.body).toContain("chat-message");
     expect(response.body).toContain("chat-composer");
     expect(response.body).toContain("chat-inspector");
     expect(response.body).toContain("task-composer");
+    expect(response.body).toContain('data-panel-toggle="sidebar"');
+    expect(response.body).toContain('data-panel-toggle="inspector"');
+    expect(response.body).toContain('data-close-icon="&lt;&lt;"');
+    expect(response.body).toContain('data-open-icon="&gt;&gt;"');
+    expect(response.body).toContain('data-close-icon="&gt;&gt;"');
+    expect(response.body).toContain('data-open-icon="&lt;&lt;"');
+    expect(response.body).toContain('aria-label="收起侧栏"');
+    expect(response.body).toContain('aria-label="收起检查器"');
+    expect(response.body).not.toContain("chat-panel-openers");
+    expect(response.body).not.toContain("chat-panel-opener");
     expect(response.body).toContain('method="post" action="/api/runs/start"');
     expect(response.body).toContain('name="workspaceId"');
     expect(response.body).toContain('name="provider"');
@@ -731,6 +743,8 @@ workspaces:
 
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain("chat-tool-call-list");
+    expect(page.body).toContain('<details class="chat-tool-call-list"');
+    expect(page.body).toContain("<summary>工具调用 (3)</summary>");
     expect(page.body).toContain("chat-tool-card");
     expect(page.body).toContain("工具调用");
     expect(page.body).toContain("列出文件");
@@ -738,7 +752,10 @@ workspaces:
     expect(page.body).toContain("运行命令");
     expect(page.body).toContain("README.md");
     expect(page.body).toContain("node --version");
-    expect(page.body).toContain("Readable tool cards");
+    expect(page.body).toContain("列出 1 个条目");
+    expect(page.body).toContain("已读取 README.md");
+    expect(page.body).toContain("命令已完成");
+    expect(page.body).toContain("查看原始输出");
     expect(page.body).toContain("成功");
     expect(page.body).toContain("chat-event-summary-list");
     expect(page.body).toContain('data-event-kind="tool_result"');
@@ -867,12 +884,43 @@ workspaces:
 
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain("chat-change-panel");
+    expect(page.body).toContain('<details class="chat-card chat-change-panel"');
+    expect(page.body).toContain("<summary>文件变更 (1)</summary>");
     expect(page.body).toContain("chat-change-card");
     expect(page.body).toContain("文件变更");
+    expect(page.body).toContain("chat-run-detail-note");
+    expect(page.body).toContain("工具调用：1 次");
+    expect(page.body).toContain("文件变更：1 个");
     expect(page.body).toContain("modified");
     expect(page.body).toContain("README.md");
     expect(page.body).toContain("/?workspaceId=demo&amp;diff=README.md&amp;runId=");
     expect(page.body).toContain("/?workspaceId=demo&amp;file=README.md&amp;runId=");
+  });
+
+  it("explains missing summaries when the model reaches max iterations without finish", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-chat-max-iterations-"));
+    await writeFile(join(dir, "README.md"), "# Demo\n", "utf8");
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }],
+      providerFactory: () => ({
+        async complete() {
+          return JSON.stringify({ type: "list_files", path: ".", reason: "inspect before editing" });
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo", provider: "mock", task: "loop forever" }
+    });
+    const { id: runId } = created.json() as { id: string };
+    const page = await app.inject({ method: "GET", url: `/?runId=${runId}` });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("max_iterations");
+    expect(page.body).toContain("模型已达到最大迭代次数，但没有返回 finish action");
+    expect(page.body).toContain("工具调用");
   });
 
   it("renders pending approvals as actionable cards inside the chat conversation", async () => {
@@ -922,6 +970,8 @@ workspaces:
     const index = await app.inject({ method: "GET", url: "/" });
 
     expect(index.statusCode).toBe(200);
+    expect(index.body).toContain('<details class="chat-nav-section chat-file-section" open>');
+    expect(index.body).toContain('<summary class="chat-nav-title"><span>文件</span><span class="chat-section-toggle" aria-hidden="true"></span></summary>');
     expect(index.body).toContain("chat-file-list");
     expect(index.body).toContain('href="/?workspaceId=demo&amp;file=README.md"');
     expect(index.body).toContain("README.md");
@@ -932,6 +982,9 @@ workspaces:
 
     expect(preview.statusCode).toBe(200);
     expect(preview.body).toContain("chat-file-preview");
+    expect(preview.body).toContain("chat-preview-close");
+    expect(preview.body).toContain("chat-inspector-section-header");
+    expect(preview.body).toContain('href="/?workspaceId=demo" aria-label="关闭文件预览" title="关闭文件预览">x</a>');
     expect(preview.body).toContain("README.md");
     expect(preview.body).toContain("Chat preview");
     expect(preview.body).toContain("/workspaces/demo/files/README.md");
@@ -978,6 +1031,8 @@ workspaces:
     expect(page.body).toContain('data-diff-path="README.md"');
     expect(page.body).toContain('data-diff-status="modified"');
     expect(page.body).toContain("diff --git a/README.md b/README.md");
+    expect(page.body).toContain("chat-preview-close");
+    expect(page.body).toContain('href="/?workspaceId=demo&amp;runId=run-123" aria-label="关闭 diff 预览" title="关闭 diff 预览">x</a>');
     expect(page.body).toContain('<span class="chat-diff-line-number">1</span>');
     expect(page.body).toContain('<span class="chat-diff-line deletion">-hello</span>');
     expect(page.body).toContain('<span class="chat-diff-line addition">+hello changed</span>');
@@ -1058,8 +1113,13 @@ workspaces:
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain('<body class="chat-body">');
     expect(response.body).toContain(".chat-body { height: 100vh; overflow: hidden;");
-    expect(response.body).toContain(".chat-app-shell { width: 100%; max-width: none; height: 100vh;");
+    expect(response.body).toContain(".chat-app-shell { --sidebar-width: 260px; --inspector-width:");
+    expect(response.body).toContain("width: 100%; max-width: none; height: 100vh;");
+    expect(response.body).toContain('.chat-app-shell[data-sidebar-collapsed="true"]');
+    expect(response.body).toContain('.chat-app-shell[data-inspector-closed="true"]');
     expect(response.body).toContain(".chat-sidebar { min-height: 0; overflow: hidden;");
+    expect(response.body).toContain('.chat-app-shell[data-inspector-closed="true"] { --inspector-width: 52px;');
+    expect(response.body).toContain('.chat-app-shell[data-inspector-closed="true"] .chat-inspector-card { display: none;');
     expect(response.body).toContain(".chat-nav { display: grid; gap: 6px; min-height: 0; overflow: auto;");
     expect(response.body).toContain(".chat-main { min-width: 0; min-height: 0; overflow: hidden;");
     expect(response.body).toContain(".chat-thread { min-height: 0; overflow: auto;");

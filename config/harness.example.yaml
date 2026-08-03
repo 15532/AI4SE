@@ -11,17 +11,13 @@ providers:
     apiKeyEnv: DEEPSEEK_API_KEY
     thinking: disabled
 workspaces:
-  - id: demo-ts
-    name: TypeScript Demo
-    root: ..
+  - id: deepseek-sandbox
+    name: DeepSeek Sandbox
+    root: ../workspaces/deepseek-sandbox
     allowedCommands:
       - npm test
-      - npm run test
-      - npm run lint
-      - npm run typecheck
       - npm run build
   - id: docs
     name: Documentation Demo
-    root: ..
-    allowedCommands:
-      - npm run build
+    root: ../docs
+    allowedCommands: []

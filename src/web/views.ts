@@ -200,13 +200,30 @@ const baseStyles = `
       .codex-change-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
       .codex-change-list li { display: grid; gap: 3px; padding: 10px; border: 1px solid #d9dee7; border-radius: 8px; background: rgba(255, 255, 255, 0.78); }
       .codex-change-list code { color: #2563eb; font-size: 12px; overflow-wrap: anywhere; }
-      .chat-app-shell { width: 100%; max-width: none; height: 100vh; min-height: 0; margin: 0; padding: 0; display: grid; grid-template-columns: 260px minmax(480px, 1fr) 320px; background: #ffffff; overflow: hidden; }
+      .chat-app-shell { --sidebar-width: 260px; --inspector-width: clamp(380px, 32vw, 560px); width: 100%; max-width: none; height: 100vh; min-height: 0; margin: 0; padding: 0; display: grid; grid-template-columns: var(--sidebar-width) minmax(460px, 1fr) var(--inspector-width); background: #ffffff; overflow: hidden; }
+      .chat-app-shell[data-sidebar-collapsed="true"] { --sidebar-width: 52px; }
+      .chat-app-shell[data-inspector-closed="true"] { --inspector-width: 52px; }
       .chat-sidebar { min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 18px; padding: 18px 10px 12px; border-right: 1px solid #e5e7eb; background: #f7f7f8; }
       .chat-sidebar-brand { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 8px; }
       .chat-sidebar-brand strong { font-size: 18px; letter-spacing: 0; }
+      .chat-panel-button { width: 30px; min-height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; color: #4b5563; font-size: 13px; font-weight: 800; line-height: 1; cursor: pointer; }
+      .chat-panel-button:hover { background: #eceef2; color: #111827; }
+      .chat-panel-button[data-panel-toggle="sidebar"] { width: 34px; }
+      .chat-app-shell[data-sidebar-collapsed="true"] .chat-sidebar { padding: 12px 8px; gap: 10px; }
+      .chat-app-shell[data-sidebar-collapsed="true"] .chat-sidebar-brand { padding: 0; justify-content: center; }
+      .chat-app-shell[data-sidebar-collapsed="true"] .chat-sidebar-brand strong,
+      .chat-app-shell[data-sidebar-collapsed="true"] .chat-sidebar-brand .muted,
+      .chat-app-shell[data-sidebar-collapsed="true"] .chat-nav,
+      .chat-app-shell[data-sidebar-collapsed="true"] .chat-sidebar-footer { display: none; }
       .chat-nav { display: grid; gap: 6px; min-height: 0; overflow: auto; }
       .chat-nav-section { display: grid; gap: 5px; }
+      details.chat-nav-section { align-content: start; }
       .chat-nav-title { padding: 10px 8px 4px; color: #9ca3af; font-size: 12px; }
+      details.chat-nav-section > summary.chat-nav-title { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      details.chat-nav-section > summary.chat-nav-title::-webkit-details-marker { display: none; }
+      .chat-section-toggle { width: 22px; min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid #e5e7eb; border-radius: 999px; background: #fff; color: #6b7280; font-size: 13px; font-weight: 800; line-height: 1; }
+      .chat-section-toggle::before { content: "-"; }
+      details.chat-nav-section:not([open]) .chat-section-toggle::before { content: "+"; }
       .chat-nav-item { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: center; min-height: 34px; padding: 7px 8px; border-radius: 8px; color: #374151; text-decoration: none; font-size: 14px; }
       .chat-nav-item[aria-current="page"], .chat-nav-item:hover { background: #eceef2; color: #111827; }
       .chat-nav-item span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -238,6 +255,7 @@ const baseStyles = `
       .chat-run-result header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .chat-run-result h2 { color: #111827; font-size: 15px; }
       .chat-run-result a { color: #2563eb; font-size: 13px; text-decoration: none; }
+      .chat-run-detail-note { color: #6b7280; font-size: 13px; }
       .chat-live-indicator { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; color: #047857; font-size: 12px; font-weight: 700; }
       .chat-live-indicator::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: #10b981; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.14); }
       .chat-run-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -255,14 +273,17 @@ const baseStyles = `
       .chat-timeline-details summary { cursor: pointer; color: #2563eb; font-size: 13px; font-weight: 700; }
       .chat-timeline-details[open] summary { margin-bottom: 8px; }
       .chat-tool-call-list { display: grid; gap: 8px; margin-top: 2px; }
-      .chat-tool-call-list h3 { color: #6b7280; font-size: 12px; text-transform: uppercase; }
+      .chat-tool-call-list > summary, .chat-change-panel > summary { cursor: pointer; color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+      .chat-tool-call-list[open] > summary, .chat-change-panel[open] > summary { margin-bottom: 8px; }
       .chat-tool-card { display: grid; gap: 8px; padding: 11px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
       .chat-tool-card header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .chat-tool-name { display: inline-flex; align-items: center; gap: 7px; color: #111827; font-weight: 700; font-size: 13px; }
       .chat-tool-target { color: #2563eb; font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; overflow-wrap: anywhere; }
       .chat-tool-status { padding: 3px 7px; border-radius: 999px; background: #ecfdf3; color: #047857; font-size: 12px; font-weight: 700; white-space: nowrap; }
       .chat-tool-status[data-ok="false"] { background: #fff1f2; color: #be123c; }
-      .chat-tool-reason { margin: 0; color: #6b7280; font-size: 13px; line-height: 1.45; }
+      .chat-tool-reason, .chat-tool-summary { margin: 0; color: #6b7280; font-size: 13px; line-height: 1.45; }
+      .chat-tool-summary { color: #374151; }
+      .chat-tool-details summary { cursor: pointer; color: #2563eb; font-size: 12px; font-weight: 700; }
       .chat-tool-preview { margin: 0; max-height: 150px; overflow: auto; background: #f6f7f9; color: #1f2937; border: 1px solid #e5e7eb; font-size: 12px; line-height: 1.55; }
       .chat-tool-actions { display: flex; gap: 8px; flex-wrap: wrap; }
       .chat-tool-actions a { min-height: 28px; display: inline-flex; align-items: center; padding: 0 9px; border: 1px solid #e5e7eb; border-radius: 7px; background: #f9fafb; color: #2563eb; font-size: 12px; text-decoration: none; }
@@ -299,22 +320,32 @@ const baseStyles = `
       .chat-composer-selects label { display: flex; align-items: center; gap: 6px; color: #6b7280; font-size: 12px; font-weight: 600; }
       .chat-composer-selects select { min-height: 32px; border-radius: 8px; background: #f9fafb; font-size: 13px; }
       .chat-send { width: 38px; min-height: 38px; border-radius: 999px; display: grid; place-items: center; background: #111827; color: #fff; font-size: 18px; line-height: 1; }
-      .chat-inspector { min-height: 0; overflow: auto; display: grid; align-content: start; gap: 12px; padding: 18px 14px; border-left: 1px solid #e5e7eb; background: #fafafa; }
+      .chat-inspector { min-height: 0; overflow: auto; display: grid; align-content: start; gap: 12px; padding: 18px 16px; border-left: 1px solid #e5e7eb; background: #fafafa; }
+      .chat-app-shell[data-inspector-closed="true"] .chat-inspector { overflow: hidden; justify-items: center; padding: 12px 8px; }
+      .chat-app-shell[data-inspector-closed="true"] .chat-inspector-section { display: none; }
+      .chat-app-shell[data-inspector-closed="true"] .chat-inspector-section:first-child { display: grid; }
+      .chat-app-shell[data-inspector-closed="true"] .chat-inspector-top { justify-content: center; }
+      .chat-app-shell[data-inspector-closed="true"] .chat-inspector-top h2,
+      .chat-app-shell[data-inspector-closed="true"] .chat-inspector-card { display: none; }
       .chat-inspector-section { display: grid; gap: 8px; }
+      .chat-inspector-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .chat-inspector-section-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .chat-inspector-section h2 { color: #9ca3af; font-size: 12px; text-transform: uppercase; }
       .chat-inspector-card { display: grid; gap: 5px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
       .chat-inspector-card strong { font-size: 13px; }
       .chat-inspector-card span, .chat-inspector-card code { color: #6b7280; font-size: 12px; overflow-wrap: anywhere; }
-      .chat-file-preview { gap: 9px; }
+      .chat-file-preview { gap: 10px; }
       .chat-file-preview header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .chat-file-preview h2 { color: #111827; font-size: 13px; text-transform: none; }
       .chat-file-preview a { color: #2563eb; font-size: 12px; text-decoration: none; }
-      .chat-file-preview pre { max-height: 420px; margin: 0; overflow: auto; background: #f3f4f6; color: #1f2937; border: 1px solid #e5e7eb; font-size: 12px; line-height: 1.55; }
+      .chat-file-preview pre { max-height: 58vh; margin: 0; overflow: auto; background: #f3f4f6; color: #1f2937; border: 1px solid #e5e7eb; font-size: 12px; line-height: 1.55; }
       .chat-file-preview-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .chat-preview-close { width: 26px; min-height: 26px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid #e5e7eb; border-radius: 7px; background: #f9fafb; color: #4b5563 !important; font-size: 13px; font-weight: 800; line-height: 1; }
+      .chat-preview-close:hover { background: #eceef2; color: #111827 !important; }
       .chat-file-meta { display: flex; gap: 6px; flex-wrap: wrap; }
       .chat-file-stat { display: inline-flex; align-items: center; min-height: 24px; padding: 0 7px; border-radius: 999px; background: #f3f4f6; color: #4b5563; font-size: 12px; }
       .chat-save-status { display: inline-flex; align-items: center; min-height: 24px; padding: 0 7px; border-radius: 999px; background: #ecfdf3; color: #047857; font-size: 12px; font-weight: 700; }
-      .chat-code-preview { max-height: 420px; margin: 0; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; color: #1f2937; font-size: 12px; line-height: 1.55; }
+      .chat-code-preview { max-height: 58vh; margin: 0; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; color: #1f2937; font-size: 12px; line-height: 1.55; }
       .chat-code-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); min-width: max-content; }
       .chat-code-line-number { padding: 0 9px; color: #9ca3af; text-align: right; user-select: none; border-right: 1px solid #e5e7eb; background: #f1f5f9; }
       .chat-code-line { padding: 0 10px; white-space: pre-wrap; }
@@ -366,6 +397,11 @@ function truncate(value: string, maxLength = 900): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength)}\n...`;
 }
 
+function countLines(value: string): number {
+  if (value.trim() === "") return 0;
+  return value.split(/\r?\n/).filter((line) => line.trim() !== "").length;
+}
+
 function actionLabel(action: Record<string, unknown>): string {
   switch (action.type) {
     case "list_files": return "列出文件";
@@ -384,7 +420,36 @@ function actionTarget(action: Record<string, unknown>): string {
     ?? "";
 }
 
-function resultPreview(result: Record<string, unknown>): string {
+function toolResultSummary(action: Record<string, unknown>, result: Record<string, unknown>): string {
+  const ok = result.ok === true;
+  const type = stringValue(action.type);
+  const target = actionTarget(action);
+  const stdout = stringValue(result.stdout);
+  const stderr = stringValue(result.stderr);
+  const error = stringValue(result.error);
+  const failure = error ?? stderr;
+  if (!ok) {
+    return `${actionLabel(action)}失败${target === "" ? "" : `：${target}`}。${failure === undefined ? "请查看原始输出。" : truncate(failure, 220)}`;
+  }
+  if (type === "list_files") {
+    return `列出 ${countLines(stdout ?? "")} 个条目${target === "" ? "" : `：${target}`}。`;
+  }
+  if (type === "read_file") {
+    return `已读取 ${target}${stdout === undefined ? "。" : `，约 ${Math.max(1, stdout.split(/\r?\n/).length)} 行。`}`;
+  }
+  if (type === "write_file") {
+    return `已写入 ${target}。`;
+  }
+  if (type === "run_command") {
+    return `命令已完成：${target}${stdout === undefined || stdout.trim() === "" ? "。" : `，输出 ${countLines(stdout)} 行。`}`;
+  }
+  if (type === "remember") {
+    return `已记录记忆${target === "" ? "" : `：${target}`}。`;
+  }
+  return `工具已完成${target === "" ? "" : `：${target}`}。`;
+}
+
+function rawResultPreview(result: Record<string, unknown>): string {
   const stdout = stringValue(result.stdout);
   const stderr = stringValue(result.stderr);
   const error = stringValue(result.error);
@@ -423,14 +488,15 @@ function renderChatToolActions(run: PublicChatRun, action: Record<string, unknow
 }
 
 function renderChatToolCards(run: PublicChatRun, sessionId?: string): string {
-  const cards = run.timeline
-    .filter((event) => event.kind === "tool_result")
+  const toolEvents = run.timeline.filter((event) => event.kind === "tool_result");
+  const cards = toolEvents
     .map((event) => {
       const action = isRecord(event.payload.action) ? event.payload.action : {};
       const result = isRecord(event.payload.result) ? event.payload.result : {};
       const ok = result.ok === true;
       const target = actionTarget(action);
       const reason = stringValue(action.reason);
+      const rawPreview = rawResultPreview(result);
       return `
                 <article class="chat-tool-card">
                   <header>
@@ -439,7 +505,11 @@ function renderChatToolCards(run: PublicChatRun, sessionId?: string): string {
                   </header>
                   ${target === "" ? "" : `<code class="chat-tool-target">${escapeHtml(target)}</code>`}
                   ${reason === undefined ? "" : `<p class="chat-tool-reason">${escapeHtml(reason)}</p>`}
-                  <pre class="chat-tool-preview">${escapeHtml(resultPreview(result))}</pre>
+                  <p class="chat-tool-summary">${escapeHtml(toolResultSummary(action, result))}</p>
+                  <details class="chat-tool-details">
+                    <summary>查看原始输出</summary>
+                    <pre class="chat-tool-preview">${escapeHtml(rawPreview)}</pre>
+                  </details>
                   ${renderChatToolActions(run, action, sessionId)}
                 </article>`;
     }).join("");
@@ -447,10 +517,10 @@ function renderChatToolCards(run: PublicChatRun, sessionId?: string): string {
   return cards === ""
     ? ""
     : `
-              <section class="chat-tool-call-list" aria-label="工具调用">
-                <h3>工具调用</h3>
+              <details class="chat-tool-call-list" aria-label="工具调用">
+                <summary>工具调用 (${toolEvents.length})</summary>
                 ${cards}
-              </section>`;
+              </details>`;
 }
 
 function renderChatApprovals(approvals: PublicApproval[] = []): string {
@@ -494,12 +564,9 @@ function renderChatChangePanel(run: PublicChatRun): string {
   const changes = run.changes ?? [];
   if (changes.length === 0) {
     return `
-              <section class="chat-card chat-change-panel" aria-label="文件变更">
-                <header>
-                  <h3>文件变更</h3>
-                  <span class="chat-change-count">0</span>
-                </header>
-              </section>`;
+              <details class="chat-card chat-change-panel" aria-label="文件变更">
+                <summary>文件变更 (0)</summary>
+              </details>`;
   }
 
   const cards = changes.map((change) => {
@@ -519,13 +586,10 @@ function renderChatChangePanel(run: PublicChatRun): string {
   }).join("");
 
   return `
-              <section class="chat-card chat-change-panel" aria-label="文件变更">
-                <header>
-                  <h3>文件变更</h3>
-                  <span class="chat-change-count">${changes.length}</span>
-                </header>
+              <details class="chat-card chat-change-panel" aria-label="文件变更">
+                <summary>文件变更 (${changes.length})</summary>
                 ${cards}
-              </section>`;
+              </details>`;
 }
 
 function renderChatEventSummary(timeline: PublicChatRun["timeline"]): string {
@@ -540,6 +604,32 @@ function renderChatEventSummary(timeline: PublicChatRun["timeline"]): string {
                 <ul class="chat-event-summary-list" aria-label="运行事件摘要">
                   ${items}
                 </ul>`;
+}
+
+function chatRunSummaryText(run: PublicChatRun): string {
+  if (run.summary !== undefined && run.summary.trim() !== "") return run.summary;
+  if (run.status === "max_iterations") {
+    return "模型已达到最大迭代次数，但没有返回 finish action，因此本次运行没有模型摘要。请查看下方折叠的工具调用与完整时间线。";
+  }
+  if (run.status === "pending_approval") return "运行正在等待人工审批，审批完成后会继续执行。";
+  if (run.status === "running") return "运行仍在执行中，摘要会在模型返回 finish action 后出现。";
+  return "这次运行没有返回摘要，请查看时间线事件。";
+}
+
+function chatRunDetailText(run: PublicChatRun): string {
+  const toolCount = run.timeline.filter((event) => event.kind === "tool_result").length;
+  const changeCount = run.changes?.length ?? 0;
+  const details = [
+    `状态：${run.status}`,
+    `工具调用：${toolCount} 次`,
+    `文件变更：${changeCount} 个`
+  ];
+  if (changeCount > 0) {
+    const visibleChanges = (run.changes ?? []).slice(0, 4).map((change) => `${change.path} (${change.status})`).join("、");
+    const suffix = changeCount > 4 ? ` 等 ${changeCount} 个文件` : "";
+    details.push(`涉及文件：${visibleChanges}${suffix}`);
+  }
+  return details.join("；");
 }
 
 function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?: string): string {
@@ -594,7 +684,8 @@ function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?:
                   <div><span>工作区</span><code>${escapeHtml(run.workspaceId)}</code></div>
                   <div><span>运行 ID</span><code>${escapeHtml(run.id)}</code></div>
                 </div>
-                <p>${escapeHtml(run.summary ?? "这次运行没有返回摘要，请查看时间线事件。")}</p>
+                <p>${escapeHtml(chatRunSummaryText(run))}</p>
+                <p class="chat-run-detail-note">${escapeHtml(chatRunDetailText(run))}</p>
                 ${approvalItems}
                 ${toolCards}
                 ${eventSummary}
@@ -614,6 +705,67 @@ function renderChatSessionThread(session?: PublicChatSession, activeRun?: Public
     session.id
   )).join("");
   return `<div class="chat-session-thread" data-session-id="${escapeHtml(session.id)}">${messages || renderChatRunMessages(activeRun, false, session.id)}</div>`;
+}
+
+function renderChatPanelScript(): string {
+  return `
+    <script>
+      (() => {
+        const shell = document.querySelector(".chat-app-shell");
+        if (!(shell instanceof HTMLElement)) return;
+        const storageKey = "ai4se.chatPanels";
+        const readState = () => {
+          try {
+            const parsed = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+            return parsed && typeof parsed === "object" ? parsed : {};
+          } catch {
+            return {};
+          }
+        };
+        const writeState = (state) => {
+          try {
+            window.localStorage.setItem(storageKey, JSON.stringify(state));
+          } catch {
+          }
+        };
+        const applyLabels = () => {
+          const sidebarCollapsed = shell.dataset.sidebarCollapsed === "true";
+          const inspectorClosed = shell.dataset.inspectorClosed === "true";
+          document.querySelectorAll("[data-panel-toggle]").forEach((button) => {
+            if (!(button instanceof HTMLButtonElement)) return;
+            const target = button.dataset.panelToggle;
+            const isClosed = target === "sidebar" ? sidebarCollapsed : inspectorClosed;
+            const label = isClosed ? button.dataset.openLabel : button.dataset.closeLabel;
+            const icon = isClosed ? button.dataset.openIcon : button.dataset.closeIcon;
+            if (!label) return;
+            button.textContent = icon || label;
+            button.setAttribute("aria-label", label);
+            button.title = label;
+          });
+        };
+        const state = readState();
+        shell.dataset.sidebarCollapsed = state.sidebarCollapsed === true ? "true" : "false";
+        shell.dataset.inspectorClosed = state.inspectorClosed === true ? "true" : "false";
+        applyLabels();
+        document.querySelectorAll("[data-panel-toggle]").forEach((button) => {
+          if (!(button instanceof HTMLButtonElement)) return;
+          button.addEventListener("click", () => {
+            const target = button.dataset.panelToggle;
+            if (target === "sidebar") {
+              shell.dataset.sidebarCollapsed = shell.dataset.sidebarCollapsed === "true" ? "false" : "true";
+            }
+            if (target === "inspector") {
+              shell.dataset.inspectorClosed = shell.dataset.inspectorClosed === "true" ? "false" : "true";
+            }
+            writeState({
+              sidebarCollapsed: shell.dataset.sidebarCollapsed === "true",
+              inspectorClosed: shell.dataset.inspectorClosed === "true"
+            });
+            applyLabels();
+          });
+        });
+      })();
+    </script>`;
 }
 
 function renderChatLiveScript(activeRun?: PublicChatRun): string {
@@ -903,16 +1055,22 @@ export function renderIndex(
   const filePreviewReturnTo = filePreview === undefined
     ? undefined
     : `/?workspaceId=${encodeURIComponent(filePreview.workspaceId)}&file=${encodeURIComponent(filePreview.path)}${sessionQuery}${runQuery}`;
+  const filePreviewCloseHref = filePreview === undefined
+    ? undefined
+    : `/?workspaceId=${encodeURIComponent(filePreview.workspaceId)}${sessionQuery}${runQuery}`;
   const filePreviewEditorHref = filePreview === undefined
     ? undefined
     : fileHref(filePreview.workspaceId, filePreview.path);
   const filePreviewPanel = filePreview === undefined
     ? `<div class="chat-inspector-card"><strong>未选择文件</strong><span>从左侧文件列表打开预览，主对话会保持不变。</span></div>`
     : `<div class="chat-inspector-card chat-file-preview">
-            <header>
+          <header>
               <h2>${escapeHtml(filePreview.path)}</h2>
-              ${filePreviewDiffHref === undefined ? "" : `<a href="${escapeHtml(filePreviewDiffHref)}">查看 diff</a>`}
-              <a href="${escapeHtml(fileHref(filePreview.workspaceId, filePreview.path))}">打开编辑器</a>
+              <div class="chat-file-preview-actions">
+                ${filePreviewCloseHref === undefined ? "" : `<a class="chat-preview-close" href="${escapeHtml(filePreviewCloseHref)}" aria-label="关闭文件预览" title="关闭文件预览">x</a>`}
+                ${filePreviewDiffHref === undefined ? "" : `<a href="${escapeHtml(filePreviewDiffHref)}">查看 diff</a>`}
+                <a href="${escapeHtml(fileHref(filePreview.workspaceId, filePreview.path))}">打开编辑器</a>
+              </div>
             </header>
             <div class="chat-file-meta">
               <span class="chat-file-stat">${filePreviewLines} 行</span>
@@ -935,12 +1093,18 @@ export function renderIndex(
   const diffFileHref = diffPreview === undefined
     ? undefined
     : `/?workspaceId=${encodeURIComponent(diffPreview.workspaceId)}&file=${encodeURIComponent(diffPreview.path)}${sessionQuery}${runQuery}`;
+  const diffPreviewCloseHref = diffPreview === undefined
+    ? undefined
+    : `/?workspaceId=${encodeURIComponent(diffPreview.workspaceId)}${sessionQuery}${runQuery}`;
   const diffPreviewPanel = diffPreview === undefined
     ? ""
     : `<div class="chat-inspector-card chat-diff-review" data-diff-path="${escapeHtml(diffPreview.path)}"${diffPreviewStatus === undefined ? "" : ` data-diff-status="${escapeHtml(diffPreviewStatus)}"`}>
             <header>
               <h2>${escapeHtml(diffPreview.path)}</h2>
-              ${diffFileHref === undefined ? "" : `<a href="${escapeHtml(diffFileHref)}">打开文件</a>`}
+              <div class="chat-file-preview-actions">
+                ${diffPreviewCloseHref === undefined ? "" : `<a class="chat-preview-close" href="${escapeHtml(diffPreviewCloseHref)}" aria-label="关闭 diff 预览" title="关闭 diff 预览">x</a>`}
+                ${diffFileHref === undefined ? "" : `<a href="${escapeHtml(diffFileHref)}">打开文件</a>`}
+              </div>
             </header>
             <div class="chat-file-meta">
               ${diffPreviewStatus === undefined ? "" : `<span class="chat-file-stat">${escapeHtml(diffPreviewStatus)}</span>`}
@@ -968,6 +1132,9 @@ export function renderIndex(
   const commandItems = workspaces.flatMap((workspace) =>
     workspace.allowedCommands.map((command) => `<div class="chat-card-row"><span>${escapeHtml(workspace.id)}</span><code>${escapeHtml(command)}</code></div>`)
   ).join("");
+  const inspectorPreviewCloseHref = activeWorkspaceId === undefined
+    ? undefined
+    : `/?workspaceId=${encodeURIComponent(activeWorkspaceId)}${sessionQuery}${runQuery}`;
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -977,11 +1144,12 @@ export function renderIndex(
     <style>${baseStyles}</style>
   </head>
   <body class="chat-body">
-    <main class="chat-app-shell">
+    <main class="chat-app-shell" data-sidebar-collapsed="false" data-inspector-closed="false">
       <aside class="chat-sidebar">
         <div class="chat-sidebar-brand">
           <strong>Codex Harness</strong>
           <span class="muted">${workspaces.length}</span>
+          <button class="chat-panel-button" type="button" data-panel-toggle="sidebar" data-open-label="展开侧栏" data-close-label="收起侧栏" data-open-icon="&gt;&gt;" data-close-icon="&lt;&lt;" aria-label="收起侧栏" title="收起侧栏">&lt;&lt;</button>
         </div>
         <nav class="chat-nav" aria-label="工作区与工具">
           <section class="chat-nav-section">
@@ -1001,10 +1169,10 @@ export function renderIndex(
             <div class="chat-nav-title">最近对话</div>
             <ul class="chat-recent-run-list">${sidebarRecentRuns || '<li><span class="chat-nav-item"><span>·</span><span>暂无对话</span></span></li>'}</ul>
           </section>
-          <section class="chat-nav-section">
-            <div class="chat-nav-title">文件</div>
+          <details class="chat-nav-section chat-file-section" open>
+            <summary class="chat-nav-title"><span>文件</span><span class="chat-section-toggle" aria-hidden="true"></span></summary>
             <ul class="chat-file-list">${chatFileItems || '<li><span><span>·</span><code>暂无可预览文件</code></span></li>'}</ul>
-          </section>
+          </details>
         </nav>
         <div class="chat-sidebar-footer">
           <span>AI4SE</span>
@@ -1053,7 +1221,10 @@ export function renderIndex(
       </section>
       <aside class="chat-inspector">
         <section class="chat-inspector-section">
-          <h2>检查器</h2>
+          <div class="chat-inspector-top">
+            <h2>检查器</h2>
+            <button class="chat-panel-button" type="button" data-panel-toggle="inspector" data-open-label="展开检查器" data-close-label="收起检查器" data-open-icon="&lt;&lt;" data-close-icon="&gt;&gt;" aria-label="收起检查器" title="收起检查器">&gt;&gt;</button>
+          </div>
           <div class="chat-inspector-card">
             <strong>运行机制</strong>
             <span>提交后进入 <code>${chatSession === undefined ? "/api/runs/start" : `/api/sessions/${escapeHtml(chatSession.id)}/runs/start`}</code>，由同一套循环、模型提供方、护栏和工具分发器执行。</span>
@@ -1072,7 +1243,10 @@ export function renderIndex(
           </div>
         </section>
         <section class="chat-inspector-section">
-          <h2>文件预览</h2>
+          <div class="chat-inspector-section-header">
+            <h2>文件预览</h2>
+            ${inspectorPreviewCloseHref === undefined ? "" : `<a class="chat-preview-close" href="${escapeHtml(inspectorPreviewCloseHref)}" aria-label="关闭文件预览" title="关闭文件预览">x</a>`}
+          </div>
           ${diffPreviewPanel}
           ${filePreviewPanel}
         </section>
@@ -1090,6 +1264,7 @@ export function renderIndex(
         </section>
       </aside>
     </main>
+    ${renderChatPanelScript()}
     ${renderChatLiveScript(activeRun)}
   </body>
 </html>`;

@@ -79,6 +79,9 @@ describe("OpenAICompatibleProvider", () => {
     const messages = requestBody?.messages as Array<{ role: string; content: string }>;
     expect(messages[0].content).toContain('{"type":"finish","summary":"DeepSeek connected"}');
     expect(messages[0].content).toContain('Do not use "action" as a field name');
+    expect(messages[0].content).toContain("finish.summary must be written in Chinese");
+    expect(messages[0].content).toContain("changed files");
+    expect(messages[0].content).toContain("verification result");
   });
 
   it("instructs real models to behave like a coding agent instead of a chat bot", async () => {
@@ -102,8 +105,11 @@ describe("OpenAICompatibleProvider", () => {
     const messages = requestBody?.messages as Array<{ role: string; content: string }>;
     expect(messages[0].content).toContain("inspect the workspace before editing");
     expect(messages[0].content).toContain("after writing code, run an allowed verification command");
+    expect(messages[0].content).toContain("When the task asks for a new small program or algorithm, create or update files in the current workspace");
+    expect(messages[0].content).toContain("Do not repeatedly list files after you already know the project layout");
     expect(messages[0].content).toContain("if feedback reports invalid_action, return a corrected JSON action");
     expect(messages[0].content).toContain("do not finish just because the user greeted you");
+    expect(messages[0].content).toContain("finish after successful verification");
   });
 
   it("uses credential resolver before environment variables when creating providers", async () => {

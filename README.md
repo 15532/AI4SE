@@ -45,7 +45,7 @@
 本地启动后可以先打开：
 
 ```text
-http://127.0.0.1:3000/workspaces/demo-ts/files
+http://127.0.0.1:3100/?workspaceId=deepseek-sandbox
 ```
 
 从文件列表进入某个文件后即可在浅色集成式编辑区域中修改并保存。该能力仍是轻量 Browser Editor V1，不是完整 VS Code 替代品；后续如果继续增强复杂编辑体验，会按已确认方向参考 Open Design 做更完整的视觉系统和交互规范。
@@ -134,7 +134,7 @@ Remove-Item Env:HARNESS_CREDENTIAL_VALUE
 启动后访问：
 
 ```text
-http://127.0.0.1:3000
+http://127.0.0.1:3100
 ```
 
 修改端口：
@@ -166,14 +166,11 @@ providers:
     apiKeyEnv: DEEPSEEK_API_KEY
     thinking: disabled
 workspaces:
-  - id: demo-ts
-    name: TypeScript Demo
-    root: ..
+  - id: deepseek-sandbox
+    name: DeepSeek Sandbox
+    root: ../workspaces/deepseek-sandbox
     allowedCommands:
       - npm test
-      - npm run test
-      - npm run lint
-      - npm run typecheck
       - npm run build
 ```
 
@@ -183,7 +180,7 @@ workspaces:
 - `HARNESS_DB_PATH`：指定 SQLite 数据库路径，默认 `data/harness.sqlite`。
 - `HARNESS_CREDENTIAL_STORE_PATH`：指定加密凭据文件路径，默认 `data/credentials.enc.json`。
 - `HARNESS_MASTER_PASSWORD`：加密凭据文件主密码；未设置时不能读写加密凭据。
-- `PORT`：指定 WebUI 端口，默认 `3000`。
+- `PORT`：指定 WebUI 端口；服务端默认 `3000`，一键本地脚本默认覆盖为 `3100` 以避开 Windows 常见端口排除范围。
 - `WEBUI_ADMIN_USER`：WebUI Basic Auth 用户名，默认 `admin`。
 - `WEBUI_ADMIN_PASSWORD`：WebUI Basic Auth 口令；为空时本地默认不启用认证，公网部署必须设置。
 - `DEEPSEEK_API_KEY`：DeepSeek provider 的环境变量 fallback；优先级低于加密凭据文件，只能放在受控部署环境或未提交的本地 `.env`。
@@ -194,7 +191,7 @@ PowerShell 示例：
 $env:HARNESS_CONFIG_PATH = "config/harness.example.yaml"
 $env:HARNESS_DB_PATH = "data/harness.sqlite"
 $env:HARNESS_CREDENTIAL_STORE_PATH = "data/credentials.enc.json"
-$env:PORT = "3000"
+$env:PORT = "3100"
 $env:WEBUI_ADMIN_USER = "admin"
 $env:WEBUI_ADMIN_PASSWORD = ""
 ```
@@ -262,13 +259,13 @@ node dist/src/cli/main.js demo
 使用 mock provider 触发一次 harness run：
 
 ```powershell
-node dist/src/cli/main.js run --workspace demo-ts --provider mock --task "请完成一次 mock 运行"
+node dist/src/cli/main.js run --workspace deepseek-sandbox --provider mock --task "请完成一次 mock 运行"
 ```
 
 使用 DeepSeek provider：
 
 ```powershell
-node dist/src/cli/main.js run --workspace demo-ts --provider deepseek --task "阅读项目结构并给出下一步建议"
+node dist/src/cli/main.js run --workspace deepseek-sandbox --provider deepseek --task "请实现冒泡排序，并运行测试验证"
 ```
 
 运行结果会写入 `HARNESS_DB_PATH` 指向的 SQLite 文件；未设置时写入 `data/harness.sqlite`。
@@ -302,7 +299,7 @@ node dist/src/web/server.js
 打开浏览器访问：
 
 ```text
-http://127.0.0.1:3000
+http://127.0.0.1:3100
 ```
 
 如果要换端口：
@@ -320,11 +317,11 @@ Interactive Run V1 推荐使用 session 入口：
 
 ```powershell
 Invoke-RestMethod -Method Post -ContentType "application/json" `
-  -Uri "http://127.0.0.1:3000/api/sessions" `
-  -Body '{"workspaceId":"demo-ts","provider":"mock","title":"Demo session"}'
+  -Uri "http://127.0.0.1:3100/api/sessions" `
+  -Body '{"workspaceId":"deepseek-sandbox","provider":"mock","title":"Demo session"}'
 
 Invoke-RestMethod -Method Post -ContentType "application/json" `
-  -Uri "http://127.0.0.1:3000/api/sessions/<session-id>/runs" `
+  -Uri "http://127.0.0.1:3100/api/sessions/<session-id>/runs" `
   -Body '{"task":"继续修复并运行测试"}'
 ```
 
@@ -333,15 +330,15 @@ Invoke-RestMethod -Method Post -ContentType "application/json" `
 Workspace Session V1 提供只读文件 API：
 
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/files"
-Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/files/README.md"
+Invoke-RestMethod -Uri "http://127.0.0.1:3100/api/workspaces/deepseek-sandbox/files"
+Invoke-RestMethod -Uri "http://127.0.0.1:3100/api/workspaces/deepseek-sandbox/files/README.md"
 ```
 
 Diff Inspector V1 提供只读 git 变更 API：
 
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/changes"
-Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/changes/README.md"
+Invoke-RestMethod -Uri "http://127.0.0.1:3100/api/workspaces/deepseek-sandbox/changes"
+Invoke-RestMethod -Uri "http://127.0.0.1:3100/api/workspaces/deepseek-sandbox/changes/README.md"
 ```
 
 `changes` API 只返回 workspace 相对路径；单个 diff 预览上限为 200 KiB。当前版本要求 workspace root 本身是 git 仓库顶层，避免误扫父级目录。
@@ -361,21 +358,21 @@ WebUI 面向真实对话式开发体验，默认展示并选中 `deepseek` provi
 ```powershell
 Invoke-RestMethod `
   -Method Post `
-  -Uri "http://127.0.0.1:3000/api/runs" `
+  -Uri "http://127.0.0.1:3100/api/runs" `
   -ContentType "application/json" `
-  -Body '{"workspaceId":"demo-ts","provider":"mock","task":"请完成一次 mock 运行"}'
+  -Body '{"workspaceId":"deepseek-sandbox","provider":"mock","task":"请完成一次 mock 运行"}'
 ```
 
 查询 run：
 
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/runs/<run-id>"
+Invoke-RestMethod -Uri "http://127.0.0.1:3100/api/runs/<run-id>"
 ```
 
 查看 workspace：
 
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces"
+Invoke-RestMethod -Uri "http://127.0.0.1:3100/api/workspaces"
 ```
 
 ## 本地调试
@@ -384,7 +381,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces"
 
 ```powershell
 npm run build
-node --inspect-brk dist/src/cli/main.js run --workspace demo-ts --provider mock --task "调试 CLI run"
+node --inspect-brk dist/src/cli/main.js run --workspace deepseek-sandbox --provider mock --task "调试 CLI run"
 ```
 
 调试 WebUI 编译产物：
