@@ -68,6 +68,7 @@ function publicWorkspace(
     .map((run) => eventStore.summarizeRun(run.id))
     .filter((summary): summary is NonNullable<typeof summary> => summary !== undefined)
     .map((summary) => ({
+      id: summary.id,
       task: summary.task,
       status: summary.status,
       ...(summary.summary === undefined ? {} : { summary: summary.summary })

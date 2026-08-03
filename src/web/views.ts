@@ -3,7 +3,7 @@ export type PublicWorkspace = {
   name: string;
   allowedCommands: string[];
   memories?: Array<{ key: string; value: string }>;
-  recentRuns?: Array<{ task: string; status: string; summary?: string }>;
+  recentRuns?: Array<{ id: string; task: string; status: string; summary?: string }>;
 };
 export type PublicWorkspaceChange = {
   path: string;
@@ -214,6 +214,11 @@ const baseStyles = `
       .chat-file-list a:hover, .chat-file-list a[aria-current="page"] { background: #eceef2; color: #111827; }
       .chat-file-list span { color: #9ca3af; }
       .chat-file-list code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; font-family: Arial, "Microsoft YaHei", sans-serif; }
+      .chat-recent-run-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+      .chat-recent-run-list a { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 8px; align-items: center; min-height: 30px; padding: 6px 8px; border-radius: 8px; color: #4b5563; text-decoration: none; font-size: 13px; line-height: 1.25; }
+      .chat-recent-run-list a:hover, .chat-recent-run-list a[aria-current="page"] { background: #eceef2; color: #111827; }
+      .chat-recent-run-list strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+      .chat-recent-run-list span { color: #9ca3af; font-size: 12px; white-space: nowrap; }
       .chat-sidebar-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 8px 0; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 13px; }
       .chat-main { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: 52px minmax(0, 1fr) auto; background: #ffffff; }
       .chat-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 20px; border-bottom: 1px solid #eef0f3; }
@@ -869,6 +874,13 @@ export function renderIndex(
     const active = fileContext?.filePreview?.path === file.path ? ' aria-current="page"' : "";
     return `<li><a${active} href="${escapeHtml(href)}"><span>${icon}</span><code>${escapeHtml(file.path)}</code></a></li>`;
   }).join("");
+  const sidebarRecentRuns = workspaces
+    .filter((workspace) => activeWorkspaceId === undefined || workspace.id === activeWorkspaceId)
+    .flatMap((workspace) => (workspace.recentRuns ?? []).map((run) => {
+      const href = `/?workspaceId=${encodeURIComponent(workspace.id)}&runId=${encodeURIComponent(run.id)}`;
+      const active = activeRunId === run.id ? ' aria-current="page"' : "";
+      return `<li><a${active} href="${escapeHtml(href)}" aria-label="打开最近对话 ${escapeHtml(run.task)}"><strong>${escapeHtml(run.task)}</strong><span>${escapeHtml(run.status)}</span></a></li>`;
+    })).join("");
   const filePreview = fileContext?.filePreview;
   const filePreviewLines = filePreview === undefined ? 0 : previewLines(filePreview.content).length;
   const filePreviewStatus = filePreview?.status ?? fileContext?.workspaceChanges?.find((change) => change.path === filePreview?.path)?.status;
@@ -966,6 +978,10 @@ export function renderIndex(
             <div class="chat-nav-title">工具</div>
             <a class="chat-nav-item" href="/"><span>+</span><span>新对话</span></a>
             ${fileLinks}
+          </section>
+          <section class="chat-nav-section" data-nav-section="recent-runs">
+            <div class="chat-nav-title">最近对话</div>
+            <ul class="chat-recent-run-list">${sidebarRecentRuns || '<li><span class="chat-nav-item"><span>·</span><span>暂无对话</span></span></li>'}</ul>
           </section>
           <section class="chat-nav-section">
             <div class="chat-nav-title">文件</div>

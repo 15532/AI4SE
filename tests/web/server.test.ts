@@ -549,6 +549,35 @@ workspaces:
     expect(response.body).not.toContain("registered-docs");
   });
 
+  it("renders recent run links in the chat sidebar without leaving the conversation page", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-recent-runs-"));
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }],
+      providerFactory: () => ({
+        async complete() {
+          return JSON.stringify({ type: "finish", summary: "recent done" });
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo", provider: "mock", task: "recent task" }
+    });
+    const { id: runId } = created.json() as { id: string };
+    const page = await app.inject({ method: "GET", url: "/" });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("chat-recent-run-list");
+    expect(page.body).toContain('data-nav-section="recent-runs"');
+    expect(page.body).toContain(`href="/?workspaceId=demo&amp;runId=${runId}"`);
+    expect(page.body).toContain('aria-label="打开最近对话 recent task"');
+    expect(page.body).toContain("recent task");
+    expect(page.body).toContain("finished");
+    expect(page.body).not.toContain(dir);
+  });
+
   it("renders live polling hooks on the active chat run", async () => {
     const release = deferred<string>();
     const app = createServer({
