@@ -6,6 +6,7 @@ services:
       PORT: 3000
       HARNESS_CONFIG_PATH: /app/config/harness.example.yaml
       HARNESS_DB_PATH: /app/data/harness.sqlite
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports:
       - "3000:3000"
     volumes:

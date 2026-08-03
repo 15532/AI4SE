@@ -11,11 +11,13 @@
 
 ## WebUI 边界
 
-WebUI real-run 只能选择共享 YAML registry 中预注册的 workspace id，不能提交任意服务器路径或覆盖 root。每个 workspace 的文件操作均受 path boundary 限制；shell 操作必须命中 command allowlist，全部 action 仍经过 guardrail。WebUI 也不得展示或返回 API key 明文。缺少 DeepSeek key 时，WebUI 返回结构化错误，不回显环境变量名或 secret。
+WebUI real-run 只能选择共享 YAML registry 中预注册的 workspace id，不能提交任意服务器路径或覆盖 root。每个 workspace 的文件操作均受 path boundary 限制；shell 操作必须命中 command allowlist，全部 action 仍经过 guardrail。WebUI 也不得展示或返回 API key 明文。缺少 DeepSeek key 时，WebUI 返回结构化错误，不回显环境变量名或 secret。普通 WebUI 入口默认使用 DeepSeek，并隐藏 mock；mock 仅保留给离线测试、机制演示和 CLI/API 调试。
 
 ## v1 无密码风险与部署建议
 
 WebUI v1 没有 password。它仅适合受信任网络或短期课程演示，不应作为直接暴露公网的长期服务。长期公网部署必须放在 Nginx 或其他反向代理、认证与网络边界之后，例如 basic auth、SSO、VPN 或等效访问控制。不要将 `3000` 端口直接暴露给公网。
+
+服务器部署时，`DEEPSEEK_API_KEY` 应来自反向代理、进程管理器、Docker Compose 变量替换、平台 secret 或系统环境变量。不要把真实 key 写入镜像、compose 文件、示例 env 文件或仓库配置。`HARNESS_DB_PATH` 所在目录应挂载为持久化目录，并限制文件权限。
 
 ## 提交前检查清单
 

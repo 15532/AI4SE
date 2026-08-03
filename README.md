@@ -90,7 +90,7 @@ npm ci
 Copy-Item .env.example .env
 ```
 
-当前版本默认保留 mock provider，因此测试和机制演示不需要真实 API key。若要选择 DeepSeek provider，需要在本地未提交的 `.env` 或部署环境变量中配置 `DEEPSEEK_API_KEY`。不要把真实 secret 写入 `.env.example`、SQLite、日志或任何已提交文件。
+当前版本默认保留 mock provider，因此测试和机制演示不需要真实 API key。WebUI 普通入口默认使用 DeepSeek；若要在浏览器中触发真实模型运行，需要在本地未提交的 `.env` 或部署环境变量中配置 `DEEPSEEK_API_KEY`。不要把真实 secret 写入 `.env.example`、SQLite、日志或任何已提交文件。
 
 DeepSeek 本地配置示例：
 
@@ -119,7 +119,7 @@ DEEPSEEK_API_KEY=你的真实 DeepSeek Key
 - 创建本地 `data/` 目录。
 - 执行 `npm run build`。
 - 设置默认 `HARNESS_CONFIG_PATH`、`HARNESS_DB_PATH` 和 `PORT`。
-- 启动 WebUI。
+- 启动 WebUI。若未配置 `DEEPSEEK_API_KEY`，页面仍可打开，但提交 DeepSeek 任务会返回“缺少 API key”的结构化错误。
 
 启动后访问：
 
@@ -275,9 +275,9 @@ $env:PORT = "3100"
 node dist/src/web/server.js
 ```
 
-WebUI 首页是三栏智能 IDE 工作台：左侧列出已注册 workspace 与可用命令，中间选择 workspace/provider 并提交任务，右侧展示 Run Inspector 的机制摘要。选择 `mock` 不需要 key；选择 `deepseek` 前必须配置 `DEEPSEEK_API_KEY`。提交任务后会创建 harness run，并跳转到 `/runs/:id` 查看 timeline navigator、事件详情和人工审批卡片。
+WebUI 首页是对话式智能代码助手：左侧是 workspace、历史对话与文件入口，中间是对话流和底部输入框，右侧是运行状态、文件预览、diff、允许命令和 memory 面板。普通页面入口默认使用 `deepseek`，不显示 `mock`；提交任务后会在同一对话流中创建 session/run，并由后台触发真实 harness run。若需要离线机制演示或测试，可以继续通过 CLI/API 显式使用 `mock` provider。
 
-如果模型请求执行 `git push`、`npm publish`、`docker push`、`kubectl apply` 等发布/部署命令，且该命令已被当前 workspace 的 `allowedCommands` 显式允许，run 会停在 `pending_approval`。在 `/runs/:id` 的 Approval Panel 中点击“批准执行”才会真正调用工具；点击“拒绝”只记录拒绝事件，不执行命令。未出现在 allowlist 的命令不会进入审批，而是直接按 `command.not_allowlisted` 拦截。
+如果模型请求执行 `git push`、`npm publish`、`docker push`、`kubectl apply` 等发布/部署命令，且该命令已被当前 workspace 的 `allowedCommands` 显式允许，run 会停在 `pending_approval`。WebUI 会在对话流和右侧 Inspector 中展示待审批动作；点击“批准执行”才会真正调用工具，点击“拒绝”只记录拒绝事件，不执行命令。未出现在 allowlist 的命令不会进入审批，而是直接按 `command.not_allowlisted` 拦截。
 
 Interactive Run V1 推荐使用 session 入口：
 
@@ -291,7 +291,7 @@ Invoke-RestMethod -Method Post -ContentType "application/json" `
   -Body '{"task":"继续修复并运行测试"}'
 ```
 
-浏览器中创建 session 后会进入 `/sessions/:id`，可以继续提交后续指令。Session、runs、events、memory 都写入 `HARNESS_DB_PATH` 指向的 SQLite，因此服务器部署时应把 `data/` 作为持久化 volume 或宿主机目录挂载。
+浏览器中创建 session 后会留在同一个对话工作台中，可以继续提交后续指令。Session、runs、events、memory 都写入 `HARNESS_DB_PATH` 指向的 SQLite，因此服务器部署时应把 `data/` 作为持久化 volume 或宿主机目录挂载。
 
 Workspace Session V1 提供只读文件 API：
 
@@ -404,7 +404,23 @@ docker run --rm -p 3000:3000 coding-agent-harness
 docker compose up --build
 ```
 
+使用 DeepSeek 时，先在宿主机或部署平台设置真实 key，再启动 compose：
+
+```powershell
+$env:DEEPSEEK_API_KEY = "你的真实 DeepSeek Key"
+docker compose up --build
+```
+
+Compose 会把 `DEEPSEEK_API_KEY` 作为容器环境变量传入。不要把真实 key 写入 `docker-compose.yml`、`.env.example` 或任何提交文件。
+
 Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` 挂载为 `harness-data` named volume，用于持久化运行历史、timeline、memory 和 interactive session。镜像构建不会复制 `.env`、本地 SQLite 数据、logs 或本地 `node_modules`。容器默认启动 WebUI。
+
+服务器部署建议：
+
+- 在反向代理或平台 secret 中配置 `DEEPSEEK_API_KEY`，不要烘焙进镜像。
+- 将 `data/` 或 `/app/data` 持久化，否则重启后 session、timeline 和 memory 会丢失。
+- 修改 `config/harness.example.yaml` 或使用独立配置文件注册服务器上的 workspace；WebUI 只能选择已注册 workspace id。
+- 只把经过反向代理认证的入口暴露给访问者，不要直接暴露容器 `3000` 端口。
 
 ## 安全说明
 

@@ -249,7 +249,7 @@ WebUI v1 能力：
 - 展示每个 workspace 的 allowlist commands
 - 选择 workspace id
 - 输入 task 描述
-- 选择 mock 或 DeepSeek provider profile 触发 run
+- 普通 WebUI 入口默认使用 DeepSeek provider profile 触发 run；mock provider 不在页面中暴露，仅保留给离线测试、机制演示和 CLI/API 调试
 - 触发 harness run
 - 展示 run timeline
 - 展示 action JSON、guardrail decision、tool result、feedback、memory event 和 stop reason
