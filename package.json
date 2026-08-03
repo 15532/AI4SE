@@ -11,6 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
+    "check:acceptance": "powershell -ExecutionPolicy Bypass -File scripts/acceptance-check.ps1",
     "demo:mechanisms": "tsx src/demo/mechanisms.ts",
     "demo:coding-task": "tsx src/demo/coding-task.ts"
   },

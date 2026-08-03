@@ -220,6 +220,14 @@ npm test
 npm run build
 ```
 
+完整交付验收：
+
+```powershell
+npm run check:acceptance
+```
+
+该命令会串联构建、全部测试、机制演示、代码开发链路演示、Git 状态检查和已跟踪文件的基础密钥扫描。课程要求对应关系见 [docs/ACCEPTANCE_CHECKLIST.md](docs/ACCEPTANCE_CHECKLIST.md)。
+
 ## 启动 CLI
 
 先构建：
