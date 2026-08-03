@@ -342,14 +342,14 @@ const baseStyles = `
 
 function eventLabel(kind: string): string {
   switch (kind) {
-    case "parsed_action": return "动作 Action";
-    case "guardrail": return "护栏 Guardrail";
-    case "tool_result": return "工具结果 Tool Result";
-    case "feedback": return "反馈 Feedback";
-    case "stop": return "停止 Stop Reason";
-    case "llm_response": return "模型响应 LLM Response";
-    case "approval_required": return "审批 Approval";
-    case "approval_decision": return "审批结果 Approval Decision";
+    case "parsed_action": return "动作";
+    case "guardrail": return "护栏";
+    case "tool_result": return "工具结果";
+    case "feedback": return "反馈";
+    case "stop": return "停止原因";
+    case "llm_response": return "模型响应";
+    case "approval_required": return "审批";
+    case "approval_decision": return "审批结果";
     default: return kind;
   }
 }
@@ -546,7 +546,7 @@ function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?:
   if (run === undefined) {
     return `
           <article class="chat-message">
-            <div class="chat-avatar">You</div>
+            <div class="chat-avatar">你</div>
             <div class="chat-bubble">
               <p>在底部输入框描述任务，例如：阅读项目结构，修复失败测试，并说明验证结果。</p>
             </div>
@@ -576,25 +576,25 @@ function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?:
 
   return `
           <article class="chat-message">
-            <div class="chat-avatar">You</div>
+            <div class="chat-avatar">你</div>
             <div class="chat-bubble">
               <p>${escapeHtml(run.task)}</p>
             </div>
           </article>
           <article class="chat-message">
-            <div class="chat-avatar">AI</div>
+            <div class="chat-avatar">助手</div>
             <div class="chat-bubble chat-run-result">
               <div class="chat-card chat-run-result"${liveAttrs}>
                 <header>
                   <h2>${compact ? "历史运行" : "运行结果"}${isLive ? '<span class="chat-live-indicator">运行中</span>' : ""}</h2>
-                  <a href="/runs/${escapeHtml(encodeURIComponent(run.id))}">打开详细 timeline</a>
+                  <a href="/runs/${escapeHtml(encodeURIComponent(run.id))}">打开详细时间线</a>
                 </header>
                 <div class="chat-run-meta">
                   <div><span>状态</span><strong data-live-status>${escapeHtml(run.status)}</strong></div>
                   <div><span>工作区</span><code>${escapeHtml(run.workspaceId)}</code></div>
-                  <div><span>Run ID</span><code>${escapeHtml(run.id)}</code></div>
+                  <div><span>运行 ID</span><code>${escapeHtml(run.id)}</code></div>
                 </div>
-                <p>${escapeHtml(run.summary ?? "这次运行没有返回 summary，请查看 timeline 事件。")}</p>
+                <p>${escapeHtml(run.summary ?? "这次运行没有返回摘要，请查看时间线事件。")}</p>
                 ${approvalItems}
                 ${toolCards}
                 ${eventSummary}
@@ -630,15 +630,15 @@ function renderChatLiveScript(activeRun?: PublicChatRun): string {
         if (!endpoint) return;
 
         const label = (kind) => ({
-          parsed_action: "动作 Action",
-          guardrail: "护栏 Guardrail",
-          tool_result: "工具结果 Tool Result",
-          feedback: "反馈 Feedback",
-          stop: "停止 Stop Reason",
-          llm_response: "模型响应 LLM Response",
-          approval_required: "审批 Approval",
-          approval_decision: "审批结果 Approval Decision",
-          run_started: "开始 Run Started"
+          parsed_action: "动作",
+          guardrail: "护栏",
+          tool_result: "工具结果",
+          feedback: "反馈",
+          stop: "停止原因",
+          llm_response: "模型响应",
+          approval_required: "审批",
+          approval_decision: "审批结果",
+          run_started: "开始运行"
         })[kind] || kind;
 
         const appendEvent = (event) => {
@@ -1015,23 +1015,23 @@ export function renderIndex(
         <header class="chat-header">
           <div class="chat-header-title">
             <span>□</span>
-            <strong>对话式 Coding Agent</strong>
+            <strong>对话式代码助手</strong>
           </div>
           <div class="chat-header-actions">
-            <span class="codex-chip">Provider: ${escapeHtml(providerLabel)}</span>
-            ${chatSession === undefined ? "" : `<span class="codex-chip">Session: ${escapeHtml(chatSession.id)}</span>`}
+            <span class="codex-chip">模型提供方：${escapeHtml(providerLabel)}</span>
+            ${chatSession === undefined ? "" : `<span class="codex-chip">会话：${escapeHtml(chatSession.id)}</span>`}
             <span class="codex-chip">真实 harness run</span>
           </div>
         </header>
         <section class="chat-thread">
           <article class="chat-message">
-            <div class="chat-avatar">AI</div>
+            <div class="chat-avatar">助手</div>
             <div class="chat-bubble">
-              <p>告诉我你希望在当前工作区完成的开发任务。我会通过 harness 调用模型，按结构化 Action 查看文件、修改代码、运行 allowlist 命令，并把结果记录到 timeline。</p>
+              <p>告诉我你希望在当前工作区完成的开发任务。我会通过 harness 调用模型，按结构化动作查看文件、修改代码、运行允许列表命令，并把结果记录到时间线。</p>
               <div class="chat-card">
-                <div class="chat-card-row"><span>可用 workspace</span><code>${workspaces.map((workspace) => workspace.id).join(", ") || "none"}</code></div>
+                <div class="chat-card-row"><span>可用工作区</span><code>${workspaces.map((workspace) => workspace.id).join(", ") || "暂无"}</code></div>
                 <div class="chat-card-row"><span>工具链路</span><code>read / write / run / finish</code></div>
-                <div class="chat-card-row"><span>安全边界</span><code>workspace boundary + guardrail</code></div>
+                <div class="chat-card-row"><span>安全边界</span><code>工作区边界 + 护栏</code></div>
               </div>
             </div>
           </article>
@@ -1040,11 +1040,11 @@ export function renderIndex(
         </section>
         <div class="chat-composer-wrap">
           <form class="chat-composer task-composer" method="post" action="${chatSession === undefined ? "/api/runs/start" : `/api/sessions/${escapeHtml(encodeURIComponent(chatSession.id))}/runs/start`}">
-            <textarea class="task-input" name="task" required placeholder="描述你希望 AI 在这个 workspace 中完成的代码开发任务"></textarea>
+            <textarea class="task-input" name="task" required placeholder="描述你希望助手在这个工作区中完成的代码开发任务"></textarea>
             <div class="chat-composer-controls">
               <div class="chat-composer-selects">
                 <label>工作区 <select name="workspaceId">${options}</select></label>
-                <label>Provider <select name="provider">${providerOptions}</select></label>
+                <label>模型提供方 <select name="provider">${providerOptions}</select></label>
               </div>
               <button class="chat-send" type="submit" aria-label="发送任务">↑</button>
             </div>
@@ -1053,22 +1053,22 @@ export function renderIndex(
       </section>
       <aside class="chat-inspector">
         <section class="chat-inspector-section">
-          <h2>Inspector</h2>
+          <h2>检查器</h2>
           <div class="chat-inspector-card">
             <strong>运行机制</strong>
-            <span>提交后进入 <code>${chatSession === undefined ? "/api/runs/start" : `/api/sessions/${escapeHtml(chatSession.id)}/runs/start`}</code>，由同一套 loop、provider、guardrail 和 tool dispatcher 执行。</span>
+            <span>提交后进入 <code>${chatSession === undefined ? "/api/runs/start" : `/api/sessions/${escapeHtml(chatSession.id)}/runs/start`}</code>，由同一套循环、模型提供方、护栏和工具分发器执行。</span>
           </div>
           <div class="chat-inspector-card">
             <strong>对话上下文</strong>
-            <span>${chatSession === undefined ? "新任务会自动创建 session" : `${escapeHtml(chatSession.title)} / ${chatSession.runs.length} runs`}</span>
+            <span>${chatSession === undefined ? "新任务会自动创建会话" : `${escapeHtml(chatSession.title)} / ${chatSession.runs.length} 次运行`}</span>
           </div>
           <div class="chat-inspector-card">
             <strong>当前运行</strong>
-            <span>${activeRun === undefined ? "尚未选择 run" : `${escapeHtml(activeRun.status)} / ${escapeHtml(activeRun.id)}`}</span>
+            <span>${activeRun === undefined ? "尚未选择运行" : `${escapeHtml(activeRun.status)} / ${escapeHtml(activeRun.id)}`}</span>
           </div>
           <div class="chat-inspector-card">
             <strong>文件入口</strong>
-            <span>${activeWorkspaceId === undefined ? "暂无 workspace" : `/?workspaceId=${escapeHtml(activeWorkspaceId)}`}</span>
+            <span>${activeWorkspaceId === undefined ? "暂无工作区" : `/?workspaceId=${escapeHtml(activeWorkspaceId)}`}</span>
           </div>
         </section>
         <section class="chat-inspector-section">
@@ -1085,8 +1085,8 @@ export function renderIndex(
           <div class="chat-inspector-card">${commandItems || "<span>暂无 allowlist 命令</span>"}</div>
         </section>
         <section class="chat-inspector-section">
-          <h2>Memory</h2>
-          ${memoryItems || '<div class="chat-inspector-card"><strong>None</strong><span>还没有记录 workspace memory</span></div>'}
+          <h2>记忆</h2>
+          ${memoryItems || '<div class="chat-inspector-card"><strong>暂无</strong><span>还没有记录工作区记忆</span></div>'}
         </section>
       </aside>
     </main>
@@ -1141,14 +1141,14 @@ export function renderWorkspaceFiles(input: {
         <div class="codex-brand">
           <span class="codex-mark">AI</span>
           <div class="codex-title">
-            <strong>Coding Agent Harness</strong>
+            <strong>代码助手 Harness</strong>
             <span>${escapeHtml(input.workspace.name)} / 文件浏览</span>
           </div>
         </div>
         <div class="codex-top-actions">
           <a class="codex-chip" href="/">运行控制</a>
-          <span class="codex-chip">Workspace: ${escapeHtml(input.workspace.id)}</span>
-          <span class="codex-chip">${input.files.length} entries</span>
+          <span class="codex-chip">工作区：${escapeHtml(input.workspace.id)}</span>
+          <span class="codex-chip">${input.files.length} 项</span>
         </div>
       </header>
       <aside class="codex-sidebar">
@@ -1173,14 +1173,14 @@ export function renderWorkspaceFiles(input: {
         </div>
         <div class="codex-editor-statusbar">
           <span>只展示 workspace 相对路径</span>
-          <span>Guarded workspace</span>
+          <span>受护栏保护的工作区</span>
         </div>
       </section>
       <aside class="codex-agent-panel">
         <section class="codex-agent-section">
-          <h2>Agent 上下文</h2>
+          <h2>助手上下文</h2>
           <div class="codex-agent-card">
-            <strong>Workspace</strong>
+            <strong>工作区</strong>
             <span>${escapeHtml(input.workspace.name)} (${escapeHtml(input.workspace.id)})</span>
           </div>
           <div class="codex-agent-card">
@@ -1219,13 +1219,13 @@ export function renderWorkspaceFileEditor(input: {
           <span class="codex-mark">AI</span>
           <div class="codex-title">
             <strong>${escapeHtml(input.file.path)}</strong>
-            <span>${escapeHtml(input.workspace.name)} / Browser Editor</span>
+            <span>${escapeHtml(input.workspace.name)} / 浏览器编辑器</span>
           </div>
         </div>
         <div class="codex-top-actions">
           <a class="codex-chip" href="/workspaces/${escapeHtml(encodeURIComponent(input.workspace.id))}/files">文件浏览</a>
-          <span class="codex-chip">Workspace: ${escapeHtml(input.workspace.id)}</span>
-          <span class="codex-chip">${input.saved ? "已保存" : "Guarded Save"}</span>
+          <span class="codex-chip">工作区：${escapeHtml(input.workspace.id)}</span>
+          <span class="codex-chip">${input.saved ? "已保存" : "护栏保存"}</span>
         </div>
       </header>
       <aside class="codex-sidebar">
@@ -1250,12 +1250,12 @@ export function renderWorkspaceFileEditor(input: {
         </div>
         <div class="codex-editor-statusbar">
           <span>${escapeHtml(input.file.path)}</span>
-          <span>Guarded write_file</span>
+          <span>受护栏保护的 write_file</span>
         </div>
       </form>
       <aside class="codex-agent-panel">
         <section class="codex-agent-section">
-          <h2>Agent 上下文</h2>
+          <h2>助手上下文</h2>
           <div class="codex-agent-card">
             <strong>保存护栏</strong>
             <span>路径逃逸、敏感路径、密钥样式内容会被拒绝</span>
@@ -1315,7 +1315,7 @@ export function renderRun(input: {
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
-    <title>Run Inspector</title>
+    <title>运行检查器</title>
     <style>${baseStyles}</style>
   </head>
   <body>
@@ -1323,12 +1323,12 @@ export function renderRun(input: {
       <p><a href="/">返回运行控制</a></p>
       <header class="topbar">
         <div>
-          <p class="eyebrow">Run Inspector</p>
+          <p class="eyebrow">运行检查器</p>
           <h1>运行时间线</h1>
         </div>
         <div class="status-strip">
           <span class="status-pill">${escapeHtml(input.status)}</span>
-          <span class="status-pill">${input.timeline.length} events</span>
+          <span class="status-pill">${input.timeline.length} 条事件</span>
         </div>
       </header>
       <section class="run-meta">
@@ -1338,16 +1338,16 @@ export function renderRun(input: {
         <div class="meta-tile"><span>任务</span><strong>${escapeHtml(input.task)}</strong></div>
       </section>
       <section class="panel diff-inspector">
-        <h2>文件变更 Diff Inspector</h2>
-        <ul class="change-list">${changeItems || "<li><strong>clean</strong><span class=\"muted\">当前工作区没有可展示的 git 变更</span></li>"}</ul>
+        <h2>文件变更差异检查</h2>
+        <ul class="change-list">${changeItems || "<li><strong>干净</strong><span class=\"muted\">当前工作区没有可展示的 git 变更</span></li>"}</ul>
       </section>
       <section class="panel approval-panel">
-        <h2>人工审批 Approval</h2>
-        <ul class="signal-list">${approvalItems || "<li><strong>None</strong><span>当前没有等待人工审批的动作</span></li>"}</ul>
+        <h2>人工审批</h2>
+        <ul class="signal-list">${approvalItems || "<li><strong>暂无</strong><span>当前没有等待人工审批的动作</span></li>"}</ul>
       </section>
       <section class="run-layout">
         <aside class="panel timeline-navigator">
-          <h2>Timeline Navigator</h2>
+          <h2>时间线导航</h2>
           <ol class="event-nav">${nav}
           </ol>
         </aside>
@@ -1378,7 +1378,7 @@ export function renderSession(input: PublicSession): string {
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
-    <title>Interactive Session</title>
+    <title>交互式会话</title>
     <style>${baseStyles}</style>
   </head>
   <body>
@@ -1386,42 +1386,42 @@ export function renderSession(input: PublicSession): string {
       <p><a href="/">返回运行控制</a></p>
       <header class="topbar">
         <div>
-          <p class="eyebrow">Interactive Session</p>
+          <p class="eyebrow">交互式会话</p>
           <h1>${escapeHtml(input.title)}</h1>
         </div>
         <div class="status-strip">
-          <span class="status-pill">Workspace: ${escapeHtml(input.workspaceId)}</span>
-          <span class="status-pill">Provider: ${escapeHtml(input.provider)}</span>
-          <span class="status-pill">${input.runs.length} runs</span>
+          <span class="status-pill">工作区：${escapeHtml(input.workspaceId)}</span>
+          <span class="status-pill">模型提供方：${escapeHtml(input.provider)}</span>
+          <span class="status-pill">${input.runs.length} 次运行</span>
         </div>
       </header>
       <section class="session-dashboard">
         <section class="panel task-composer">
           <h2>继续指令</h2>
           <form method="post" action="/api/sessions/${escapeHtml(input.id)}/runs">
-            <label>任务 <input class="task-input" name="task" required placeholder="继续描述你希望 agent 完成的代码开发任务"></label>
+            <label>任务 <input class="task-input" name="task" required placeholder="继续描述你希望助手完成的代码开发任务"></label>
             <button type="submit">继续运行</button>
           </form>
         </section>
         <section class="panel">
-          <h2>Session Runs</h2>
-          <ol class="session-run-list">${runItems || "<li><strong>None</strong><span>这个 session 还没有 run</span></li>"}</ol>
+          <h2>会话运行</h2>
+          <ol class="session-run-list">${runItems || "<li><strong>暂无</strong><span>这个会话还没有运行</span></li>"}</ol>
         </section>
       </section>
       <section class="session-panels">
         <aside class="panel memory-panel">
-          <h2>Workspace Memory</h2>
-          <ul class="signal-list">${memoryItems || "<li><strong>None</strong><span>还没有 workspace memory</span></li>"}</ul>
+          <h2>工作区记忆</h2>
+          <ul class="signal-list">${memoryItems || "<li><strong>暂无</strong><span>还没有工作区记忆</span></li>"}</ul>
         </aside>
         <aside class="panel diff-inspector">
-          <h2>Diff Inspector</h2>
-          <ul class="change-list">${changeItems || "<li><strong>clean</strong><span class=\"muted\">当前工作区没有可展示的 git 变更</span></li>"}</ul>
+          <h2>差异检查</h2>
+          <ul class="change-list">${changeItems || "<li><strong>干净</strong><span class=\"muted\">当前工作区没有可展示的 git 变更</span></li>"}</ul>
         </aside>
         <aside class="panel recent-runs">
-          <h2>Session Context</h2>
+          <h2>会话上下文</h2>
           <ul class="signal-list">
-            <li><strong>${escapeHtml(input.workspaceId)}</strong><span>后续指令会继续使用这个 workspace</span></li>
-            <li><strong>${escapeHtml(input.provider)}</strong><span>后续 run 会继续使用这个 provider</span></li>
+            <li><strong>${escapeHtml(input.workspaceId)}</strong><span>后续指令会继续使用这个工作区</span></li>
+            <li><strong>${escapeHtml(input.provider)}</strong><span>后续运行会继续使用这个模型提供方</span></li>
           </ul>
         </aside>
       </section>

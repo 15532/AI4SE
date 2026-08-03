@@ -241,7 +241,7 @@ workspaces:
     expect(page.body).toContain("first done");
     expect(page.body).toContain("second task");
     expect(page.body).toContain("second done");
-    expect(page.body).toContain("Session:");
+    expect(page.body).toContain("会话：");
   });
 
   it("starts browser chat runs asynchronously and exposes a pollable timeline", async () => {
@@ -1284,14 +1284,16 @@ workspaces:
     const page = await app.inject({ method: "GET", url: `/runs/${id}` });
 
     expect(page.statusCode).toBe(200);
-    expect(page.body).toContain("Run Inspector");
+    expect(page.body).toContain("运行检查器");
     expect(page.body).toContain("timeline-navigator");
     expect(page.body).toContain("event-detail-stack");
     expect(page.body).toContain("diff-inspector");
-    expect(page.body).toContain("动作 Action");
-    expect(page.body).toContain("护栏 Guardrail");
-    expect(page.body).toContain("反馈 Feedback");
-    expect(page.body).toContain("停止 Stop Reason");
+    expect(page.body).toContain("动作");
+    expect(page.body).toContain("护栏");
+    expect(page.body).toContain("反馈");
+    expect(page.body).toContain("停止原因");
+    expect(page.body).not.toContain("Run Inspector");
+    expect(page.body).not.toContain("Stop Reason");
     expect(page.body).toContain("command.not_allowlisted");
   });
 
