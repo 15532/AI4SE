@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { timingSafeEqual } from "node:crypto";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -37,6 +38,8 @@ type InjectInput = {
   body?: string;
 };
 type InjectResponse = { statusCode: number; body: string; headers: Record<string, string>; json(): unknown };
+type WebAuthConfig = { username?: string; password: string };
+type NormalizedWebAuth = { username: string; password: string };
 
 const credentialAssignmentPattern = /\b(?:openai_api_key|api[_-]?key|secret|token|password|private[_-]?key)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,}\]]+)/gi;
 const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;
@@ -135,6 +138,18 @@ function response(statusCode: number, value: unknown, contentType = "application
   return { statusCode, body, headers: { "content-type": contentType }, json: () => JSON.parse(body) };
 }
 
+function unauthorizedResponse(): InjectResponse {
+  return {
+    statusCode: 401,
+    body: "需要认证",
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "www-authenticate": 'Basic realm="AI4SE WebUI", charset="UTF-8"'
+    },
+    json: () => JSON.parse("")
+  };
+}
+
 function redirect(location: string): InjectResponse {
   return {
     statusCode: 303,
@@ -185,11 +200,57 @@ function publicWebProviders(registry: HarnessRegistry): PublicProvider[] {
   }));
 }
 
+function normalizeWebAuth(config: WebAuthConfig | undefined): NormalizedWebAuth | undefined {
+  if (config === undefined || config.password.trim() === "") return undefined;
+  const username = config.username?.trim() === "" || config.username === undefined ? "admin" : config.username;
+  return { username, password: config.password };
+}
+
+function getHeader(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== target) continue;
+    if (Array.isArray(value)) return value[0];
+    return value;
+  }
+  return undefined;
+}
+
+function decodeBasicAuthorization(header: string | undefined): { username: string; password: string } | undefined {
+  if (header === undefined || !header.startsWith("Basic ")) return undefined;
+  try {
+    const decoded = Buffer.from(header.slice("Basic ".length), "base64").toString("utf8");
+    const separator = decoded.indexOf(":");
+    if (separator < 0) return undefined;
+    return {
+      username: decoded.slice(0, separator),
+      password: decoded.slice(separator + 1)
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function fixedTimeEquals(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function isAuthorized(auth: NormalizedWebAuth | undefined, headers: Record<string, string | string[] | undefined>): boolean {
+  if (auth === undefined) return true;
+  const credentials = decodeBasicAuthorization(getHeader(headers, "authorization"));
+  return credentials !== undefined
+    && credentials.username === auth.username
+    && fixedTimeEquals(credentials.password, auth.password);
+}
+
 export function createServer(input: {
   workspaces?: WorkspaceConfig[];
   registry?: HarnessRegistry;
   dbPath?: string;
   providerFactory?: (provider: string) => LLMProvider;
+  webAuth?: WebAuthConfig;
 }): {
   inject(input: InjectInput): Promise<InjectResponse>;
   listen(port: number, host?: string): Promise<{ close(): Promise<void> }>;
@@ -214,6 +275,7 @@ export function createServer(input: {
   const memoryStore = new MemoryStore(input.dbPath ?? ":memory:");
   const credentials = createDefaultCredentialManager(process.env);
   const providers: PublicProvider[] = publicWebProviders(registry);
+  const webAuth = normalizeWebAuth(input.webAuth);
   const publicWorkspaces = () => registry.listWorkspaces().map((workspace) => publicWorkspace(workspace, memoryStore, eventStore));
 
   const storedRun = (id: string) => {
@@ -353,6 +415,7 @@ export function createServer(input: {
     headers: Record<string, string | string[] | undefined> = {}
   ): Promise<InjectResponse> => {
     const url = new URL(requestUrl, "http://localhost");
+    if (!isAuthorized(webAuth, headers)) return unauthorizedResponse();
     if (method === "GET" && url.pathname === "/") {
       const runId = url.searchParams.get("runId");
       const sessionId = url.searchParams.get("sessionId");
@@ -807,7 +870,13 @@ export function createDefaultServer(options: { configPath?: string; dbPath?: str
   );
   return createServer({
     registry,
-    dbPath: options.dbPath ?? process.env.HARNESS_DB_PATH ?? "data/harness.sqlite"
+    dbPath: options.dbPath ?? process.env.HARNESS_DB_PATH ?? "data/harness.sqlite",
+    webAuth: process.env.WEBUI_ADMIN_PASSWORD === undefined
+      ? undefined
+      : {
+        username: process.env.WEBUI_ADMIN_USER,
+        password: process.env.WEBUI_ADMIN_PASSWORD
+      }
   });
 }
 

@@ -6,7 +6,7 @@
 
 **架构：** 采用 Typed JSON Action Harness。LLM 每轮只输出一个 JSON action；项目代码负责解析、治理、工具执行、反馈回灌、记忆和停机。CLI 与 WebUI 共用同一套 core runtime，WebUI 只能选择预注册 workspace id。
 
-**技术栈：** TypeScript、Node.js、Vitest、SQLite、OpenAI-compatible API、OS keychain adapter、Docker、GitHub Actions、GitLab CI。
+**技术栈：** TypeScript、Node.js、Vitest、SQLite、OpenAI-compatible API、加密凭据文件、Docker、GitHub Actions、GitLab CI。
 
 ## 全局约束
 
@@ -17,11 +17,23 @@
 - WebUI 可以触发真实 run，但只能选择预注册 workspace id，不能输入任意服务器路径。
 - 当前 WebUI 只做功能性简单模型前端；Open Design 与更 IDE 化的界面留到核心功能完善后的增强阶段。
 - 当前 provider 支持 mock 与 DeepSeek OpenAI-compatible；测试仍默认使用 mock 或 fake fetch，不依赖真实网络。
-- v1 WebUI 不设置 password；公网 real-run 部署是已知风险，只用于受信任网络或短期课程演示。
+- WebUI 本地默认不启用 password；公网或服务器部署必须设置 `WEBUI_ADMIN_PASSWORD` 启用 Basic Auth，并建议继续放在 HTTPS/反向代理后。
 - 默认 TypeScript command allowlist：`npm test`、`npm run test`、`npm run lint`、`npm run typecheck`、`npm run build`。
 - 一键测试入口：`npm test`。
 - 机制演示入口：`npm run demo:mechanisms`。
 - 真实 API key 不得提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。
+
+---
+
+## 当前实现状态（2026-08-03）
+
+- Task 1-11 的核心实现已完成，并在 `feature/core-loop` 上形成中文提交历史。
+- 最新已提交补强：`d8a3fad 安全：实现加密凭据存储`。
+- 凭据安全 V2 已改为 AES-256-GCM 加密凭据文件，CLI 与 WebUI DeepSeek run 共用同一凭据解析链路。
+- WebUI 已补可选 Basic Auth：本地默认关闭，服务器通过 `WEBUI_ADMIN_PASSWORD` 启用。
+- 分发闭环已补 `.dockerignore` 与 `docs/DISTRIBUTION.md`；当前机器未安装 Docker CLI，`docker build` 实机验证需在有 Docker 的机器或 CI 中补证据。
+- CI/CD 记录见 `docs/CI_CD_RECORD.md`：最近一次远端 `unit-test` success 为 `78070ce`；`d8a3fad` 和当前未提交改动 push 后需补最新 CI 链接。
+- `REFLECTION.md` 最终版必须由学生本人撰写，AI 只能辅助整理素材与润色。
 
 ---
 
@@ -820,7 +832,7 @@ describe("CredentialManager", () => {
 
 - [ ] **Step 3：实现 fake adapter 与 manager**
 
-实现 `InMemoryKeychainAdapter` 用于测试。真实 OS keychain adapter 可在 CLI 接入时实现；测试不依赖真实系统 keychain。
+实现 `InMemoryKeychainAdapter` 用于测试；当前交付版本已补 `EncryptedFileKeychainAdapter`，使用 `HARNESS_MASTER_PASSWORD` 和加密凭据文件，不依赖真实系统 keychain。
 
 - [ ] **Step 4：运行并确认通过**
 
@@ -1029,7 +1041,7 @@ jobs:
 
 - [ ] **Step 4：更新 README 与 SECURITY**
 
-README 必须包含：项目简介、安装、运行、分发命令、目录结构、key 安全配置、WebUI 无 password 风险、Docker + Nginx 部署说明。
+README 必须包含：项目简介、安装、运行、分发命令、目录结构、key 安全配置、WebUI Basic Auth、公网部署边界、Docker + Nginx/反向代理部署说明。
 
 - [ ] **Step 5：运行并确认通过**
 

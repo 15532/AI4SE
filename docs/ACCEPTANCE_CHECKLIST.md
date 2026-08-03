@@ -32,13 +32,13 @@ npm run check:acceptance -- -SkipDemos
 - Mock 或 stub 测试：mock provider 是必做能力，用于无网络确定性验证 action parsing、guardrail、feedback、memory 和 finish 流程。
 - 真实 LLM 接入：DeepSeek 作为默认 WebUI provider，优先通过加密凭据文件读取真实 key，其次才使用 `DEEPSEEK_API_KEY` 环境变量 fallback。
 - WebUI：当前 WebUI 是对话式 coding agent 工作台，普通入口默认使用 DeepSeek，文件、diff、状态和审批作为上下文面板。
-- 安全策略：workspace path boundary、命令 allowlist、guardrail、人工审批、密钥脱敏和无密码 WebUI 风险说明见 `SECURITY.md`。
-- Docker：`Dockerfile` 与 `docker-compose.yml` 可用于服务器分发；compose 透传 `HARNESS_MASTER_PASSWORD` 与可选 `DEEPSEEK_API_KEY`，并持久化 `/app/data`。
+- 安全策略：workspace path boundary、命令 allowlist、guardrail、人工审批、密钥脱敏、WebUI Basic Auth 和公网部署边界说明见 `SECURITY.md`。
+- Docker：`Dockerfile`、`.dockerignore` 与 `docker-compose.yml` 可用于服务器分发；compose 透传 `HARNESS_MASTER_PASSWORD`、`WEBUI_ADMIN_PASSWORD` 与可选 `DEEPSEEK_API_KEY`，并持久化 `/app/data`。分发命令与当前验证记录见 `docs/DISTRIBUTION.md`。
 
 ## 提交前人工检查
 
 - README 已说明安装、运行、DeepSeek key、WebUI、Docker 和安全边界。
 - SPEC 已说明所选设计策略、模块边界、mock 职责和 DeepSeek 默认入口。
-- `SECURITY.md` 已说明无密码 WebUI 的部署风险，服务器上不得直接暴露 `3000` 端口。
+- `SECURITY.md` 已说明 WebUI Basic Auth、HTTPS/反向代理建议，服务器上不得裸露 `3000` 端口。
 - Git history、source、docs、logs、SQLite 和示例配置中不得包含真实凭据。
 - 若部署到服务器，必须先准备反向代理认证、持久化数据目录和受控的 `DEEPSEEK_API_KEY` 注入方式。

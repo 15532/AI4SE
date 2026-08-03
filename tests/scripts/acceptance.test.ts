@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 const packageJsonPath = resolve("package.json");
 const scriptPath = resolve("scripts/acceptance-check.ps1");
 const checklistPath = resolve("docs/ACCEPTANCE_CHECKLIST.md");
+const dockerignorePath = resolve(".dockerignore");
 
 describe("acceptance check workflow", () => {
   test("exposes a one-command acceptance check script", () => {
@@ -37,5 +38,17 @@ describe("acceptance check workflow", () => {
     expect(checklist).toContain("WebUI");
     expect(checklist).toContain("Docker");
     expect(checklist).toContain("安全策略");
+  });
+
+  test("keeps local-only files out of Docker build context", () => {
+    expect(existsSync(dockerignorePath)).toBe(true);
+
+    const dockerignore = readFileSync(dockerignorePath, "utf8");
+    expect(dockerignore).toContain("node_modules/");
+    expect(dockerignore).toContain("dist/");
+    expect(dockerignore).toContain("data/");
+    expect(dockerignore).toContain("logs/");
+    expect(dockerignore).toContain(".env");
+    expect(dockerignore).toContain("*.enc.json");
   });
 });

@@ -272,11 +272,10 @@ WebUI v1 能力：
 - Session 绑定 workspace id 和 provider id；继续运行时不能从请求体覆盖 root、workspace 或 provider。
 - Session 持久化在 SQLite 中，服务器部署必须持久化 `HARNESS_DB_PATH` 所在目录。
 - 人工审批不能绕过 allowlist、workspace boundary、敏感文件和密钥保护。
-- 根据用户决定，v1 不要求 password。这是已知风险。公网部署应被视为受信任网络或短期课程演示部署，直到加入认证。
+- WebUI 本地默认不启用 password；服务器可通过 `WEBUI_ADMIN_PASSWORD` 启用内置 Basic Auth。公网部署必须启用认证，并建议继续放在 HTTPS、反向代理或等价网络边界后。
 
 未来改进：
 
-- 在长期公网部署前加入 `WEBUI_ADMIN_PASSWORD` 或反向代理认证。
 - 增加更友好的凭据状态提示。
 - 在功能稳定后使用 Open Design 继续设计浏览器内编辑器和更完整视觉系统。
 
@@ -421,7 +420,7 @@ npm run demo:coding-task
 
 ## 18. 风险与未决问题
 
-- 根据用户决定，v1 WebUI 不设置 password；公网 real-run 部署是已知风险，应视为受信任网络或短期演示环境。
+- WebUI 本地默认无 password；公网 real-run 部署必须设置 `WEBUI_ADMIN_PASSWORD`，并建议搭配 HTTPS 或反向代理访问控制。
 - 加密凭据文件依赖 `HARNESS_MASTER_PASSWORD`；部署时必须把主密码交给受控 secret 管理，不得写入镜像或仓库。
 - test/lint/typecheck failure output parsing 首版应保持简单、确定。
 - 当前 WebUI 是轻量智能 IDE 壳层，适合演示 harness 机制；若要升级为完整智能 IDE，还需要继续实现浏览器内编辑器和更完整的 Open Design 视觉系统。

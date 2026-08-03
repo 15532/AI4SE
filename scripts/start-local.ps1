@@ -3,6 +3,8 @@ param(
   [string]$ConfigPath = "config/harness.example.yaml",
   [string]$DbPath = "data/harness.sqlite",
   [string]$CredentialStorePath = "data/credentials.enc.json",
+  [string]$WebUiAdminUser = "admin",
+  [string]$WebUiAdminPassword = "",
   [switch]$SkipBuild
 )
 
@@ -29,11 +31,18 @@ if (-not $SkipBuild) {
 $env:HARNESS_CONFIG_PATH = $ConfigPath
 $env:HARNESS_DB_PATH = $DbPath
 $env:HARNESS_CREDENTIAL_STORE_PATH = $CredentialStorePath
+$env:WEBUI_ADMIN_USER = $WebUiAdminUser
+$env:WEBUI_ADMIN_PASSWORD = $WebUiAdminPassword
 $env:PORT = [string]$Port
 
 Write-Host "WebUI 即将启动：http://127.0.0.1:$Port"
 Write-Host "配置文件：$ConfigPath"
 Write-Host "SQLite：$DbPath"
 Write-Host "凭据存储：$CredentialStorePath"
+if ($WebUiAdminPassword -eq "") {
+  Write-Host "WebUI 认证：未启用（本地默认）"
+} else {
+  Write-Host "WebUI 认证：已启用 Basic Auth，用户 $WebUiAdminUser"
+}
 
 node dist/src/web/server.js

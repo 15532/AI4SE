@@ -56,6 +56,61 @@ async function waitForRunStatus(
 }
 
 describe("web server", () => {
+  it("requires Basic Auth for WebUI pages when admin password is configured", async () => {
+    const app = createServer({
+      workspaces,
+      webAuth: { username: "admin", password: "server-password" }
+    });
+
+    const response = await app.inject({ method: "GET", url: "/" });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.headers["www-authenticate"]).toBe('Basic realm="AI4SE WebUI", charset="UTF-8"');
+    expect(response.body).toContain("需要认证");
+    expect(response.body).not.toContain("server-password");
+  });
+
+  it("rejects invalid Basic Auth credentials without leaking the configured password", async () => {
+    const app = createServer({
+      workspaces,
+      webAuth: { username: "admin", password: "server-password" }
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/workspaces",
+      headers: {
+        authorization: `Basic ${Buffer.from("admin:wrong-password").toString("base64")}`
+      }
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.body).not.toContain("server-password");
+    expect(response.body).not.toContain("wrong-password");
+  });
+
+  it("allows WebUI pages and APIs with valid Basic Auth credentials", async () => {
+    const app = createServer({
+      workspaces,
+      webAuth: { username: "admin", password: "server-password" }
+    });
+    const headers = {
+      authorization: `Basic ${Buffer.from("admin:server-password").toString("base64")}`
+    };
+
+    const page = await app.inject({ method: "GET", url: "/", headers });
+    const api = await app.inject({ method: "GET", url: "/api/workspaces", headers });
+
+    expect(page.statusCode).toBe(200);
+    expect(api.statusCode).toBe(200);
+    expect(api.json()).toEqual([
+      { id: "demo-ts", name: "Demo TS", allowedCommands: ["npm test"] },
+      { id: "docs", name: "Docs", allowedCommands: ["npm run build"] }
+    ]);
+    expect(page.body).not.toContain("server-password");
+    expect(api.body).not.toContain("server-password");
+  });
+
   it("loads the default WebUI registry from YAML without exposing workspace roots", async () => {
     const dir = await mkdtemp(join(tmpdir(), "harness-web-config-"));
     const configPath = join(dir, "harness.yaml");

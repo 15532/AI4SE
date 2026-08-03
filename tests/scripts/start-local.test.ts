@@ -16,6 +16,8 @@ describe("local startup script", () => {
     expect(script).toContain("HARNESS_CONFIG_PATH");
     expect(script).toContain("HARNESS_DB_PATH");
     expect(script).toContain("HARNESS_CREDENTIAL_STORE_PATH");
+    expect(script).toContain("WEBUI_ADMIN_USER");
+    expect(script).toContain("WEBUI_ADMIN_PASSWORD");
     expect(script).toContain("dist/src/web/server.js");
   });
 });

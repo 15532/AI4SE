@@ -54,7 +54,7 @@
   - LLM action 协议为 strict JSON，每轮一个 action
   - v1 shell 执行使用 per-workspace narrow allowlist
   - WebUI 可以触发真实 harness run
-  - 根据用户决定，v1 WebUI 不设置 password
+  - 当时根据用户决定暂缓 WebUI password；后续已实现服务器 Basic Auth
   - WebUI 只能选择预注册 workspace id，不能输入任意服务器路径
   - 增加 `remember` action，让 memory 成为由代码支撑的机制
 - Agent 动作：
@@ -396,3 +396,74 @@
 - 学到的教训：
   - 人工审批不是 prompt 约束，而应是 harness 状态机的一部分。
   - 服务器部署场景下，审批应作为额外安全门，而不是绕过 allowlist 的后门。
+
+### 2026-08-03 - 凭据安全 V2：加密凭据文件
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `test-driven-development`
+  - `verification-before-completion`
+- 关键上下文：
+  - 用户询问“凭据安全必须补强”是否已经完成。
+  - 此前 DeepSeek 可接入真实模型，但凭据主要依赖环境变量 fallback。
+- Agent 动作：
+  - 新增 `EncryptedFileKeychainAdapter`，使用 AES-256-GCM 与 `HARNESS_MASTER_PASSWORD` 加密完整凭据映射。
+  - 新增 `createDefaultCredentialManager()`，让 CLI 与 WebUI 共用加密凭据解析链路。
+  - DeepSeek provider 优先读取加密凭据文件，其次读取 `DEEPSEEK_API_KEY`。
+  - 更新 `.env.example`、README、SECURITY、SPEC、Docker Compose、启动脚本和交付清单。
+- TDD 证据：
+  - 凭据测试覆盖：加密文件不含 key 明文、不含 provider 名明文、同主密码可重开读取、缺主密码不能写入。
+  - CLI 测试覆盖：`credentials set/status` 写入加密文件且不泄漏 secret。
+  - WebUI 测试覆盖：DeepSeek run 使用加密凭据优先于环境变量 fallback。
+- 验证证据：
+  - `npm.cmd run check:acceptance -- -AllowDirty` 通过。
+  - 已提交：`d8a3fad 安全：实现加密凭据存储`。
+- 学到的教训：
+  - 对课程项目来说，安全能力不只写在 README；必须有代码路径和测试证明 secret 不进入日志、响应或仓库。
+
+### 2026-08-03 - WebUI Basic Auth 与公网访问控制
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 关键上下文：
+  - 用户确认未来会部署在服务器上。
+  - WebUI 已能触发真实 harness run、DeepSeek、interactive session 和人工审批，因此公网裸露风险变高。
+- Agent 动作：
+  - `createServer()` 新增可选 `webAuth`。
+  - `createDefaultServer()` 从 `WEBUI_ADMIN_PASSWORD` / `WEBUI_ADMIN_USER` 启用 Basic Auth。
+  - 所有 WebUI 页面和 API 在同一入口统一认证。
+  - 更新启动脚本、compose、README、SECURITY、SPEC 和交付清单。
+- TDD 证据：
+  - 未认证访问页面先失败于返回 200，期望 401。
+  - 错误认证访问 API 先失败于返回 200，期望 401。
+  - 实现后，未认证/错误认证返回 401，正确认证可访问页面与 API，响应不包含配置口令。
+- 验证证据：
+  - `npm.cmd test -- tests/web/server.test.ts tests/scripts/start-local.test.ts` 通过。
+  - `npm.cmd run check:acceptance -- -AllowDirty` 通过。
+- 学到的教训：
+  - 服务器部署安全不能只靠“请用户自行配置 Nginx”的文字建议；项目自身也要有最低访问控制。
+
+### 2026-08-03 - 分发与 CI/CD 记录
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `test-driven-development`
+  - `systematic-debugging`
+  - `verification-before-completion`
+- Agent 动作：
+  - 新增 `.dockerignore`，排除本地依赖、构建产物、运行数据、日志、`.env`、SQLite 和加密凭据。
+  - 新增 `docs/DISTRIBUTION.md`，记录 build/run/compose/registry 命令和当前 Docker CLI 不可用的验证状态。
+  - 新增 `docs/CI_CD_RECORD.md`，记录 GitHub Actions、GitLab CI、最近远端 CI success 链接和 PR 工作流待办。
+- TDD / 调试证据：
+  - Docker build context 测试先因 `.dockerignore` 缺失失败，补文件后通过。
+  - `docker build -t ai4se-coding-agent-harness:local .` 在当前机器失败，根因是 Docker CLI 未安装；手工确认常见 Docker Desktop 路径也不存在。
+  - 一次 WebUI 测试中的临时 `git init` 失败无法稳定复现；同类手工命令成功，重跑测试组通过，判断为短暂环境抖动。
+- CI 证据：
+  - GitHub API 显示最近远端 `unit-test` run 成功：`https://github.com/15532/AI4SE/actions/runs/30786355322`。
+  - 对应 commit：`78070cea36c0af89617812ffd46627d9dac9b5b2`。
+  - 当前本地新提交和未提交改动尚未 push，因此还需要用户手动 push 后补最新 CI 链接。
+- 学到的教训：
+  - 分发闭环应诚实记录环境限制；不能伪造 registry 或 Docker build 结果。

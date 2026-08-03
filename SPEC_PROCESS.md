@@ -68,7 +68,7 @@
 
 问题：v1 是否要求 WebUI 管理员密码？
 
-决策：根据用户决定，v1 不设置 password。SPEC 将其记录为已知风险，并通过 workspace registry、path boundary、command allowlist、guardrail 限制真实 run。
+决策：当时根据用户决定暂缓应用层 password。2026-08-03 已被后续 Basic Auth 决策取代：本地默认关闭，服务器通过 `WEBUI_ADMIN_PASSWORD` 启用。
 
 原因：用户暂时不想配置口令。设计应记录该 trade-off，而不是隐藏它。
 
@@ -108,7 +108,7 @@
 
 - 纯 CLI 被拒绝，因为最终清单要求可访问 WebUI。
 - mock/demo-only WebUI 被拒绝，因为用户希望 WebUI 触发真实 harness run。
-- WebUI password protection 被推荐但根据用户决定延后。
+- WebUI password protection 最初被推荐但根据用户决定延后；后续已实现可选 Basic Auth。
 - `.env` 作为主凭据存储被拒绝，因为要求更安全的凭据管理和威胁模型。
 
 ## 冷启动验证
@@ -185,3 +185,63 @@
 
 - 用户 review 本轮修订后的 `SPEC.md` 和 `PLAN.md`。
 - 若用户确认，可进入实现阶段；执行前仍应使用 `using-git-worktrees` 和 `subagent-driven-development` / `executing-plans`。
+
+## 后续实施更新（2026-08-03）
+
+### Iteration 12 - DeepSeek 与 WebUI 默认入口
+
+问题：WebUI 普通入口是否仍应暴露 mock provider？
+
+决策：WebUI 默认使用 DeepSeek，并隐藏 mock；mock 只保留给离线测试、机制演示、CLI/API 调试。
+
+原因：用户希望浏览器主流程是真实模型前端，而不是看起来像 mock demo。课程仍需要 mock/stub 做确定性测试，因此不能删除 mock。
+
+### Iteration 13 - 凭据安全 V2
+
+问题：仅依赖 `.env` 或环境变量是否足以满足凭据安全要求？
+
+决策：实现加密凭据文件。`HARNESS_CREDENTIAL_STORE_PATH` 指向 AES-256-GCM 密文 JSON，`HARNESS_MASTER_PASSWORD` 用于派生密钥。CLI 和 WebUI 均优先读取加密凭据，其次才读取 `DEEPSEEK_API_KEY` fallback。
+
+原因：真实 DeepSeek key 不应长期以明文 `.env` 作为主存储；同时跨平台课程环境不一定有统一 OS keychain。
+
+验证证据：
+
+- `npm.cmd run check:acceptance -- -AllowDirty` 通过。
+- 加密凭据测试确认密文文件不含 provider 名或 key 明文。
+- 提交：`d8a3fad 安全：实现加密凭据存储`。
+
+### Iteration 14 - WebUI 公网访问控制
+
+问题：未来部署到服务器时，WebUI 可触发真实 harness run，是否需要项目自身访问控制？
+
+决策：加入可选 Basic Auth。本地默认关闭；服务器通过 `WEBUI_ADMIN_PASSWORD` 启用，用户名默认 `admin`，可用 `WEBUI_ADMIN_USER` 覆盖。
+
+原因：只依赖“请配置 Nginx”的文档不足以证明项目自身具备最低安全边界。Basic Auth 简单、可测、部署成本低，后续仍可叠加 HTTPS、反向代理、VPN 或 SSO。
+
+TDD 证据：
+
+- 新增 WebUI Basic Auth 测试先失败于未认证/错误认证仍返回 200。
+- 实现后，未认证和错误认证返回 401，正确认证可访问页面和 API，响应不泄漏口令。
+
+### Iteration 15 - 分发闭环
+
+问题：Docker 分发是否只写了命令，还是有构建上下文与验证记录？
+
+决策：补 `.dockerignore` 与 `docs/DISTRIBUTION.md`。`.dockerignore` 排除 `node_modules/`、`dist/`、`data/`、`logs/`、`.env`、SQLite、日志和加密凭据文件。
+
+验证证据：
+
+- 新增 Docker build context 测试先因 `.dockerignore` 缺失失败，补文件后通过。
+- 当前机器未安装 Docker CLI，`docker build -t ai4se-coding-agent-harness:local .` 返回 `docker` 命令不存在；需要在有 Docker 的机器上补跑。
+
+### Iteration 16 - CI/CD 与 PR 记录
+
+问题：最终交付需要 CI/CD pass 和 PR 工作流证据，当前有哪些可证明内容？
+
+决策：新增 `docs/CI_CD_RECORD.md`，记录 GitHub Actions、GitLab CI 配置、最近远端 CI success 链接和 PR 工作流待办。
+
+验证证据：
+
+- GitHub API 查询最近一次远端 `unit-test`：`feature/core-loop`、commit `78070cea36c0af89617812ffd46627d9dac9b5b2`、结果 `success`。
+- 链接：`https://github.com/15532/AI4SE/actions/runs/30786355322`。
+- GitHub API 查询当前仓库未发现 PR 记录；PR 创建/合并需由用户在 GitHub 上完成。

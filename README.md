@@ -184,6 +184,8 @@ workspaces:
 - `HARNESS_CREDENTIAL_STORE_PATH`：指定加密凭据文件路径，默认 `data/credentials.enc.json`。
 - `HARNESS_MASTER_PASSWORD`：加密凭据文件主密码；未设置时不能读写加密凭据。
 - `PORT`：指定 WebUI 端口，默认 `3000`。
+- `WEBUI_ADMIN_USER`：WebUI Basic Auth 用户名，默认 `admin`。
+- `WEBUI_ADMIN_PASSWORD`：WebUI Basic Auth 口令；为空时本地默认不启用认证，公网部署必须设置。
 - `DEEPSEEK_API_KEY`：DeepSeek provider 的环境变量 fallback；优先级低于加密凭据文件，只能放在受控部署环境或未提交的本地 `.env`。
 
 PowerShell 示例：
@@ -193,6 +195,8 @@ $env:HARNESS_CONFIG_PATH = "config/harness.example.yaml"
 $env:HARNESS_DB_PATH = "data/harness.sqlite"
 $env:HARNESS_CREDENTIAL_STORE_PATH = "data/credentials.enc.json"
 $env:PORT = "3000"
+$env:WEBUI_ADMIN_USER = "admin"
+$env:WEBUI_ADMIN_PASSWORD = ""
 ```
 
 如果要支持多个 workspace，直接在 YAML 的 `workspaces` 下增加条目。每个 workspace 必须有独立 `id`、`root` 和 `allowedCommands`；WebUI 请求只能选择已注册的 workspace id，不能从浏览器传入任意 root。
@@ -441,24 +445,26 @@ docker compose up --build
 
 ```powershell
 $env:HARNESS_MASTER_PASSWORD = "服务器主密码"
+$env:WEBUI_ADMIN_PASSWORD = "服务器 WebUI 管理口令"
 $env:DEEPSEEK_API_KEY = "你的真实 DeepSeek Key"
 docker compose up --build
 ```
 
-Compose 会把 `HARNESS_MASTER_PASSWORD`、`HARNESS_CREDENTIAL_STORE_PATH` 和 `DEEPSEEK_API_KEY` 作为容器环境变量传入。不要把真实 key 或主密码写入 `docker-compose.yml`、`.env.example` 或任何提交文件。
+Compose 会把 `HARNESS_MASTER_PASSWORD`、`HARNESS_CREDENTIAL_STORE_PATH`、`WEBUI_ADMIN_USER`、`WEBUI_ADMIN_PASSWORD` 和 `DEEPSEEK_API_KEY` 作为容器环境变量传入。不要把真实 key、主密码或 WebUI 管理口令写入 `docker-compose.yml`、`.env.example` 或任何提交文件。
 
 Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` 挂载为 `harness-data` named volume，用于持久化运行历史、timeline、memory 和 interactive session。镜像构建不会复制 `.env`、本地 SQLite 数据、logs 或本地 `node_modules`。容器默认启动 WebUI。
 
 服务器部署建议：
 
 - 在反向代理、进程管理器或平台 secret 中配置 `HARNESS_MASTER_PASSWORD`；真实 DeepSeek key 优先写入加密凭据文件，`DEEPSEEK_API_KEY` 只作为受控 fallback。
+- 在公网部署时配置 `WEBUI_ADMIN_PASSWORD` 启用内置 Basic Auth；用户名默认 `admin`，可用 `WEBUI_ADMIN_USER` 覆盖。
 - 将 `data/` 或 `/app/data` 持久化，否则重启后 session、timeline 和 memory 会丢失。
 - 修改 `config/harness.example.yaml` 或使用独立配置文件注册服务器上的 workspace；WebUI 只能选择已注册 workspace id。
-- 只把经过反向代理认证的入口暴露给访问者，不要直接暴露容器 `3000` 端口。
+- 只把经过 HTTPS、反向代理或等价网络边界保护的入口暴露给访问者；不建议直接暴露容器 `3000` 端口。
 
 ## 安全说明
 
-WebUI v1 不配置 password，仅适合受信任网络或短期课程演示。长期公网部署必须先在 Nginx、VPN、SSO、basic auth 或其他边界层配置认证与访问控制；不要把容器端口直接暴露到公网。启用 DeepSeek provider、interactive session 或人工审批后，公网无认证风险更高，因为攻击者可以持续触发真实 harness run 或诱导管理员批准高风险动作。
+WebUI 默认不启用 password，适合本地开发；公网部署必须设置 `WEBUI_ADMIN_PASSWORD` 启用内置 Basic Auth，并建议继续放在 Nginx、VPN、SSO 或其他边界层之后。不要把容器端口直接裸露到公网。启用 DeepSeek provider、interactive session 或人工审批后，公网无认证风险更高，因为攻击者可以持续触发真实 harness run 或诱导管理员批准高风险动作。
 
 当前 v1 已支持 DeepSeek OpenAI-compatible provider，并保留 mock provider 用于离线测试。`CredentialManager` 默认使用 AES-256-GCM 加密凭据文件，DeepSeek key 优先从该文件读取，其次才读取 `DEEPSEEK_API_KEY` fallback。真实 API key 绝不能提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。
 

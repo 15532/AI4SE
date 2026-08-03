@@ -19,8 +19,8 @@
 - 测试：`npm test` 可一键运行，覆盖核心机制、WebUI、DeepSeek fake fetch 与可用代码开发链路。
 - 机制演示：`npm run demo:mechanisms` 可运行 mock LLM 下的治理与反馈闭环演示。
 - 代码开发演示：`npm run demo:coding-task` 可在临时 workspace 中运行读文件、写修复、执行 `npm test`、finish 的确定性演示。
-- 分发：已提供 `Dockerfile` 与 `docker-compose.yml`。
-- CI：已提供 `.github/workflows/unit-test.yml` 与 `.gitlab-ci.yml`，job 名为 `unit-test`。
+- 分发：已提供 `Dockerfile`、`.dockerignore`、`docker-compose.yml` 和 `docs/DISTRIBUTION.md`。
+- CI：已提供 `.github/workflows/unit-test.yml` 与 `.gitlab-ci.yml`，job 名为 `unit-test`；CI 状态与 PR 工作流见 `docs/CI_CD_RECORD.md`。
 - 安全文档：`SECURITY.md` 已说明加密凭据文件、WebUI 访问控制风险和提交前检查。
 - 本地启动：已提供 `scripts/start-local.ps1`。
 - 提交历史：当前本地主要分支提交信息已中文化。
@@ -30,16 +30,16 @@
 - `REFLECTION.md`：目前只是提纲。最终 1500-2500 字反思报告必须由学生本人撰写；AI 可辅助润色但需要标注。
 - `AGENT_LOG.md`：已补近期关键过程，但在最终提交前还应追加 CI、部署、人工修改和最后审查记录。
 - 线上部署 URL：最终交付清单要求提供应用可访问的 WebUI 接口；当前尚未部署到公网。
-- CI/CD 执行记录：需要最后一次 CI/CD pass 状态截图或链接。
-- GitHub PR 工作流：课程要求完整 commit 历史与 PR 工作流；当前已有 commit 历史，但 PR 创建/合并记录需由用户在 GitHub 上确认。
-- 公网访问控制：当前已有部署与安全说明；如果正式开放公网 WebUI，需要配置 Nginx Basic Auth 或等价认证，并记录最终访问方式。
+- CI/CD 执行记录：已记录最近一次远端 `unit-test` success 链接；本地新提交和未提交改动 push 后仍需补最新 CI 链接。
+- GitHub PR 工作流：已记录建议流程；当前 GitHub API 未发现 PR，PR 创建/合并记录需由用户在 GitHub 上完成并补链接。
+- 公网访问控制：当前已有内置 Basic Auth、部署配置与安全说明；如果正式开放公网 WebUI，需要设置 `WEBUI_ADMIN_PASSWORD`，并记录最终访问方式。
 - 方案 B / Open Design：当前已完成对话式 WebUI、Workspace Session V1、Diff Inspector V1、Interactive Run V1 和 Approval V1；若继续做浏览器内编辑器或更完整视觉系统，应引入 Open Design，并在 `SPEC.md` 中补充设计系统与 skill。
 
 ## 建议下一步
 
 1. 提交凭据安全 V2 改动，并由用户手动 push。
-2. 完成公网 WebUI 部署与访问控制记录。
-3. 完成 Docker 构建/分发验证与 CI pass 记录。
+2. 完成公网 WebUI 部署 URL、认证方式与访问控制记录。
+3. 用户 push 后补最新 CI pass 链接；在有 Docker 的机器上补跑 `docker build -t ai4se-coding-agent-harness:local .`。
 4. 补齐 `AGENT_LOG.md`、`SPEC_PROCESS.md`、`PLAN.md` 中最近几轮关键过程。
 5. 用户撰写 `REFLECTION.md` 初稿后，可让 AI 做润色和结构建议。
 
@@ -55,7 +55,7 @@
 仍待最终交付前确认：
 
 - 由用户手动 push 后查看 GitHub CI 结果。
-- 公网部署前补充认证或反向代理访问控制。
+- 公网部署前设置 `WEBUI_ADMIN_PASSWORD`，并优先补充 HTTPS/反向代理访问控制。
 - 用户本人完成 `REFLECTION.md`。
 
 ## 2026-08-03 更新：凭据安全 V2
