@@ -30,18 +30,17 @@
 - `REFLECTION.md`：目前只是提纲。最终 1500-2500 字反思报告必须由学生本人撰写；AI 可辅助润色但需要标注。
 - `AGENT_LOG.md`：已补近期关键过程，但在最终提交前还应追加 CI、部署、人工修改和最后审查记录。
 - 线上部署 URL：最终交付清单要求提供应用可访问的 WebUI 接口；当前尚未部署到公网。
-- CI/CD 执行记录：已记录最近一次远端 `unit-test` success 链接；本地新提交和未提交改动 push 后仍需补最新 CI 链接。
+- CI/CD 执行记录：已记录最新远端 `unit-test` success 链接：`https://github.com/15532/AI4SE/actions/runs/30803331722`；Actions 总览为 `https://github.com/15532/AI4SE/actions`。
 - GitHub PR 工作流：已记录建议流程；当前 GitHub API 未发现 PR，PR 创建/合并记录需由用户在 GitHub 上完成并补链接。
 - 公网访问控制：当前已有内置 Basic Auth、部署配置与安全说明；如果正式开放公网 WebUI，需要设置 `WEBUI_ADMIN_PASSWORD`，并记录最终访问方式。
 - 方案 B / Open Design：当前已完成对话式 WebUI、Workspace Session V1、Diff Inspector V1、Interactive Run V1 和 Approval V1；若继续做浏览器内编辑器或更完整视觉系统，应引入 Open Design，并在 `SPEC.md` 中补充设计系统与 skill。
 
 ## 建议下一步
 
-1. 提交凭据安全 V2 改动，并由用户手动 push。
-2. 完成公网 WebUI 部署 URL、认证方式与访问控制记录。
-3. 用户 push 后补最新 CI pass 链接；在有 Docker 的机器上补跑 `docker build -t ai4se-coding-agent-harness:local .`。
-4. 补齐 `AGENT_LOG.md`、`SPEC_PROCESS.md`、`PLAN.md` 中最近几轮关键过程。
-5. 用户撰写 `REFLECTION.md` 初稿后，可让 AI 做润色和结构建议。
+1. 完成公网 WebUI 部署 URL、认证方式与访问控制记录。
+2. 服务器部署阶段补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
+3. 若课程要求 PR 工作流，在 GitHub 创建并合并 PR 后补 PR 链接。
+4. 用户撰写 `REFLECTION.md` 初稿后，可让 AI 做润色和结构建议。
 
 ## 2026-08-02 更新：Approval V1
 

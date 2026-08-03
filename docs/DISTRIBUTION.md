@@ -59,10 +59,11 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 
 - `npm.cmd test -- tests/scripts/acceptance.test.ts -t "Docker build context"`：通过，确认 `.dockerignore` 已覆盖本地依赖、构建产物、数据、日志、`.env` 和加密凭据。
 - `docker build -t ai4se-coding-agent-harness:local .`：当前机器未安装 Docker CLI，PowerShell 返回 `docker` 命令不存在；需要在安装 Docker Desktop 或服务器 Docker 环境后补跑。
+- GitHub Actions `unit-test` 已通过，workflow 中包含 `docker build -t coding-agent-harness .`：`https://github.com/15532/AI4SE/actions/runs/30803331722`。
 - `npm.cmd run check:acceptance -- -AllowDirty`：通过，覆盖 build、全量测试、机制 demo、代码开发 demo、git 状态检查和常见密钥扫描。
 
 ## 最终交付前待补证据
 
-- 在有 Docker 的机器上运行 `docker build -t ai4se-coding-agent-harness:local .` 并记录通过结果。
+- 服务器部署阶段运行 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录通过结果。
 - 如果需要容器分发，推送到 registry 后补充真实 `docker pull` 命令。
 - 公网部署时记录 WebUI URL、认证方式和 HTTPS/反向代理配置。
