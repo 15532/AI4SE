@@ -26,7 +26,7 @@ export type PublicSession = {
   memories?: Array<{ key: string; value: string }>;
   changes?: PublicWorkspaceChange[];
 };
-export type PublicProvider = { id: string };
+export type PublicProvider = { id: string; selected?: boolean };
 export type PublicApproval = {
   id: string;
   ruleId: string;
@@ -835,7 +835,7 @@ function renderChatContextAttachments(input: {
 
 export function renderIndex(
   workspaces: PublicWorkspace[],
-  providers: PublicProvider[] = [{ id: "mock" }],
+  providers: PublicProvider[] = [{ id: "deepseek", selected: true }],
   activeRun?: PublicChatRun,
   fileContext?: {
     activeWorkspaceId?: string;
@@ -853,7 +853,7 @@ export function renderIndex(
     .map((workspace) => `<option value="${escapeHtml(workspace.id)}">${escapeHtml(workspace.name)} (${escapeHtml(workspace.id)})</option>`)
     .join("");
   const providerOptions = providers
-    .map((provider) => `<option value="${escapeHtml(provider.id)}">${escapeHtml(provider.id)}</option>`)
+    .map((provider) => `<option value="${escapeHtml(provider.id)}"${provider.selected === true ? " selected" : ""}>${escapeHtml(provider.id)}</option>`)
     .join("");
   const providerLabel = providers.map((provider) => provider.id).join(", ");
   const activeWorkspaceId = fileContext?.activeWorkspaceId ?? workspaces[0]?.id;

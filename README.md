@@ -311,6 +311,12 @@ Invoke-RestMethod -Uri "http://127.0.0.1:3000/api/workspaces/demo-ts/changes/REA
 
 这些 API 只能访问预注册 workspace 内的相对路径，且不会提供文件写入能力。
 
+## WebUI 模型选择
+
+WebUI 面向真实对话式开发体验，默认展示并选中 `deepseek` provider；页面不再显示 `mock` 选项，避免误以为浏览器主流程仍在走离线演示。
+
+`mock` 仍然是项目必需能力：课程要求中的确定性测试、机制演示、CLI/API 调试都依赖它在无网络、无真实 API key 的情况下复现 action parsing、guardrail、feedback 和 finish 流程。因此不要从配置和测试链路中删除 `mock`；只是在 WebUI 的用户入口中隐藏它。
+
 ## API 调试
 
 创建 run：

@@ -83,7 +83,7 @@ workspaces:
     expect(response.body).not.toContain("private-root");
 
     const index = await app.inject({ method: "GET", url: "/" });
-    expect(index.body).toContain('<option value="web-mock">web-mock</option>');
+    expect(index.body).toContain('<option value="web-mock" selected>web-mock</option>');
     expect(index.body).not.toContain('name="provider" value="mock"');
   });
 
@@ -545,7 +545,8 @@ workspaces:
     expect(response.body).toContain("docs");
     expect(response.body).toContain("npm test");
     expect(response.body).toContain("npm run build");
-    expect(response.body).toContain('<option value="mock">mock</option>');
+    expect(response.body).toContain('<option value="deepseek" selected>deepseek</option>');
+    expect(response.body).not.toContain('<option value="mock">mock</option>');
     expect(response.body).not.toContain("registered-docs");
   });
 
@@ -1210,7 +1211,7 @@ workspaces:
     expect(response.json()).toEqual({ error: "Path escapes workspace root" });
   });
 
-  it("renders all configured providers as selectable options", async () => {
+  it("hides mock from the WebUI provider selector while defaulting to DeepSeek", async () => {
     const app = createServer({
       registry: new HarnessRegistry({
         mode: "webui",
@@ -1233,8 +1234,8 @@ workspaces:
     const response = await app.inject({ method: "GET", url: "/" });
 
     expect(response.body).toContain('name="provider"');
-    expect(response.body).toContain('<option value="mock">mock</option>');
-    expect(response.body).toContain('<option value="deepseek">deepseek</option>');
+    expect(response.body).not.toContain('<option value="mock">mock</option>');
+    expect(response.body).toContain('<option value="deepseek" selected>deepseek</option>');
   });
 
   it("returns a structured error when DeepSeek API key is missing", async () => {

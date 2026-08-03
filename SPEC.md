@@ -389,7 +389,7 @@ npm run demo:coding-task
 - Node.js：适合 CLI、server、SQLite、keychain integration 和 Docker
 - Vitest 或等价工具：确定性单元测试
 - SQLite：本地持久化 run history、memory 和 WebUI timeline
-- OpenAI-compatible API：当前用于 DeepSeek provider；mock provider 保证离线确定性测试
+- OpenAI-compatible API：当前用于 DeepSeek provider；WebUI 默认展示并选中 DeepSeek，mock provider 保留给离线确定性测试、CLI/API 调试和机制演示
 - Open Design：当前作为方案 B 的设计参考，不直接引入 runtime；涉及更完整前端 / UI 增强时再选择设计系统并补充 SPEC
 - Docker 和 Docker Compose：可复现分发与云服务器部署
 - GitHub Actions + `.gitlab-ci.yml`：兼顾用户偏好和课程 checklist
@@ -399,6 +399,7 @@ npm run demo:coding-task
 - `npm test` 能在无网络情况下运行全部核心机制测试。
 - harness main loop 是项目自有代码。
 - mock LLM run 不依赖真实 LLM 即可完成。
+- WebUI 默认使用 DeepSeek provider，且不在普通用户入口暴露 mock 选项。
 - 危险 action 在执行前被 block。
 - failure feedback event 会改变 mock LLM 的下一步 action。
 - `remember` action 能持久化 scoped memory，context retrieval 有边界。

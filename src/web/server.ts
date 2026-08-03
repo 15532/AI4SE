@@ -173,6 +173,17 @@ function appendSavedFlag(location: string): string {
   return `${location}${separator}saved=1`;
 }
 
+function publicWebProviders(registry: HarnessRegistry): PublicProvider[] {
+  const providers = registry.listProviders();
+  const visibleProviders = providers.filter((provider) => provider.id !== "mock");
+  const candidates = visibleProviders.length === 0 ? providers : visibleProviders;
+  const selectedProviderId = candidates.find((provider) => provider.id === "deepseek")?.id ?? candidates[0]?.id;
+  return candidates.map((provider) => ({
+    id: provider.id,
+    ...(provider.id === selectedProviderId ? { selected: true } : {})
+  }));
+}
+
 export function createServer(input: {
   workspaces?: WorkspaceConfig[];
   registry?: HarnessRegistry;
@@ -186,11 +197,21 @@ export function createServer(input: {
     mode: "webui",
     maxIterations: 10,
     workspaces: input.workspaces ?? [],
-    providers: [{ id: "mock", type: "mock" }]
+    providers: [
+      { id: "mock", type: "mock" },
+      {
+        id: "deepseek",
+        type: "deepseek-compatible",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        apiKeyEnv: "DEEPSEEK_API_KEY",
+        thinking: "disabled"
+      }
+    ]
   });
   const eventStore = new EventStore(input.dbPath ?? ":memory:");
   const memoryStore = new MemoryStore(input.dbPath ?? ":memory:");
-  const providers: PublicProvider[] = registry.listProviders().map((provider) => ({ id: provider.id }));
+  const providers: PublicProvider[] = publicWebProviders(registry);
   const publicWorkspaces = () => registry.listWorkspaces().map((workspace) => publicWorkspace(workspace, memoryStore, eventStore));
 
   const storedRun = (id: string) => {
