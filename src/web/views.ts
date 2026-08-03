@@ -242,6 +242,12 @@ const baseStyles = `
       .chat-timeline-list li { display: grid; gap: 6px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; }
       .chat-timeline-list strong { font-size: 13px; }
       .chat-timeline-list pre { margin: 0; max-height: 220px; overflow: auto; background: #f3f4f6; color: #1f2937; border: 1px solid #e5e7eb; }
+      .chat-event-summary-list { display: flex; gap: 6px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
+      .chat-event-summary-list li { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 8px; border: 1px solid #e5e7eb; border-radius: 999px; background: #f9fafb; color: #4b5563; font-size: 12px; }
+      .chat-event-sequence { color: #9ca3af; font-family: Consolas, monospace; }
+      .chat-timeline-details { display: grid; gap: 8px; }
+      .chat-timeline-details summary { cursor: pointer; color: #2563eb; font-size: 13px; font-weight: 700; }
+      .chat-timeline-details[open] summary { margin-bottom: 8px; }
       .chat-tool-call-list { display: grid; gap: 8px; margin-top: 2px; }
       .chat-tool-call-list h3 { color: #6b7280; font-size: 12px; text-transform: uppercase; }
       .chat-tool-card { display: grid; gap: 8px; padding: 11px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
@@ -515,6 +521,20 @@ function renderChatChangePanel(run: PublicChatRun): string {
               </section>`;
 }
 
+function renderChatEventSummary(timeline: PublicChatRun["timeline"]): string {
+  const items = timeline.map((event) => `
+                  <li data-event-kind="${escapeHtml(event.kind)}">
+                    <span class="chat-event-sequence">${event.sequence}</span>
+                    <span>${escapeHtml(eventLabel(event.kind))}</span>
+                  </li>`).join("");
+  return items === ""
+    ? ""
+    : `
+                <ul class="chat-event-summary-list" aria-label="运行事件摘要">
+                  ${items}
+                </ul>`;
+}
+
 function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?: string): string {
   if (run === undefined) {
     return `
@@ -534,6 +554,13 @@ function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?:
                 </li>`).join("");
   const toolCards = compact ? "" : renderChatToolCards(run, sessionId);
   const changePanel = compact ? "" : renderChatChangePanel(run);
+  const eventSummary = compact ? "" : renderChatEventSummary(run.timeline);
+  const timelineDetails = compact
+    ? ""
+    : `<details class="chat-timeline-details">
+                  <summary>查看完整 timeline (${run.timeline.length})</summary>
+                  <ol class="chat-timeline-list">${timelineItems}</ol>
+                </details>`;
   const isLive = run.status === "running" && !compact;
   const lastSequence = run.timeline.reduce((max, event) => Math.max(max, event.sequence), 0);
   const liveAttrs = isLive
@@ -563,7 +590,8 @@ function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?:
                 <p>${escapeHtml(run.summary ?? "这次运行没有返回 summary，请查看 timeline 事件。")}</p>
                 ${approvalItems}
                 ${toolCards}
-                ${compact ? "" : `<ol class="chat-timeline-list">${timelineItems}</ol>`}
+                ${eventSummary}
+                ${timelineDetails}
               </div>
               ${changePanel}
             </div>

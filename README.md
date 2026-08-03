@@ -12,7 +12,7 @@
 
 ## 对话内工具调用展示 V1
 
-对话页会从 run timeline 中提取 `tool_result` 事件，并在 AI 回复卡片中渲染为可读的工具调用列表。`list_files`、`read_file`、`write_file`、`run_command` 和 `remember` 会显示为中文动作名、目标路径或命令、执行原因、成功/失败状态以及输出预览；完整原始 timeline 仍保留在下方，便于调试 harness 机制。
+对话页会从 run timeline 中提取 `tool_result` 事件，并在 AI 回复卡片中渲染为可读的工具调用列表。`list_files`、`read_file`、`write_file`、`run_command` 和 `remember` 会显示为中文动作名、目标路径或命令、执行原因、成功/失败状态以及输出预览；运行事件默认显示为摘要条，完整原始 timeline 收进可展开详情区，便于调试 harness 机制但不挤占对话主线。
 
 ## 对话内文件联动 V1
 

@@ -619,6 +619,11 @@ workspaces:
     expect(page.body).toContain("node --version");
     expect(page.body).toContain("Readable tool cards");
     expect(page.body).toContain("成功");
+    expect(page.body).toContain("chat-event-summary-list");
+    expect(page.body).toContain('data-event-kind="tool_result"');
+    expect(page.body).toContain('data-event-kind="stop"');
+    expect(page.body).toContain('<details class="chat-timeline-details">');
+    expect(page.body).toContain('<ol class="chat-timeline-list">');
   });
 
   it("links file tool calls to the in-chat preview panel and guarded editor", async () => {
