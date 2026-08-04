@@ -213,6 +213,67 @@ describe("runAgentLoop", () => {
     expect(inputs[1].context).toContain("invalid_action");
   });
 
+  it("feeds transient provider errors back into the next iteration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-provider-error-"));
+    await writeFile(join(root, "README.md"), "# Demo\n", "utf8");
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        if (inputs.length === 1) {
+          return JSON.stringify({ type: "read_file", path: "README.md", reason: "inspect" });
+        }
+        if (inputs.length === 2) {
+          throw new Error("Provider deepseek request failed with status 503");
+        }
+        return JSON.stringify({ type: "finish", summary: "recovered" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "recover from provider error",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: [] },
+      provider,
+      maxIterations: 3
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(3);
+    expect(inputs[2].context).toContain("provider_error");
+    expect(result.events).toContainEqual(expect.objectContaining({
+      kind: "feedback",
+      feedback: expect.objectContaining({
+        source: "provider_error",
+        message: "Provider request failed"
+      })
+    }));
+  });
+
+  it("blocks when provider errors on the final iteration", async () => {
+    const provider: LLMProvider = {
+      async complete() {
+        throw new Error("Provider deepseek request failed with status 503");
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "handle final provider error",
+      workspace: { id: "demo", name: "Demo", root: process.cwd(), allowedCommands: [] },
+      provider,
+      maxIterations: 1
+    });
+
+    expect(result.status).toBe("blocked");
+    expect(result.events).toContainEqual(expect.objectContaining({
+      kind: "feedback",
+      feedback: expect.objectContaining({ source: "provider_error" })
+    }));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      kind: "stop",
+      reason: "provider_error"
+    }));
+  });
+
   it("blocks guardrail-rejected actions and records the decision", async () => {
     const result = await runAgentLoop({
       task: "inspect outside workspace",

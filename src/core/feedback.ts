@@ -7,6 +7,7 @@ export type Feedback = {
     | "static_check_failed"
     | "tool_succeeded"
     | "duplicate_action"
+    | "provider_error"
     | "credential_missing";
   severity: "info" | "warning" | "error";
   message: string;
@@ -80,5 +81,15 @@ export function feedbackCredentialMissing(provider: string): Feedback {
     severity: "error",
     message: `Credential is missing for ${provider}`,
     payload: { provider }
+  };
+}
+
+export function feedbackFromProviderError(error: unknown): Feedback {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    source: "provider_error",
+    severity: "error",
+    message: "Provider request failed",
+    payload: { error: message }
   };
 }

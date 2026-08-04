@@ -555,3 +555,27 @@
 - 验证证据：
   - 红灯：新增 actions 测试先失败 3 项，均为 `LLM output is not valid JSON`。
   - 绿灯：实现后 `tests/core/actions.test.ts` 15 个测试通过；`tests/core/actions.test.ts tests/core/loop.test.ts tests/core/providers.test.ts` 共 34 个测试通过。
+
+### 2026-08-04 - Provider 临时错误恢复
+
+- 执行 agent：Codex App
+- 触发 Superpowers skills：
+  - `systematic-debugging`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 背景：
+  - WebUI 真实提交任务后，DeepSeek 在完成 `npm test` 工具调用之后返回一次 503。
+  - 旧行为是在 WebUI 后台层捕获异常并直接记录 `provider_error` stop，导致 run 变成 `blocked`，模型没有机会基于已经完成的工具结果返回 `finish`。
+- 根因：
+  - `runAgentLoop` 内部没有捕获 `provider.complete(...)` 异常。
+  - WebUI 的后台兜底只能保证进程不崩溃，不能把 provider 抖动作为模型可读反馈写回下一轮上下文。
+- Agent 动作：
+  - 在 `Feedback.source` 中加入 `provider_error`。
+  - 新增 `feedbackFromProviderError()`，把 provider 异常转为结构化反馈并进入事件流。
+  - 在 `runAgentLoop` 中捕获 provider 异常：非最后一轮继续迭代；最后一轮记录 `provider_error` stop 并返回 `blocked`。
+- TDD 证据：
+  - 红灯：新增 `tests/core/loop.test.ts` 两个用例，先失败于 provider 异常直接抛出。
+  - 绿灯：实现后定向测试 `npm.cmd test -- tests/core/loop.test.ts` 通过，16 个测试全部通过。
+- 学到的教训：
+  - 真实 LLM 接入必须把网络/API 抖动纳入 harness 状态机，而不是只依赖 WebUI 兜底异常处理。
+  - 已完成的工具结果比一次 provider 503 更重要；只要还有迭代预算，就应保留上下文并给模型收尾机会。

@@ -287,3 +287,13 @@ TDD 证据：
 决策：parser 先尝试解析完整响应；失败后只提取第一个完整 JSON object。提取算法必须支持字符串中的花括号和转义字符，避免误截 `write_file.content`。提取出的对象仍必须通过原有严格 action schema 校验，不能因此接受额外字段、未知 action 或错误字段类型。
 
 验证：新增三个 actions 测试先失败，覆盖尾部 prose、尾部反引号、字符串中花括号。实现 `extractFirstJsonObject()` 后，`tests/core/actions.test.ts` 15 个测试通过，并联动验证 actions/loop/providers 共 34 个测试通过。
+
+### Iteration 19 - Provider 临时错误进入反馈循环
+
+问题：WebUI 真实 run 中，DeepSeek 在工具调用已经成功后返回了一次 503。旧实现由 WebUI 后台层捕获异常并直接把 run 标记为 `blocked`，导致模型无法看到“工具已成功、但 provider 临时失败”的上下文，也无法返回最终中文摘要。
+
+决策：把 provider 异常处理下沉到 `runAgentLoop`。当 `provider.complete()` 抛错时，harness 记录 `provider_error` feedback；如果还剩迭代预算，则继续下一轮，把错误和已有工具结果一起交给模型；如果已经是最后一轮，再以 `provider_error` 停止并返回 `blocked`。
+
+原因：这属于核心 harness 状态机问题，不应只在 WebUI 做兜底。CLI、WebUI、未来服务器部署都会遇到模型服务抖动，因此恢复逻辑必须在 core loop 中统一实现。这样既能保留事件审计，也能减少真实 DeepSeek 偶发 503 对用户任务的破坏。
+
+验证：新增两个 loop 回归测试先失败于 provider 异常直接抛出；实现 `provider_error` feedback 和循环恢复后，`npm.cmd test -- tests/core/loop.test.ts` 通过，16 个测试全部通过。

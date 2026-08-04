@@ -1,6 +1,11 @@
 import { parseAction } from "./actions.js";
 import { buildContext } from "./context.js";
-import { feedbackFromCommandResult, feedbackFromGuardrail, type Feedback } from "./feedback.js";
+import {
+  feedbackFromCommandResult,
+  feedbackFromGuardrail,
+  feedbackFromProviderError,
+  type Feedback
+} from "./feedback.js";
 import type { LLMProvider } from "./providers.js";
 import type { Action } from "./actions.js";
 import { classifyAction } from "../runtime/guardrails.js";
@@ -87,6 +92,10 @@ function duplicateActionFeedback(action: Action): Feedback {
   };
 }
 
+function isMissingCredentialError(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith("Missing API key for provider ");
+}
+
 export async function runAgentLoop(input: {
   task: string;
   workspace: WorkspaceConfig;
@@ -147,7 +156,22 @@ export async function runAgentLoop(input: {
       "",
       buildLoopControl({ iteration, maxIterations: input.maxIterations })
     ].join("\n");
-    const response = await input.provider.complete({ task: input.task, context });
+    let response: string;
+    try {
+      response = await input.provider.complete({ task: input.task, context });
+    } catch (error) {
+      if (isMissingCredentialError(error)) {
+        throw error;
+      }
+      const providerFeedback = redactFeedback(feedbackFromProviderError(error));
+      feedback.push(providerFeedback);
+      record({ kind: "feedback", iteration, feedback: providerFeedback });
+      if (!isLastIteration) {
+        continue;
+      }
+      record({ kind: "stop", iteration, reason: "provider_error" });
+      return { runId, status: "blocked", events };
+    }
     record({ kind: "llm_response", iteration, response: redactString(response) });
 
     const parsed = parseAction(response);
