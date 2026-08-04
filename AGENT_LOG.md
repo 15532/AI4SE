@@ -579,3 +579,46 @@
 - 学到的教训：
   - 真实 LLM 接入必须把网络/API 抖动纳入 harness 状态机，而不是只依赖 WebUI 兜底异常处理。
   - 已完成的工具结果比一次 provider 503 更重要；只要还有迭代预算，就应保留上下文并给模型收尾机会。
+
+### 2026-08-04 - Provider 连续错误限流与 WebUI 摘要
+
+- 执行 agent：Codex App
+- 触发 Superpowers skills：
+  - `systematic-debugging`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 背景：
+  - 使用 WebUI 在 `deepseek-sandbox` 提交真实开发任务时，DeepSeek 连续返回 503。
+  - 上一轮恢复逻辑会把每次 503 写入 feedback 并继续迭代；当服务持续不可用时，会消耗全部 10 次迭代并在页面中展示一串重复 `provider_error`，且没有中文摘要。
+- 根因：
+  - transient provider error 恢复逻辑缺少“连续失败限流”。
+  - `/api/runs/:id` 没有把 stop event 中的 summary 提升到 run JSON 顶层，导致部分 WebUI/API 消费者仍看不到摘要。
+- Agent 动作：
+  - 在 `runAgentLoop` 中新增连续 provider error 计数，连续 3 次失败后提前停止。
+  - `provider_error` stop event 增加中文 summary，提示模型服务连续失败、任务未完成、时间线已保留。
+  - `storedRun()` 统一返回 `eventStore.summarizeRun(id)?.summary`，让 `/api/runs/:id` 与页面消费同一摘要来源。
+- TDD 证据：
+  - 红灯：新增 core 测试先失败于 provider 被调用 10 次。
+  - 绿灯：实现后 `npm.cmd test -- tests/core/loop.test.ts -t "provider errors"` 通过。
+  - Web 层新增测试覆盖连续 provider error 后 run JSON 带中文摘要，先暴露 `/api/runs/:id` 缺 summary，再修复后通过。
+- 学到的教训：
+  - “可恢复”不等于无限重试；真实模型服务持续不可用时，harness 应该快速给出可理解的状态，而不是制造噪声。
+
+### 2026-08-04 - WebUI 对话布局：用户消息右对齐
+
+- 执行 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 背景：
+  - 用户在真实 DeepSeek run 成功后反馈：当前“你”和用户输入内容仍位于左侧，视觉上不像对话式助手。
+- Agent 动作：
+  - 在用户消息节点上新增 `chat-message-user` 类。
+  - CSS 将用户消息网格改为 `minmax(0, 640px) 34px`，整体 `justify-self: end`，头像放右侧，文本右对齐。
+  - 移动端同步改为 `minmax(0, 1fr) 28px`，避免窄屏溢出。
+- TDD 证据：
+  - WebUI 测试先失败于缺少 `.chat-message-user` 样式和用户消息结构类。
+  - 实现后 `npm.cmd test -- tests/web/server.test.ts -t chat-first` 与 `npm.cmd test -- tests/web/server.test.ts -t browser-style` 通过。
+- 学到的教训：
+  - 对话式 IDE 的主体体验不只在功能链路，消息布局本身也要表达“用户在一侧、助手在另一侧”的空间关系。

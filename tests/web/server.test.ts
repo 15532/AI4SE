@@ -206,6 +206,7 @@ workspaces:
       id,
       workspaceId: "docs",
       status: "finished",
+      summary: "OPENAI_API_KEY=[REDACTED]",
       timeline: expect.any(Array)
     });
     expect(run.body).not.toContain("sk-web-secret");
@@ -242,6 +243,7 @@ workspaces:
     const page = await app.inject({ method: "GET", url: response.headers.location });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain("chat-session-thread");
+    expect(page.body).toContain('class="chat-message chat-message-user"');
     expect(page.body).toContain("chat-run-result");
     expect(page.body).toContain("run tests");
     expect(page.body).toContain("done");
@@ -592,6 +594,9 @@ workspaces:
     expect(response.body).toContain("chat-sidebar");
     expect(response.body).toContain("chat-thread");
     expect(response.body).toContain("chat-message");
+    expect(response.body).toContain(".chat-message-user");
+    expect(response.body).toContain("justify-self: end");
+    expect(response.body).toContain("grid-template-columns: minmax(0, 640px) 34px");
     expect(response.body).toContain("chat-composer");
     expect(response.body).toContain("chat-inspector");
     expect(response.body).toContain("task-composer");
@@ -1444,6 +1449,35 @@ workspaces:
       else process.env.HARNESS_TEST_WEB_DEEPSEEK_KEY = previousEnvKey;
       globalThis.fetch = previousFetch;
     }
+  });
+
+  it("returns a Chinese summary when provider errors repeat during a WebUI run", async () => {
+    const app = createServer({
+      workspaces,
+      providerFactory: () => ({
+        async complete() {
+          throw new Error("Provider deepseek request failed with status 503");
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo-ts", provider: "deepseek", task: "call provider" }
+    });
+
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json() as { id: string };
+    const run = await app.inject({ method: "GET", url: `/api/runs/${id}` });
+    const timeline = await app.inject({ method: "GET", url: `/api/runs/${id}/timeline` });
+
+    expect(run.json()).toEqual(expect.objectContaining({
+      status: "blocked",
+      summary: expect.stringContaining("模型服务")
+    }));
+    expect(timeline.body.match(/provider_error/g)?.length).toBe(4);
+    expect(timeline.body).toContain("模型服务连续 3 次请求失败");
   });
 
   it("renders timeline events as harness mechanism sections", async () => {

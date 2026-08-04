@@ -19,6 +19,7 @@ type AgentEvent = Record<string, unknown>;
 
 const credentialAssignmentPattern = /\b(?:openai_api_key|api[_-]?key|secret|token|password|private[_-]?key)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,}\]]+)/gi;
 const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;
+const maxConsecutiveProviderErrors = 3;
 
 function redactString(value: string): string {
   return value
@@ -96,6 +97,10 @@ function isMissingCredentialError(error: unknown): boolean {
   return error instanceof Error && error.message.startsWith("Missing API key for provider ");
 }
 
+function providerErrorSummary(consecutiveErrors: number): string {
+  return `模型服务连续 ${consecutiveErrors} 次请求失败，本次任务尚未完成。请稍后重试或检查模型服务状态；已完成的工具结果和错误信息已保留在时间线中。`;
+}
+
 export async function runAgentLoop(input: {
   task: string;
   workspace: WorkspaceConfig;
@@ -133,6 +138,7 @@ export async function runAgentLoop(input: {
         return `${status}: ${run.task}${suffix}`;
       });
   let lastActionSignature: string | undefined;
+  let consecutiveProviderErrors = 0;
 
   const record = (event: AgentEvent): void => {
     events.push(event);
@@ -163,15 +169,22 @@ export async function runAgentLoop(input: {
       if (isMissingCredentialError(error)) {
         throw error;
       }
+      consecutiveProviderErrors += 1;
       const providerFeedback = redactFeedback(feedbackFromProviderError(error));
       feedback.push(providerFeedback);
       record({ kind: "feedback", iteration, feedback: providerFeedback });
-      if (!isLastIteration) {
+      if (!isLastIteration && consecutiveProviderErrors < maxConsecutiveProviderErrors) {
         continue;
       }
-      record({ kind: "stop", iteration, reason: "provider_error" });
+      record({
+        kind: "stop",
+        iteration,
+        reason: "provider_error",
+        summary: providerErrorSummary(consecutiveProviderErrors)
+      });
       return { runId, status: "blocked", events };
     }
+    consecutiveProviderErrors = 0;
     record({ kind: "llm_response", iteration, response: redactString(response) });
 
     const parsed = parseAction(response);

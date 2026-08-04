@@ -297,3 +297,23 @@ TDD 证据：
 原因：这属于核心 harness 状态机问题，不应只在 WebUI 做兜底。CLI、WebUI、未来服务器部署都会遇到模型服务抖动，因此恢复逻辑必须在 core loop 中统一实现。这样既能保留事件审计，也能减少真实 DeepSeek 偶发 503 对用户任务的破坏。
 
 验证：新增两个 loop 回归测试先失败于 provider 异常直接抛出；实现 `provider_error` feedback 和循环恢复后，`npm.cmd test -- tests/core/loop.test.ts` 通过，16 个测试全部通过。
+
+### Iteration 20 - 连续 Provider 错误限流与中文摘要
+
+问题：真实 WebUI 回归中，DeepSeek 对一次开发任务连续返回 503。Iteration 19 的恢复逻辑会继续把错误反馈给下一轮，但当服务持续不可用时，10 次迭代会全部变成重复的 `provider_error`，用户看到的是 blocked、0 个工具调用、没有摘要。
+
+决策：在 core loop 中加入连续 provider error 阈值。连续 3 次 provider 请求失败后提前停止，并在 stop event 中写入中文 summary，说明模型服务连续失败、本次任务尚未完成、时间线已保留。同时让 `/api/runs/:id` 返回 `summary` 字段，保证 WebUI 和 API 看到同一份运行摘要。
+
+原因：持续 503 已不是模型行为纠偏问题，而是外部服务可用性问题。此时继续消耗迭代预算没有价值；更好的 harness 行为是保留审计记录、减少页面噪声、给用户明确的中文状态说明。
+
+验证：新增 core 测试先失败于 provider 被调用 10 次，修复后只调用 3 次并写入中文 summary。新增 Web 测试覆盖 `/api/runs/:id` 在连续 provider error 后返回 blocked 和中文 summary，先暴露 API 缺 summary，再修复后通过。
+
+### Iteration 21 - 用户消息右对齐
+
+问题：真实 WebUI 对话中，“你”和用户输入内容仍与助手消息一样从左侧开始，视觉上不像 Codex 桌面端的对话流。
+
+决策：不改消息数据结构，只在用户消息 article 上增加 `chat-message-user` 类，并通过 CSS 控制右对齐、头像在右、文本靠右。助手消息和运行结果卡片保持左侧，工具调用、文件变更、timeline 折叠逻辑不变。
+
+原因：这是纯布局改进，最小改动能降低回归风险；同时保留现有 DOM 层级，避免影响 live polling、session 渲染和 run 结果卡片。
+
+验证：新增 WebUI 断言要求页面包含 `.chat-message-user`、`justify-self: end`、用户消息结构类；测试先失败，样式与渲染实现后通过。

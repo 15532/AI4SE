@@ -282,13 +282,15 @@ export function createServer(input: {
     const run = eventStore.getRun(id);
     if (run === undefined) return undefined;
     const timeline = eventStore.listEvents(id);
+    const summary = eventStore.summarizeRun(id)?.summary;
     return {
       id: run.id,
       task: run.task,
       workspaceId: run.workspaceId,
       status: statusFromTimeline(timeline),
       approvals: eventStore.listPendingApprovals(id),
-      timeline
+      timeline,
+      ...(summary === undefined ? {} : { summary })
     };
   };
 

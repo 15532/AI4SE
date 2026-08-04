@@ -245,6 +245,10 @@ const baseStyles = `
       .chat-header-actions { display: flex; gap: 8px; align-items: center; }
       .chat-thread { min-height: 0; overflow: auto; display: grid; align-content: start; gap: 18px; padding: 28px min(8vw, 96px) 24px; }
       .chat-message { display: grid; grid-template-columns: 34px minmax(0, 760px); gap: 12px; align-items: start; }
+      .chat-message-user { grid-template-columns: minmax(0, 640px) 34px; justify-self: end; }
+      .chat-message-user .chat-avatar { grid-column: 2; grid-row: 1; }
+      .chat-message-user .chat-bubble { grid-column: 1; grid-row: 1; justify-items: end; text-align: right; }
+      .chat-message-user .chat-bubble > p { justify-self: end; }
       .chat-avatar { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #111827; color: #fff; font-weight: 800; font-size: 12px; }
       .chat-bubble { min-width: 0; display: grid; gap: 10px; color: #24292f; font-size: 15px; line-height: 1.65; }
       .chat-bubble p { margin: 0; }
@@ -368,7 +372,7 @@ const baseStyles = `
       @media (max-width: 1060px) { .workspace-editor-layout { grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); } .workspace-editor-note { grid-column: 1 / -1; } }
       @media (max-width: 1100px) { .codex-app-shell { grid-template-columns: 240px minmax(0, 1fr); } .codex-agent-panel { display: none; } }
       @media (max-width: 1180px) { .chat-app-shell { grid-template-columns: 230px minmax(0, 1fr); } .chat-inspector { display: none; } }
-      @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta, .session-panels, .session-dashboard, .workspace-editor-layout { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } .codex-app-shell { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(520px, 1fr); padding: 0; } .codex-app-bar, .codex-sidebar, .codex-editor-main { grid-column: 1; grid-row: auto; } .codex-agent-panel { display: grid; grid-column: 1; grid-row: auto; } .codex-sidebar { max-height: 240px; border-right: 0; border-bottom: 1px solid #d9dee7; } .chat-app-shell { grid-template-columns: 1fr; height: 100vh; min-height: 0; padding: 0; overflow: hidden; } .chat-sidebar, .chat-inspector { display: none; } .chat-thread, .chat-composer-wrap { padding-left: 16px; padding-right: 16px; } .chat-main { min-height: 0; } .chat-message { grid-template-columns: 28px minmax(0, 1fr); } .chat-context-attachments { margin-left: 40px; grid-template-columns: minmax(0, 1fr); } .chat-run-meta { grid-template-columns: 1fr; } }
+      @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta, .session-panels, .session-dashboard, .workspace-editor-layout { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } .codex-app-shell { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(520px, 1fr); padding: 0; } .codex-app-bar, .codex-sidebar, .codex-editor-main { grid-column: 1; grid-row: auto; } .codex-agent-panel { display: grid; grid-column: 1; grid-row: auto; } .codex-sidebar { max-height: 240px; border-right: 0; border-bottom: 1px solid #d9dee7; } .chat-app-shell { grid-template-columns: 1fr; height: 100vh; min-height: 0; padding: 0; overflow: hidden; } .chat-sidebar, .chat-inspector { display: none; } .chat-thread, .chat-composer-wrap { padding-left: 16px; padding-right: 16px; } .chat-main { min-height: 0; } .chat-message { grid-template-columns: 28px minmax(0, 1fr); } .chat-message-user { grid-template-columns: minmax(0, 1fr) 28px; } .chat-context-attachments { margin-left: 40px; grid-template-columns: minmax(0, 1fr); } .chat-run-meta { grid-template-columns: 1fr; } }
 `;
 
 function eventLabel(kind: string): string {
@@ -635,7 +639,7 @@ function chatRunDetailText(run: PublicChatRun): string {
 function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?: string): string {
   if (run === undefined) {
     return `
-          <article class="chat-message">
+          <article class="chat-message chat-message-user">
             <div class="chat-avatar">你</div>
             <div class="chat-bubble">
               <p>在底部输入框描述任务，例如：阅读项目结构，修复失败测试，并说明验证结果。</p>
@@ -665,7 +669,7 @@ function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?:
     : "";
 
   return `
-          <article class="chat-message">
+          <article class="chat-message chat-message-user">
             <div class="chat-avatar">你</div>
             <div class="chat-bubble">
               <p>${escapeHtml(run.task)}</p>

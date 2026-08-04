@@ -274,6 +274,32 @@ describe("runAgentLoop", () => {
     }));
   });
 
+  it("stops early with a Chinese summary after repeated provider errors", async () => {
+    let attempts = 0;
+    const provider: LLMProvider = {
+      async complete() {
+        attempts += 1;
+        throw new Error("Provider deepseek request failed with status 503");
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "handle repeated provider errors",
+      workspace: { id: "demo", name: "Demo", root: process.cwd(), allowedCommands: [] },
+      provider,
+      maxIterations: 10
+    });
+
+    expect(result.status).toBe("blocked");
+    expect(attempts).toBe(3);
+    expect(result.events.filter((event) => event.kind === "feedback")).toHaveLength(3);
+    expect(result.events).toContainEqual(expect.objectContaining({
+      kind: "stop",
+      reason: "provider_error",
+      summary: expect.stringContaining("模型服务")
+    }));
+  });
+
   it("blocks guardrail-rejected actions and records the decision", async () => {
     const result = await runAgentLoop({
       task: "inspect outside workspace",
