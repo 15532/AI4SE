@@ -597,6 +597,13 @@ workspaces:
     expect(response.body).toContain(".chat-message-user");
     expect(response.body).toContain("justify-self: end");
     expect(response.body).toContain("grid-template-columns: minmax(0, 640px) 34px");
+    expect(response.body).toContain("border-radius: 16px");
+    expect(response.body).toContain(".chat-message-user .chat-bubble");
+    expect(response.body).toContain("justify-self: end");
+    expect(response.body).toContain("text-align: right");
+    expect(response.body).toContain("background: #eef2ff");
+    expect(response.body).toContain(".chat-bubble.chat-run-result");
+    expect(response.body).toContain("background: transparent");
     expect(response.body).toContain("chat-composer");
     expect(response.body).toContain("chat-inspector");
     expect(response.body).toContain("task-composer");
