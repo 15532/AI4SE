@@ -110,6 +110,7 @@ describe("OpenAICompatibleProvider", () => {
     expect(messages[0].content).toContain("if feedback reports invalid_action, return a corrected JSON action");
     expect(messages[0].content).toContain("do not finish just because the user greeted you");
     expect(messages[0].content).toContain("finish after successful verification");
+    expect(messages[0].content).toContain("Do not use previous run summaries as proof for the current task");
   });
 
   it("uses credential resolver before environment variables when creating providers", async () => {

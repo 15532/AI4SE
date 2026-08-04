@@ -1101,3 +1101,14 @@ git commit -m "chore: add distribution and ci via subagent T11"
 - Docker/CI/README 由 T11 覆盖。
 - 一键测试入口 `npm test` 从 T1 开始建立，并贯穿全部 task。
 - Cursor 冷启动验证必须在 Task 1 前完成。
+
+## 2026-08-03 后续增强：DeepSeek 可用循环收尾
+
+在已完成 T1-T11 与对话式 WebUI 的基础上，本轮补强真实 DeepSeek 执行链路：
+
+- core loop 每轮上下文增加剩余迭代次数，让模型知道当前预算。
+- 最后一轮上下文明确要求返回 `finish`，并用中文总结完成内容、跳过原因或验证结果。
+- 连续重复同一动作时新增 `duplicate_action` feedback，避免模型反复查看同一文件或目录直到 `max_iterations`。
+- 对应测试：`tests/core/loop.test.ts` 中新增预算收尾与重复动作反馈回归测试。
+
+下一步应继续做真实沙箱 smoke test，观察 DeepSeek 是否能在 `deepseek-sandbox` 中完成小型代码任务、运行允许命令，并以中文摘要收尾。

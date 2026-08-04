@@ -2,6 +2,7 @@ import { parseAction } from "./actions.js";
 import { buildContext } from "./context.js";
 import { feedbackFromCommandResult, feedbackFromGuardrail, type Feedback } from "./feedback.js";
 import type { LLMProvider } from "./providers.js";
+import type { Action } from "./actions.js";
 import { classifyAction } from "../runtime/guardrails.js";
 import { dispatchTool } from "../runtime/tools.js";
 import type { WorkspaceConfig } from "../runtime/workspace.js";
@@ -41,6 +42,51 @@ function redactFeedback(feedback: Feedback): Feedback {
   return redactValue(feedback) as Feedback;
 }
 
+function actionSignature(action: Action): string {
+  switch (action.type) {
+    case "list_files":
+    case "read_file":
+      return `${action.type}:${action.path}`;
+    case "write_file":
+      return `${action.type}:${action.path}:${action.content}`;
+    case "run_command":
+      return `${action.type}:${action.command}`;
+    case "remember":
+      return `${action.type}:${action.scope}:${action.key}:${action.value}`;
+    case "finish":
+      return "finish";
+  }
+}
+
+function buildLoopControl(input: { iteration: number; maxIterations: number }): string {
+  const remaining = input.maxIterations - input.iteration;
+  const lines = [
+    "# Loop control",
+    `剩余迭代次数：${remaining}`,
+    "- 每一轮只返回一个 JSON action。"
+  ];
+
+  if (remaining === 1) {
+    lines.push(
+      "- 这是最后一轮：如果已有足够信息完成任务，必须返回 finish，并用中文说明修改内容、跳过原因或验证结果。",
+      "- 如果仍无法完成，也请返回 finish，总结阻塞原因与已经尝试过的步骤，不要再继续探索。"
+    );
+  } else if (remaining <= 2) {
+    lines.push("- 迭代次数即将用完；优先验证并返回 finish，不要重复已经完成的查看动作。");
+  }
+
+  return lines.join("\n");
+}
+
+function duplicateActionFeedback(action: Action): Feedback {
+  return {
+    source: "duplicate_action",
+    severity: "warning",
+    message: "不要连续重复同一个动作；请根据已有工具结果选择下一步，若信息足够则返回 finish。",
+    payload: { actionType: action.type }
+  };
+}
+
 export async function runAgentLoop(input: {
   task: string;
   workspace: WorkspaceConfig;
@@ -77,6 +123,7 @@ export async function runAgentLoop(input: {
         const suffix = summary?.summary === undefined ? "" : ` - ${summary.summary}`;
         return `${status}: ${run.task}${suffix}`;
       });
+  let lastActionSignature: string | undefined;
 
   const record = (event: AgentEvent): void => {
     events.push(event);
@@ -87,7 +134,7 @@ export async function runAgentLoop(input: {
 
   for (let iteration = 0; iteration < input.maxIterations; iteration += 1) {
     const isLastIteration = iteration === input.maxIterations - 1;
-    const context = buildContext({
+    const baseContext = buildContext({
       task: input.task,
       feedback,
       memories,
@@ -95,6 +142,11 @@ export async function runAgentLoop(input: {
       workspace: { id: input.workspace.id, name: input.workspace.name },
       allowedCommands: input.workspace.allowedCommands
     });
+    const context = [
+      baseContext,
+      "",
+      buildLoopControl({ iteration, maxIterations: input.maxIterations })
+    ].join("\n");
     const response = await input.provider.complete({ task: input.task, context });
     record({ kind: "llm_response", iteration, response: redactString(response) });
 
@@ -113,10 +165,18 @@ export async function runAgentLoop(input: {
 
     const { action } = parsed;
     record({ kind: "parsed_action", iteration, ok: true, action: redactValue(action) });
+    const currentActionSignature = actionSignature(action);
 
     if (action.type === "finish") {
       record({ kind: "stop", iteration, reason: "finish", summary: redactString(action.summary) });
       return { runId, status: "finished", events };
+    }
+
+    if (currentActionSignature === lastActionSignature) {
+      const repeatFeedback = redactFeedback(duplicateActionFeedback(action));
+      feedback.push(repeatFeedback);
+      record({ kind: "feedback", iteration, feedback: repeatFeedback });
+      continue;
     }
 
     const guardrail = classifyAction(action, input.workspace);
@@ -165,6 +225,7 @@ export async function runAgentLoop(input: {
       const nextFeedback = redactFeedback(feedbackFromCommandResult(result));
       feedback.push(nextFeedback);
       record({ kind: "feedback", iteration, feedback: nextFeedback });
+      lastActionSignature = currentActionSignature;
       continue;
     }
 
@@ -173,6 +234,7 @@ export async function runAgentLoop(input: {
     const nextFeedback = redactFeedback(feedbackFromCommandResult(result));
     feedback.push(nextFeedback);
     record({ kind: "feedback", iteration, feedback: nextFeedback });
+    lastActionSignature = currentActionSignature;
   }
 
   record({ kind: "stop", reason: "max_iterations" });

@@ -245,3 +245,45 @@ TDD 证据：
 - GitHub API 查询最近一次远端 `unit-test`：`feature/core-loop`、commit `78070cea36c0af89617812ffd46627d9dac9b5b2`、结果 `success`。
 - 链接：`https://github.com/15532/AI4SE/actions/runs/30786355322`。
 - GitHub API 查询当前仓库未发现 PR 记录；PR 创建/合并需由用户在 GitHub 上完成。
+
+### Iteration 17 - DeepSeek 循环预算与重复动作反馈
+
+问题：真实 DeepSeek run 在简单代码任务中可能持续探索、重复 `list_files` 或 `read_file`，最终达到 `max_iterations`，导致 WebUI 中没有自然的中文完成摘要。
+
+决策：不把该问题作为 WebUI 展示问题处理，而是在 core loop 层补充循环状态信号。每轮上下文追加剩余迭代次数；最后一轮明确要求模型返回 `finish` 并用中文总结。连续重复同一动作时，写入 `duplicate_action` feedback，提醒模型换下一步或收尾。
+
+原因：Project A 的关键评分点是 harness 机制，而不是单纯 prompt。将预算和重复动作做成代码级反馈，可以被 mock/stub LLM 测试稳定覆盖，也能改善真实 DeepSeek 接入后的行为。
+
+验证：新增 `tests/core/loop.test.ts` 回归测试，先确认缺少预算提示与重复动作反馈时失败，再实现 `Loop control` 与 `duplicate_action` 后通过。定向命令为 `npm.cmd test -- tests/core/loop.test.ts -t "final-iteration|repeated actions"`。
+
+#### Iteration 17 验证补充 - 真实 DeepSeek smoke test
+
+执行命令：`node dist/src/cli/main.js run --workspace deepseek-sandbox --provider deepseek --task "...冒泡排序..."`
+
+结果：运行 ID `c33eb4c1-6237-4c99-8cef-86c1073a2ca2`，状态 `finished`。DeepSeek 读取 `src/index.js` 后运行 `npm test`，沙箱内 2 个测试通过。模型随后重复执行了一次 `npm test`，harness 记录 `duplicate_action` warning；下一轮模型根据反馈返回中文 `finish`，摘要说明未修改文件、冒泡排序已实现、验证通过。
+
+结论：本轮补强已改善真实 DeepSeek 的收尾能力，能把重复动作转化为模型可读反馈并促使其返回中文完成摘要。剩余改进点是进一步减少“重复验证命令已经执行后才反馈”的成本。
+
+#### Iteration 17 后续优化 - 重复动作执行前拦截
+
+问题：第一次实现会在重复动作执行后才产生 `duplicate_action`，因此真实 DeepSeek smoke test 中仍重复运行了一次 `npm test`。
+
+决策：将重复动作检测前移到 guardrail 与 tool dispatch 之前。若当前非 `finish` action 的签名与上一条已执行 action 相同，harness 不再执行工具，而是直接写入 `duplicate_action` feedback 并进入下一轮。
+
+验证：扩展 `tests/core/loop.test.ts`，要求重复动作场景只产生 1 条 `tool_result`。该测试先失败于实际产生 2 条 `tool_result`，实现前置拦截后通过。
+
+#### Iteration 17 后续优化 - 当前 run 验证优先
+
+问题：真实 DeepSeek 可能把上一轮 recent run 摘要当作当前任务的验证证据，直接返回 `finish`，导致用户要求“请运行 npm test”时没有在当前 run 中执行验证。
+
+决策：在 context 操作规则和 DeepSeek system prompt 中同时声明：Recent runs 只是背景上下文，不能作为当前任务证明；若当前任务要求验证，必须在本轮 run 中执行允许的验证命令。
+
+验证：新增 context/provider prompt 测试先失败，补充规则后通过。真实 smoke test `1f085cfc-c4c5-4514-9fc4-df0ba9c2543e` 显示 DeepSeek 在当前 run 中执行了 `npm test`，2 个测试通过；随后重复 `npm test` 被 `duplicate_action` 前置拦截，没有再次执行命令，最终返回中文 `finish`。
+
+### Iteration 18 - Parser 容错与严格 schema 并存
+
+问题：真实 DeepSeek 偶尔会返回 `JSON action + 自然语言解释`，或在 JSON 后多出反引号。旧 parser 会把它们判为 `invalid_action`，虽然 feedback loop 能恢复，但会增加噪声和迭代成本。
+
+决策：parser 先尝试解析完整响应；失败后只提取第一个完整 JSON object。提取算法必须支持字符串中的花括号和转义字符，避免误截 `write_file.content`。提取出的对象仍必须通过原有严格 action schema 校验，不能因此接受额外字段、未知 action 或错误字段类型。
+
+验证：新增三个 actions 测试先失败，覆盖尾部 prose、尾部反引号、字符串中花括号。实现 `extractFirstJsonObject()` 后，`tests/core/actions.test.ts` 15 个测试通过，并联动验证 actions/loop/providers 共 34 个测试通过。

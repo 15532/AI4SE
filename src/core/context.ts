@@ -57,6 +57,7 @@ export function buildContext(input: {
     "- If the task asks for a small new feature or algorithm, create or update the appropriate file in this workspace instead of only describing the answer.",
     "- Do not keep calling list_files after the useful project layout is visible; move on to read_file, write_file, run_command, or finish.",
     "- After writing code, run an allowed verification command such as npm test or npm run build.",
+    "- Recent runs are background context only; if the current task asks for verification, you must verify it in this run instead of relying on previous summaries.",
     "- Write finish.summary in Chinese with 2-4 sentences, including changed files, implementation result, and verification result.",
     "- After successful verification, return finish instead of repeating read_file, list_files, or write_file.",
     "- If feedback reports invalid_action, return a corrected JSON action with the exact required shape.",

@@ -89,6 +89,60 @@ describe("runAgentLoop", () => {
     expect(inputs[1].context).toContain("useful tool output");
   });
 
+  it("adds final-iteration guidance before the model runs out of budget", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-budget-"));
+    await writeFile(join(root, "README.md"), "# Demo\n", "utf8");
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        return inputs.length === 1
+          ? JSON.stringify({ type: "list_files", path: ".", reason: "inspect" })
+          : JSON.stringify({ type: "finish", summary: "已完成检查，没有修改文件。" });
+      }
+    };
+
+    await runAgentLoop({
+      task: "inspect and finish",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: [] },
+      provider,
+      maxIterations: 2
+    });
+
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0].context).toContain("剩余迭代次数：2");
+    expect(inputs[1].context).toContain("这是最后一轮");
+    expect(inputs[1].context).toContain("finish");
+  });
+
+  it("feeds repeated actions back into the next iteration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-repeat-"));
+    await writeFile(join(root, "README.md"), "# Demo\n", "utf8");
+    const inputs: Array<{ task: string; context: string }> = [];
+    const repeatedAction = JSON.stringify({ type: "list_files", path: ".", reason: "inspect" });
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        return inputs.length <= 2
+          ? repeatedAction
+          : JSON.stringify({ type: "finish", summary: "已完成目录检查，未修改文件。" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "avoid repeating inspection",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: [] },
+      provider,
+      maxIterations: 3
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(3);
+    expect(inputs[2].context).toContain("duplicate_action");
+    expect(inputs[2].context).toContain("不要连续重复同一个动作");
+    expect(result.events.filter((event) => event.kind === "tool_result")).toHaveLength(1);
+  });
+
   it("includes recent run summaries from the same workspace in provider context", async () => {
     const dir = await mkdtemp(join(tmpdir(), "harness-loop-store-"));
     const eventStore = new EventStore(join(dir, "harness.sqlite"));

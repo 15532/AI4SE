@@ -76,6 +76,66 @@ function unwrapMarkdownJson(raw: string): string {
   return fenced?.[1] ?? raw;
 }
 
+function extractFirstJsonObject(raw: string): string | undefined {
+  const start = raw.indexOf("{");
+  if (start === -1) {
+    return undefined;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < raw.length; index += 1) {
+    const char = raw[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = inString;
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return raw.slice(start, index + 1);
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function parseJsonActionCandidate(raw: string): unknown {
+  try {
+    return JSON.parse(unwrapMarkdownJson(raw));
+  } catch {
+    const extracted = extractFirstJsonObject(raw);
+    if (extracted === undefined) {
+      throw new Error("No JSON object found");
+    }
+    return JSON.parse(extracted);
+  }
+}
+
 function normalizeProviderAction(value: unknown): unknown {
   if (!isRecord(value) || typeof value.type === "string" || typeof value.action !== "string") {
     return value;
@@ -87,7 +147,7 @@ function normalizeProviderAction(value: unknown): unknown {
 export function parseAction(raw: string): ParseActionResult {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(unwrapMarkdownJson(raw));
+    parsed = parseJsonActionCandidate(raw);
   } catch {
     return {
       ok: false,

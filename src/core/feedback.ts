@@ -6,6 +6,7 @@ export type Feedback = {
     | "test_failed"
     | "static_check_failed"
     | "tool_succeeded"
+    | "duplicate_action"
     | "credential_missing";
   severity: "info" | "warning" | "error";
   message: string;

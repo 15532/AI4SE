@@ -82,6 +82,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
               "after writing code, run an allowed verification command.",
               "When the task asks for a new small program or algorithm, create or update files in the current workspace.",
               "Do not repeatedly list files after you already know the project layout; read a likely file, write the change, then verify.",
+              "Do not use previous run summaries as proof for the current task; if the current task asks for verification, verify it in this run.",
               "finish after successful verification instead of repeating read_file, list_files, or write_file.",
               "if feedback reports invalid_action, return a corrected JSON action.",
               "if feedback reports safety_blocked, choose a safer allowed action.",

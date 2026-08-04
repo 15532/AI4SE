@@ -79,6 +79,55 @@ describe("parseAction", () => {
     });
   });
 
+  it("parses the first JSON action before trailing prose", () => {
+    const raw = [
+      JSON.stringify({ type: "run_command", command: "npm test", reason: "verify now" }),
+      "",
+      "I will run the tests now."
+    ].join("\n");
+
+    expect(parseAction(raw)).toEqual({
+      ok: true,
+      action: {
+        type: "run_command",
+        command: "npm test",
+        reason: "verify now"
+      }
+    });
+  });
+
+  it("parses the first JSON action before a dangling backtick", () => {
+    const raw = `${JSON.stringify({ type: "finish", summary: "已验证通过" })}\``;
+
+    expect(parseAction(raw)).toEqual({
+      ok: true,
+      action: {
+        type: "finish",
+        summary: "已验证通过"
+      }
+    });
+  });
+
+  it("keeps braces inside JSON strings when extracting the first action", () => {
+    const content = "export function value() { return { ok: true }; }\n";
+    const raw = `${JSON.stringify({
+      type: "write_file",
+      path: "src/index.js",
+      content,
+      reason: "write implementation"
+    })}\nDone.`;
+
+    expect(parseAction(raw)).toEqual({
+      ok: true,
+      action: {
+        type: "write_file",
+        path: "src/index.js",
+        content,
+        reason: "write implementation"
+      }
+    });
+  });
+
   it.each([
     ["null", null],
     ["array", []],

@@ -467,3 +467,91 @@
   - 当前本地新提交和未提交改动尚未 push，因此还需要用户手动 push 后补最新 CI 链接。
 - 学到的教训：
   - 分发闭环应诚实记录环境限制；不能伪造 registry 或 Docker build 结果。
+
+### 2026-08-03 - DeepSeek 循环收尾增强
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `systematic-debugging`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 关键上下文：
+  - 用户在 WebUI 中用 `deepseek-sandbox` 测试“写一个冒泡排序”时，出现过 `max_iterations`，并且模型重复查看文件或重复执行相似动作，没有及时返回 `finish`。
+  - WebUI 已经隐藏 mock 并默认 DeepSeek，因此真实模型的执行稳定性会直接影响项目可用性。
+- 根因判断：
+  - harness 已能解析 action、执行工具、写入反馈和展示结果；问题主要在循环协议对“预算”和“重复动作”的约束不够明确。
+  - 模型在最后几轮没有看到强制收尾提示，连续重复工具调用也只被记录为成功工具结果，没有形成可读的纠偏反馈。
+- Agent 动作：
+  - 在 `runAgentLoop` 中为每轮上下文追加 `Loop control`，包含剩余迭代次数。
+  - 在最后一轮明确要求：若已有足够信息，必须返回 `finish`，并用中文说明修改内容、跳过原因或验证结果。
+  - 新增 `duplicate_action` feedback，当模型连续返回同一个动作签名时，在下一轮提示“不要连续重复同一个动作”，并要求根据已有结果换动作或收尾。
+  - 为上述行为补充 TDD 回归测试，覆盖最后一轮提示和重复动作反馈。
+- 验证证据：
+  - 新增测试先失败于缺少 `剩余迭代次数` 与 `duplicate_action`。
+  - 实现后，定向测试 `npm.cmd test -- tests/core/loop.test.ts -t "final-iteration|repeated actions"` 通过。
+- 学到的教训：
+  - 真实 LLM 接入后，不能只依赖 system prompt；循环本身也要给模型提供明确的状态机信息。
+  - “工具调用成功”不等于“任务朝完成推进”，重复动作需要被视为可反馈的行为信号。
+
+### 2026-08-03 - DeepSeek 沙箱 smoke test
+
+- 运行命令：`node dist/src/cli/main.js run --workspace deepseek-sandbox --provider deepseek --task "...冒泡排序..."`
+- 运行 ID：`c33eb4c1-6237-4c99-8cef-86c1073a2ca2`
+- 结果：`finished`
+- 实际链路：
+  - DeepSeek 先读取 `src/index.js`，确认 `bubbleSort` 已实现。
+  - 随后运行 `npm test`，沙箱内 2 个 node test 全部通过。
+  - 模型又重复运行了一次 `npm test`，harness 写入 `duplicate_action` warning。
+  - 下一轮模型返回中文 `finish`：说明 `src/index.js` 已实现、未修改文件、`npm test` 通过且 2 个测试全部通过。
+- 后续优化点：
+  - 当前 `duplicate_action` 能把模型从重复动作中拉回收尾，但仍允许重复动作先执行一次。
+  - 后续可以考虑在“同一验证命令刚成功后”增加更强的完成提示，减少重复执行成本。
+
+### 2026-08-03 - 重复动作执行前拦截
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `test-driven-development`
+  - `verification-before-completion`
+- 目标：
+  - 将 `duplicate_action` 从“工具执行后的提示”前移为“工具执行前的拦截反馈”，减少真实 DeepSeek 反复运行同一命令的成本。
+- Agent 动作：
+  - 扩展 `tests/core/loop.test.ts`，要求连续重复同一 `list_files` 时只产生 1 条 `tool_result`。
+  - 先运行定向测试，确认当前实现失败于重复产生 2 条 `tool_result`。
+  - 修改 `runAgentLoop`：非 `finish` action 在 guardrail 和 tool dispatch 前检查 action signature；若与上一条已执行 action 相同，则仅记录 `duplicate_action` feedback 并进入下一轮。
+- 验证证据：
+  - 红灯：`npm.cmd test -- tests/core/loop.test.ts -t "feeds repeated actions"` 失败，提示期望 1 条 `tool_result`，实际为 2 条。
+  - 绿灯：实现后同一命令通过，`tests/core/loop.test.ts` 全部 14 个测试通过。
+
+### 2026-08-03 - 当前 run 验证优先级补强
+
+- 触发背景：
+  - 重复动作前置拦截后，真实 DeepSeek smoke test 一度直接引用上一轮摘要返回 `finish`，没有在当前 run 中重新执行用户要求的 `npm test`。
+- Agent 动作：
+  - 在 `buildContext` 操作规则中明确：Recent runs 只能作为背景上下文；如果当前任务要求验证，必须在本轮 run 中验证。
+  - 在 DeepSeek system prompt 中补充同样规则：不能把 previous run summaries 当作当前任务的证明。
+  - 为 context 和 provider prompt 增加 TDD 断言。
+- 验证证据：
+  - 新增断言先失败于缺少 recent-run 约束提示。
+  - 实现后，`tests/core/context.test.ts` 与 `tests/core/providers.test.ts -t "coding agent"` 通过。
+  - 真实 DeepSeek smoke test `1f085cfc-c4c5-4514-9fc4-df0ba9c2543e` 在当前 run 中执行了 `npm test`，2 个测试通过；后续重复 `npm test` 被 `duplicate_action` 前置拦截，未产生第二条命令执行结果，并最终中文 `finish`。
+- 剩余观察：
+  - DeepSeek 偶尔会在 JSON 后追加自然语言或反引号，当前 feedback loop 可以恢复，但后续可考虑在 parser 层增加更友好的“提取首个 JSON object”容错或在 prompt 中继续收紧。
+
+### 2026-08-04 - Parser 容错：提取首个 JSON action
+
+- 主 agent：Codex App
+- 触发 Superpowers skills：
+  - `test-driven-development`
+  - `verification-before-completion`
+- 背景：
+  - 真实 DeepSeek run 中出现过 `{"type":"run_command",...}` 后追加自然语言，或 JSON 后带多余反引号的输出。
+  - 旧 parser 会把这类输出全部判为 `invalid_action`，feedback loop 可以恢复，但 WebUI 会多出噪声事件，真实 run 也会浪费迭代次数。
+- Agent 动作：
+  - 在 `tests/core/actions.test.ts` 新增三个失败用例：JSON 后跟解释文字、JSON 后跟 dangling backtick、`write_file.content` 字符串内包含花括号时仍能正确提取。
+  - 在 `src/core/actions.ts` 增加 `extractFirstJsonObject()`，从第一个 `{` 开始扫描并计数花括号，同时正确处理字符串和转义字符。
+  - parser 只在完整 JSON parse 失败后尝试提取首个 JSON object；提取成功后仍走原有 `isAction()` 严格校验，因此额外字段、未知 action、字段类型错误仍会被拒绝。
+- 验证证据：
+  - 红灯：新增 actions 测试先失败 3 项，均为 `LLM output is not valid JSON`。
+  - 绿灯：实现后 `tests/core/actions.test.ts` 15 个测试通过；`tests/core/actions.test.ts tests/core/loop.test.ts tests/core/providers.test.ts` 共 34 个测试通过。

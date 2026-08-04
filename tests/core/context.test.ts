@@ -37,6 +37,8 @@ describe("buildContext", () => {
     expect(context).toContain("test_failed");
     expect(context).toContain("Recent runs");
     expect(context).toContain("fixed add function");
+    expect(context).toContain("Recent runs are background context only");
+    expect(context).toContain("must verify it in this run");
     expect(context).toContain("Do not finish before");
   });
 });
