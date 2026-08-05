@@ -25,15 +25,17 @@
 
 ---
 
-## 当前实现状态（2026-08-03）
+## 当前实现状态（2026-08-04）
 
 - Task 1-11 的核心实现已完成，并在 `feature/core-loop` 上形成中文提交历史。
-- 最新已提交补强：`d8a3fad 安全：实现加密凭据存储`。
+- 最新已提交补强：`1927205 界面：修复对话气泡对齐`。
 - 凭据安全 V2 已改为 AES-256-GCM 加密凭据文件，CLI 与 WebUI DeepSeek run 共用同一凭据解析链路。
 - WebUI 已补可选 Basic Auth：本地默认关闭，服务器通过 `WEBUI_ADMIN_PASSWORD` 启用。
+- DeepSeek 可用性已补强：parser 支持提取首个 JSON action、重复动作可在执行前反馈、provider 临时错误可进入 loop 恢复、连续 provider 错误会提前停止并返回中文摘要。
+- WebUI 已从运行控制面板升级为对话式代码助手：对话流为主体，文件、状态、最近运行、允许命令和文件预览作为辅助面板，用户消息在右侧并带气泡。
 - 分发闭环已补 `.dockerignore` 与 `docs/DISTRIBUTION.md`；当前机器未安装 Docker CLI，`docker build` 实机验证需在有 Docker 的机器或 CI 中补证据。
-- CI/CD 记录见 `docs/CI_CD_RECORD.md`：最近一次远端 `unit-test` success 为 `78070ce`；`d8a3fad` 和当前未提交改动 push 后需补最新 CI 链接。
-- `REFLECTION.md` 最终版必须由学生本人撰写，AI 只能辅助整理素材与润色。
+- CI/CD 记录见 `docs/CI_CD_RECORD.md`：已确认远端 `unit-test` success 到 `fd9117c`；`1927205` 及之后的文档提交 push 后需补最新 CI 链接。
+- `REFLECTION.md` 已有 AI 辅助中文初稿，最终版必须由学生本人审阅、个性化修改并确认。
 
 ---
 
@@ -1102,13 +1104,20 @@ git commit -m "chore: add distribution and ci via subagent T11"
 - 一键测试入口 `npm test` 从 T1 开始建立，并贯穿全部 task。
 - Cursor 冷启动验证必须在 Task 1 前完成。
 
-## 2026-08-03 后续增强：DeepSeek 可用循环收尾
+## 2026-08-03 至 2026-08-04 后续增强：DeepSeek 可用循环收尾与对话式 WebUI
 
-在已完成 T1-T11 与对话式 WebUI 的基础上，本轮补强真实 DeepSeek 执行链路：
+在已完成 T1-T11 与基础 WebUI 的基础上，后续补强真实 DeepSeek 执行链路与对话式 WebUI：
 
 - core loop 每轮上下文增加剩余迭代次数，让模型知道当前预算。
 - 最后一轮上下文明确要求返回 `finish`，并用中文总结完成内容、跳过原因或验证结果。
 - 连续重复同一动作时新增 `duplicate_action` feedback，避免模型反复查看同一文件或目录直到 `max_iterations`。
-- 对应测试：`tests/core/loop.test.ts` 中新增预算收尾与重复动作反馈回归测试。
+- parser 在完整 JSON 解析失败后提取首个 JSON object，同时保持严格 action schema 校验。
+- provider 临时错误进入 `provider_error` feedback；连续 3 次 provider 错误提前停止并返回中文摘要。
+- WebUI 默认 DeepSeek，隐藏 mock 入口；支持 `deepseek-sandbox` 干净工作区。
+- WebUI 主体改为对话流，工具调用和文件变更默认折叠，文件打开留在对话页面右侧预览。
+- 用户消息右对齐并加入气泡，助手消息和运行结果保持左侧结构化展示。
+- 对应测试：`tests/core/actions.test.ts`、`tests/core/loop.test.ts`、`tests/core/providers.test.ts`、`tests/web/server.test.ts` 均包含新增回归覆盖。
 
-下一步应继续做真实沙箱 smoke test，观察 DeepSeek 是否能在 `deepseek-sandbox` 中完成小型代码任务、运行允许命令，并以中文摘要收尾。
+服务器部署已完成：当前 WebUI 挂载在 `https://20230722.top/ai4se/`，采用 systemd + Nginx，Node 只监听 `127.0.0.1:3100`，工作区为干净的 `/opt/ai4se/workspaces/deepseek-sandbox`。本次按用户选择不启用 WebUI 登录界面，DeepSeek key 需要用户在服务器本地手动配置并建议先轮换旧 key。Docker/compose 验证因服务器未安装 Docker，按用户决定暂缓。
+
+最终交付前下一步：提交当前部署与文档改动，用户手动 push 后确认 GitHub Actions 最新 `unit-test` 通过；随后创建 PR 并补 PR 链接或截图。

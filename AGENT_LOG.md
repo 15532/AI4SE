@@ -622,3 +622,85 @@
   - 实现后 `npm.cmd test -- tests/web/server.test.ts -t chat-first` 与 `npm.cmd test -- tests/web/server.test.ts -t browser-style` 通过。
 - 学到的教训：
   - 对话式 IDE 的主体体验不只在功能链路，消息布局本身也要表达“用户在一侧、助手在另一侧”的空间关系。
+
+### 2026-08-04 - WebUI 对话气泡与错位修复
+
+- 执行 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `systematic-debugging`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 背景：
+  - 用户希望页面像 Codex 桌面端一样以对话为主体，并要求给“你”和助手消息加上气泡框。
+  - 第一次加入气泡后，用户截图反馈气泡错位：用户头像在右侧，但气泡盒子偏中间。
+- 根因：
+  - `.chat-message-user` 文章整体已经右对齐，但 `.chat-message-user .chat-bubble` 作为 grid item 没有设置 `justify-self: end`。
+  - 旧样式只让气泡内部文字右对齐，未让气泡盒子本身贴到用户消息列右端。
+- Agent 动作：
+  - 为普通 `.chat-bubble` 增加轻量边框、圆角、背景、内边距和 `width: fit-content`。
+  - 为用户气泡增加淡蓝背景、右侧贴齐、文本右对齐。
+  - 为 `.chat-bubble.chat-run-result` 清除外层边框和背景，避免运行结果卡片被重复包裹。
+  - 扩展 WebUI 测试断言，覆盖气泡样式、用户气泡右对齐和运行结果透明外层。
+- 验证证据：
+  - 红灯：新增气泡断言先失败于缺少 `border-radius: 16px`。
+  - 红灯：用户错位断言先失败于缺少用户气泡 `justify-self: end`。
+  - 绿灯：`npm.cmd test -- tests/web/server.test.ts -t "chat-first"` 通过。
+  - 绿灯：`npm.cmd run build` 通过。
+  - 绿灯：`npm.cmd test` 通过，20 个测试文件、190 个测试全部通过。
+- 提交：
+  - `1927205 界面：修复对话气泡对齐`
+- 学到的教训：
+  - 对话布局不能只看文字方向；头像、消息列和气泡盒子的对齐必须作为整体处理。
+  - 结构化运行结果和普通自然语言消息应采用不同视觉层级，否则页面会显得拥挤且难以扫描。
+
+### 2026-08-04 - 最终交付文档与反思补全
+
+- 执行 agent：Codex App
+- 触发 Superpowers skills：
+  - `brainstorming`
+  - `verification-before-completion`
+- 背景：
+  - 用户要求先补全文档和 `REFLECTION.md`。
+  - 当前项目已完成核心 harness、DeepSeek、WebUI、凭据安全、Basic Auth、CI/Docker 文档等主要工作，但最新本地提交尚需用户手动 push 后补最新 CI 链接。
+- Agent 动作：
+  - 补充 `SPEC_PROCESS.md` 的 Iteration 22/23，记录气泡修复、当前完成状态和剩余人工事项。
+  - 补充 `AGENT_LOG.md` 的最近工作日志，记录根因、动作、验证证据和提交号。
+  - 更新 `docs/CI_CD_RECORD.md`，说明最新已确认远端 CI 与最新本地提交之间的差距。
+  - 重写 `REFLECTION.md` 为完整中文初稿，覆盖需求理解、Superpowers、TDD、DeepSeek、安全、UI、CI/部署和人机协作边界。
+- 约束：
+  - 不把 `REFLECTION.md` 自动纳入 git 提交，除非用户之后明确要求。
+  - 不伪造尚未完成的 PR、服务器 Docker build、registry push 或公网部署记录。
+- 待用户完成：
+  - 审阅并个性化修改 `REFLECTION.md`。
+  - push 最新分支并确认 GitHub Actions 通过。
+  - 创建 PR 并保留链接或截图。
+  - 服务器部署时补 Docker/compose/公网访问证据。
+
+### 2026-08-04 - 服务器 systemd + Nginx 部署
+
+- 执行 agent：Codex App
+- 触发 Superpowers skills：
+  - `systematic-debugging`
+  - `test-driven-development`
+  - `verification-before-completion`
+- 背景：
+  - 用户提供 Debian 12 服务器、SSH key、域名 `20230722.top`，并明确当前服务器不使用 Docker。
+  - 用户不希望 WebUI 出现登录界面，因此本次部署不设置 `WEBUI_ADMIN_PASSWORD`。
+- Agent 动作：
+  - 为 WebUI 增加 `WEB_BASE_PATH=/ai4se` 子路径支持，便于挂在现有域名下且不影响 `/smart-kitchen/`。
+  - 修复 systemd 通过 `/opt/ai4se/current` 符号链接启动时入口判断不触发的问题。
+  - 在服务器安装 Node.js/npm，发布应用到 `/opt/ai4se/releases/*` 并通过 `/opt/ai4se/current` 指向当前版本。
+  - 创建持久配置 `/opt/ai4se/config/harness.server.yaml`，只注册干净的 `/opt/ai4se/workspaces/deepseek-sandbox` 工作区。
+  - 创建 `ai4se-harness.service`，监听 `127.0.0.1:3100`。
+  - 修改 Nginx HTTPS server block，新增 `/ai4se/` 反向代理，并保留原 `/smart-kitchen/` 路由。
+- 验证证据：
+  - 本地红灯：新增 symlink 启动测试先失败于 `isDirectEntrypoint is not a function`，实现后通过。
+  - 本地绿灯：`npm.cmd test -- tests/web/server.test.ts` 55 个测试通过；`npm.cmd run build` 通过。
+  - 服务器绿灯：`npm ci`、`npm run build`、sandbox `npm test`、sandbox `npm run build` 通过。
+  - 服务绿灯：`systemctl is-active ai4se-harness.service` 返回 `active`。
+  - API 绿灯：`https://20230722.top/ai4se/api/workspaces` 返回 `deepseek-sandbox`。
+  - 回归检查：`https://20230722.top/smart-kitchen/` 返回 `200`。
+- 安全记录：
+  - DeepSeek key 未写入仓库、命令或部署记录；用户需在服务器本地手动配置，并建议轮换误发到对话中的旧 key。
+  - 本次不启用登录界面是用户确认的短期课程演示取舍。

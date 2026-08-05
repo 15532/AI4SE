@@ -1,8 +1,9 @@
 import "dotenv/config";
 import { timingSafeEqual } from "node:crypto";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { HarnessRegistry, loadHarnessRegistry } from "../config/harness-config.js";
 import { createDefaultCredentialManager } from "../credentials/default-credential-manager.js";
 import { runAgentLoop } from "../core/loop.js";
@@ -138,6 +139,50 @@ function response(statusCode: number, value: unknown, contentType = "application
   return { statusCode, body, headers: { "content-type": contentType }, json: () => JSON.parse(body) };
 }
 
+function normalizeBasePath(value: string | undefined): string {
+  if (value === undefined || value.trim() === "" || value.trim() === "/") return "";
+  const trimmed = value.trim();
+  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.endsWith("/") ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+}
+
+function stripBasePath(pathname: string, basePath: string): string | undefined {
+  if (basePath === "") return pathname;
+  if (pathname === basePath) return "/";
+  if (pathname.startsWith(`${basePath}/`)) return pathname.slice(basePath.length) || "/";
+  return undefined;
+}
+
+function prefixLocation(location: string, basePath: string): string {
+  if (basePath === "" || !location.startsWith("/") || location.startsWith("//")) return location;
+  if (location === basePath || location.startsWith(`${basePath}/`) || location.startsWith(`${basePath}?`)) return location;
+  return `${basePath}${location}`;
+}
+
+function prefixHtmlInternalUrls(html: string, basePath: string): string {
+  if (basePath === "") return html;
+  return html.replace(
+    /\b(href|action|data-live-endpoint)="\/(?!\/)/g,
+    (_match, attribute: string) => `${attribute}="${basePath}/`
+  );
+}
+
+function applyBasePath(responseValue: InjectResponse, basePath: string): InjectResponse {
+  if (basePath === "") return responseValue;
+  const location = responseValue.headers.location;
+  const contentType = responseValue.headers["content-type"] ?? "";
+  return {
+    ...responseValue,
+    body: contentType.startsWith("text/html")
+      ? prefixHtmlInternalUrls(responseValue.body, basePath)
+      : responseValue.body,
+    headers: {
+      ...responseValue.headers,
+      ...(location === undefined ? {} : { location: prefixLocation(location, basePath) })
+    }
+  };
+}
+
 function unauthorizedResponse(): InjectResponse {
   return {
     statusCode: 401,
@@ -251,6 +296,7 @@ export function createServer(input: {
   dbPath?: string;
   providerFactory?: (provider: string) => LLMProvider;
   webAuth?: WebAuthConfig;
+  basePath?: string;
 }): {
   inject(input: InjectInput): Promise<InjectResponse>;
   listen(port: number, host?: string): Promise<{ close(): Promise<void> }>;
@@ -276,6 +322,7 @@ export function createServer(input: {
   const credentials = createDefaultCredentialManager(process.env);
   const providers: PublicProvider[] = publicWebProviders(registry);
   const webAuth = normalizeWebAuth(input.webAuth);
+  const basePath = normalizeBasePath(input.basePath);
   const publicWorkspaces = () => registry.listWorkspaces().map((workspace) => publicWorkspace(workspace, memoryStore, eventStore));
 
   const storedRun = (id: string) => {
@@ -417,6 +464,9 @@ export function createServer(input: {
     headers: Record<string, string | string[] | undefined> = {}
   ): Promise<InjectResponse> => {
     const url = new URL(requestUrl, "http://localhost");
+    const routedPath = stripBasePath(url.pathname, basePath);
+    if (routedPath === undefined) return response(404, "Not found", "text/plain; charset=utf-8");
+    url.pathname = routedPath;
     if (!isAuthorized(webAuth, headers)) return unauthorizedResponse();
     if (method === "GET" && url.pathname === "/") {
       const runId = url.searchParams.get("runId");
@@ -845,16 +895,22 @@ export function createServer(input: {
   };
 
   return {
-    inject: async (request) => handle(
-      request.method.toUpperCase(),
-      request.url,
-      request.body === undefined ? request.payload : parseBody(request.headers?.["content-type"], request.body),
-      request.headers
+    inject: async (request) => applyBasePath(
+      await handle(
+        request.method.toUpperCase(),
+        request.url,
+        request.body === undefined ? request.payload : parseBody(request.headers?.["content-type"], request.body),
+        request.headers
+      ),
+      basePath
     ),
     listen: (port, host) => new Promise((resolve, reject) => {
       const server = createHttpServer(async (request, serverResponse) => {
         const payload = await readBody(request);
-        const result = await handle(request.method?.toUpperCase() ?? "GET", request.url ?? "/", payload, request.headers);
+        const result = applyBasePath(
+          await handle(request.method?.toUpperCase() ?? "GET", request.url ?? "/", payload, request.headers),
+          basePath
+        );
         writeResponse(serverResponse, result);
       });
       server.once("error", reject);
@@ -873,6 +929,7 @@ export function createDefaultServer(options: { configPath?: string; dbPath?: str
   return createServer({
     registry,
     dbPath: options.dbPath ?? process.env.HARNESS_DB_PATH ?? "data/harness.sqlite",
+    basePath: process.env.WEB_BASE_PATH,
     webAuth: process.env.WEBUI_ADMIN_PASSWORD === undefined
       ? undefined
       : {
@@ -890,6 +947,19 @@ export async function startStandaloneWebServer(): Promise<void> {
   }
   await createDefaultServer().listen(port, host);
   console.log(`WebUI is listening on http://${host}:${port}`);
+}
+
+export function isDirectEntrypoint(moduleUrl: string, argvPath: string | undefined): boolean {
+  if (argvPath === undefined) return false;
+  const modulePath = resolve(fileURLToPath(moduleUrl));
+  const invokedPath = resolve(argvPath);
+  if (modulePath === invokedPath) return true;
+
+  try {
+    return realpathSync.native(modulePath) === realpathSync.native(invokedPath);
+  } catch {
+    return false;
+  }
 }
 
 async function readBody(request: IncomingMessage): Promise<unknown> {
@@ -912,7 +982,7 @@ function writeResponse(serverResponse: ServerResponse, result: InjectResponse): 
   serverResponse.end(result.body);
 }
 
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (isDirectEntrypoint(import.meta.url, process.argv[1])) {
   startStandaloneWebServer().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

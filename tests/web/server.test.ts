@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { createDefaultServer, createServer } from "../../src/web/server";
+import { createDefaultServer, createServer, isDirectEntrypoint } from "../../src/web/server";
 import type { LLMProvider } from "../../src/core/providers";
 import { EventStore } from "../../src/store/event-store";
 import { MemoryStore } from "../../src/store/memory-store";
@@ -56,6 +57,19 @@ async function waitForRunStatus(
 }
 
 describe("web server", () => {
+  it("recognizes standalone startup through a symlinked release path", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-web-entrypoint-"));
+    const releaseDir = join(root, "releases", "one", "dist", "src", "web");
+    await mkdir(releaseDir, { recursive: true });
+    const realServerPath = join(releaseDir, "server.js");
+    await writeFile(realServerPath, "console.log('server');\n", "utf8");
+    await symlink(join(root, "releases", "one"), join(root, "current"), "junction");
+
+    expect(
+      isDirectEntrypoint(pathToFileURL(realServerPath).href, join(root, "current", "dist", "src", "web", "server.js"))
+    ).toBe(true);
+  });
+
   it("requires Basic Auth for WebUI pages when admin password is configured", async () => {
     const app = createServer({
       workspaces,
@@ -165,6 +179,34 @@ workspaces:
       { id: "docs", name: "Docs", allowedCommands: ["npm run build"] }
     ]);
     expect(response.body).not.toContain("registered-docs");
+  });
+
+  it("serves the WebUI from a configured base path", async () => {
+    const app = createServer({
+      workspaces,
+      basePath: "/ai4se",
+      providerFactory: () => ({
+        async complete() {
+          return JSON.stringify({ type: "finish", summary: "done" });
+        }
+      })
+    });
+
+    const page = await app.inject({ method: "GET", url: "/ai4se/?workspaceId=demo-ts" });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('href="/ai4se/?workspaceId=demo-ts"');
+    expect(page.body).toContain('action="/ai4se/api/runs/start"');
+    expect(page.body).toContain('href="/ai4se/workspaces/demo-ts/files"');
+
+    const submitted = await app.inject({
+      method: "POST",
+      url: "/ai4se/api/runs",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "workspaceId=demo-ts&provider=mock&task=run+tests"
+    });
+
+    expect(submitted.statusCode).toBe(303);
+    expect(submitted.headers.location).toMatch(/^\/ai4se\/\?sessionId=[0-9a-f-]+&runId=[0-9a-f-]+$/);
   });
 
   it("runs the real agent loop for a registered workspace and returns its timeline", async () => {

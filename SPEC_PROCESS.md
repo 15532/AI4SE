@@ -317,3 +317,67 @@ TDD 证据：
 原因：这是纯布局改进，最小改动能降低回归风险；同时保留现有 DOM 层级，避免影响 live polling、session 渲染和 run 结果卡片。
 
 验证：新增 WebUI 断言要求页面包含 `.chat-message-user`、`justify-self: end`、用户消息结构类；测试先失败，样式与渲染实现后通过。
+
+### Iteration 22 - 对话气泡与错位修复
+
+问题：用户希望 WebUI 主体更像 Codex 桌面端的对话流。第一次加入对话气泡后，普通消息出现了气泡，但用户气泡的盒子没有贴到右侧，只是气泡内部文字右对齐，导致头像在最右而气泡偏中间。
+
+决策：将普通助手消息和用户消息都渲染为轻量圆角气泡；用户消息继续右侧展示，并将 `.chat-message-user .chat-bubble` 本身设置为 `justify-self: end`。运行结果卡片不再额外套气泡边框，避免“大结果卡片外再套一层卡片”的视觉噪声。
+
+原因：对话式代码助手的主体页面应以对话流为中心，文件、状态和运行细节只是辅助面板。气泡能增强“用户输入”和“助手回应”的边界，但工具结果和运行结果属于结构化工作产物，仍应保持卡片化展示。
+
+TDD 与验证证据：
+
+- 新增 WebUI 样式断言，先失败于缺少 `border-radius: 16px`、用户气泡背景和 run-result 透明外层。
+- 实现气泡样式后，用户反馈发现错位；随后新增断言覆盖 `justify-self: end` 与 `text-align: right`，先失败，再补齐用户气泡盒子右对齐。
+- `npm.cmd test -- tests/web/server.test.ts -t "chat-first"` 通过。
+- `npm.cmd run build` 通过。
+- `npm.cmd test` 通过，20 个测试文件、190 个测试全部通过。
+- 提交：`1927205 界面：修复对话气泡对齐`。
+
+### Iteration 23 - 最终交付文档补全
+
+问题：项目已经完成核心 harness、DeepSeek 接入、WebUI 对话式体验、安全与分发的大部分工作，但过程文档和个人反思仍需要补齐，最终 CI/PR/Docker 证据也需要明确哪些已经完成、哪些需要用户在外部环境补充。
+
+决策：补齐 `SPEC_PROCESS.md`、`AGENT_LOG.md`、`docs/CI_CD_RECORD.md` 与 `REFLECTION.md`。过程文档只记录可验证事实，不伪造服务器 Docker build、registry push 或 PR 记录。`REFLECTION.md` 写成可提交的中文初稿，但保留说明：最终版本仍应由学生本人检查和个性化修改。
+
+当前完成状态：
+
+- 核心功能：严格 JSON action、parser、guardrail、工具分发、feedback loop、memory、SQLite timeline、CLI、WebUI 均已实现。
+- 真实模型：DeepSeek OpenAI-compatible provider 已接入，WebUI 默认使用 DeepSeek，mock 保留用于离线测试和机制验证。
+- 可用性：支持 `deepseek-sandbox` 这样的独立 workspace；WebUI 主体为对话流，文件列表、文件预览、运行状态、最近运行和允许命令为辅助面板。
+- 安全：加密凭据文件、环境变量 fallback、日志/响应脱敏、Basic Auth、公网部署说明、`.dockerignore` 均已补强。
+- 测试：当前本地 `npm.cmd run build` 与 `npm.cmd test` 均通过。
+
+仍需用户完成：
+
+- 手动 push 最新本地提交后，确认 GitHub Actions 最新 run 通过，并把链接补进 `docs/CI_CD_RECORD.md`。
+- 在 GitHub 创建 PR，保留 PR 链接、评审/合并记录或截图。
+- 服务器部署阶段补跑 Docker build 或 compose 验证；若推送 registry，补真实 `docker pull` 命令。
+- 最终提交前由用户本人审阅并润色 `REFLECTION.md`，确保内容符合个人真实经历和表达。
+
+### Iteration 24 - 服务器 systemd + Nginx 部署
+
+问题：最终交付需要可访问的 WebUI URL。用户提供了 Debian 12 服务器、SSH 私钥、域名 `20230722.top`，并说明服务器当前没有 Docker，已有 SmartKitchen 通过 systemd + Nginx 部署在 `/smart-kitchen/`。
+
+决策：本次不强行安装 Docker，也不改动 SmartKitchen 服务；采用 Node.js + systemd + Nginx 子路径部署。Harness 挂载到 `https://20230722.top/ai4se/`，Node 只监听 `127.0.0.1:3100`。配置、数据和工作区放在 `/opt/ai4se/config`、`/opt/ai4se/data`、`/opt/ai4se/workspaces`，应用代码采用 `/opt/ai4se/releases/*` + `/opt/ai4se/current` 的版本化发布结构。
+
+实现细节：
+
+- 新增 `WEB_BASE_PATH` 支持，使 WebUI 的链接、表单 action、live polling endpoint 和 redirect location 能在 `/ai4se` 子路径下工作。
+- 修复 standalone 入口判断，支持 systemd 通过 `/opt/ai4se/current` 符号链接启动，而实际 ESM `import.meta.url` 指向真实 release 目录的情况。
+- 服务器专用配置只注册 `deepseek-sandbox`，避免 WebUI 文件列表暴露本项目源码或其他无关目录。
+- 按用户选择不启用 WebUI 登录界面；这是短期课程演示取舍，正式长期公网开放仍建议启用 Basic Auth、VPN、SSO 或其他访问控制。
+
+验证：
+
+- 本地：新增 symlink 入口测试先失败，修复后 `npm.cmd test -- tests/web/server.test.ts` 55 个测试通过，`npm.cmd run build` 通过。
+- 服务器：`npm ci` 与 `npm run build` 通过；sandbox `npm test` 与 `npm run build` 通过。
+- 服务：`systemctl is-active ai4se-harness.service` 为 `active`，Node 监听 `127.0.0.1:3100`。
+- 公网：`https://20230722.top/ai4se/api/workspaces` 返回 `deepseek-sandbox`。
+- 回归：`https://20230722.top/smart-kitchen/` 返回 `200`。
+
+待补：
+
+- 用户应轮换误发到对话中的 DeepSeek key，并在服务器 `/opt/ai4se/.env` 本地手动配置新 key。
+- Docker build/compose 验证按用户决定暂缓到服务器安装 Docker 后再补。

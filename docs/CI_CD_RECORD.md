@@ -1,6 +1,6 @@
 # CI/CD 与 PR 工作流记录
 
-更新时间：2026-08-03
+更新时间：2026-08-04
 
 ## CI 配置
 
@@ -41,7 +41,13 @@ GitLab CI：
 
 - `fd9117c 交付：补访问控制分发与过程记录`
 
-Docker build 已包含在 GitHub Actions workflow 中。独立服务器 Docker 验证将在服务器部署阶段补充到 `docs/DISTRIBUTION.md`。
+当前本地最新提交已经继续推进到：
+
+- `1927205 界面：修复对话气泡对齐`
+
+`fd9117c` 之后的本地提交包含 DeepSeek 循环收尾、parser 容错、provider 错误恢复、对话式 WebUI 体验、服务器 systemd + Nginx 部署支持和最终文档补全等工作。由于用户采用手动 push 流程，这些提交需要 push 到 GitHub 后再确认最新 GitHub Actions 结果，并在本文件补充新的 run 链接。
+
+Docker build 已包含在 GitHub Actions workflow 中。当前服务器未安装 Docker，用户决定 Docker/compose 验证暂缓；systemd + Nginx 部署证据已补充到 `docs/DISTRIBUTION.md`。
 
 ## PR 工作流记录
 
@@ -64,4 +70,10 @@ git -C D:\Projects\AI4SE\.worktrees\feature-core-loop push origin feature/core-l
 - 最新 `unit-test` workflow 必须为 `success`。
 - PR 页面应展示完整 commit 历史。
 - 不应包含 `.env`、SQLite 数据库、加密凭据文件、日志或真实 secret。
-- Docker build 已在 GitHub Actions workflow 中执行；服务器部署阶段仍应补充目标服务器上的 `docker build` 或 `docker compose up --build` 记录。
+- Docker build 已在 GitHub Actions workflow 中执行；目标服务器 Docker/compose 验证按用户决定暂缓，systemd + Nginx 部署记录见 `docs/DISTRIBUTION.md`。
+
+## 最新证据待补清单
+
+- 用户 push `1927205` 及之后的部署/文档提交后，补最新 GitHub Actions run 链接。
+- 创建 PR 后，补 PR 链接、base/compare 分支和最终合并状态。
+- 若课程要求容器分发，服务器或 registry 验证后补 `docker pull` 或 `docker compose up --build` 的真实记录。

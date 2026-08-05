@@ -181,8 +181,9 @@ workspaces:
 - `HARNESS_CREDENTIAL_STORE_PATH`：指定加密凭据文件路径，默认 `data/credentials.enc.json`。
 - `HARNESS_MASTER_PASSWORD`：加密凭据文件主密码；未设置时不能读写加密凭据。
 - `PORT`：指定 WebUI 端口；服务端默认 `3000`，一键本地脚本默认覆盖为 `3100` 以避开 Windows 常见端口排除范围。
+- `WEB_BASE_PATH`：指定 WebUI 挂载子路径，例如服务器部署使用 `/ai4se`，本地根路径启动可留空。
 - `WEBUI_ADMIN_USER`：WebUI Basic Auth 用户名，默认 `admin`。
-- `WEBUI_ADMIN_PASSWORD`：WebUI Basic Auth 口令；为空时本地默认不启用认证，公网部署必须设置。
+- `WEBUI_ADMIN_PASSWORD`：WebUI Basic Auth 口令；为空时不启用认证。本次服务器演示部署按用户选择暂不设置登录界面；正式长期公网开放时建议启用 Basic Auth、VPN、SSO 或其他访问控制。
 - `DEEPSEEK_API_KEY`：DeepSeek provider 的环境变量 fallback；优先级低于加密凭据文件，只能放在受控部署环境或未提交的本地 `.env`。
 
 PowerShell 示例：
@@ -454,14 +455,24 @@ Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` �
 服务器部署建议：
 
 - 在反向代理、进程管理器或平台 secret 中配置 `HARNESS_MASTER_PASSWORD`；真实 DeepSeek key 优先写入加密凭据文件，`DEEPSEEK_API_KEY` 只作为受控 fallback。
-- 在公网部署时配置 `WEBUI_ADMIN_PASSWORD` 启用内置 Basic Auth；用户名默认 `admin`，可用 `WEBUI_ADMIN_USER` 覆盖。
+- 若是正式长期公网开放，建议配置 `WEBUI_ADMIN_PASSWORD` 启用内置 Basic Auth；用户名默认 `admin`，可用 `WEBUI_ADMIN_USER` 覆盖。本次课程演示部署按用户要求暂不启用登录界面，必须避免在页面中展示或回传任何 secret。
 - 将 `data/` 或 `/app/data` 持久化，否则重启后 session、timeline 和 memory 会丢失。
 - 修改 `config/harness.example.yaml` 或使用独立配置文件注册服务器上的 workspace；WebUI 只能选择已注册 workspace id。
 - 只把经过 HTTPS、反向代理或等价网络边界保护的入口暴露给访问者；不建议直接暴露容器 `3000` 端口。
 
+当前课程演示服务器采用 systemd + Nginx，不使用 Docker：
+
+- WebUI：`https://20230722.top/ai4se/`
+- systemd：`ai4se-harness.service`
+- 应用目录：`/opt/ai4se/current`
+- 持久配置：`/opt/ai4se/config/harness.server.yaml`
+- 持久数据：`/opt/ai4se/data`
+- 工作区：`/opt/ai4se/workspaces/deepseek-sandbox`
+- 访问控制：按用户选择暂不启用登录界面；正式长期开放建议补 Basic Auth、VPN、SSO 或其他访问控制。
+
 ## 安全说明
 
-WebUI 默认不启用 password，适合本地开发；公网部署必须设置 `WEBUI_ADMIN_PASSWORD` 启用内置 Basic Auth，并建议继续放在 Nginx、VPN、SSO 或其他边界层之后。不要把容器端口直接裸露到公网。启用 DeepSeek provider、interactive session 或人工审批后，公网无认证风险更高，因为攻击者可以持续触发真实 harness run 或诱导管理员批准高风险动作。
+WebUI 默认不启用 password，适合本地开发或短期课程演示；正式长期公网部署建议设置 `WEBUI_ADMIN_PASSWORD` 启用内置 Basic Auth，并继续放在 Nginx、VPN、SSO 或其他边界层之后。不要把 Node 端口直接裸露到公网。启用 DeepSeek provider、interactive session 或人工审批后，公网无认证风险更高，因为攻击者可以持续触发真实 harness run 或诱导管理员批准高风险动作。本次服务器部署按用户选择不设置登录界面，作为已记录的演示期取舍。
 
 当前 v1 已支持 DeepSeek OpenAI-compatible provider，并保留 mock provider 用于离线测试。`CredentialManager` 默认使用 AES-256-GCM 加密凭据文件，DeepSeek key 优先从该文件读取，其次才读取 `DEEPSEEK_API_KEY` fallback。真实 API key 绝不能提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。
 
