@@ -47,19 +47,22 @@ Docker build 已包含在 GitHub Actions workflow 中。当前服务器未安装
 
 ## PR 工作流记录
 
-通过 GitHub API 查询，当前仓库尚未发现 PR 记录。最终提交建议使用以下流程：
+已创建 PR（2026-08-06）：
 
-```powershell
-git -C D:\Projects\AI4SE\.worktrees\feature-core-loop status --short
-git -C D:\Projects\AI4SE\.worktrees\feature-core-loop push origin feature/core-loop
-```
-
-然后在 GitHub 创建 PR：
-
+- PR：https://github.com/15532/AI4SE/pull/1
+- 标题：`项目 A：Coding Agent Harness 完整实现（含 WebUI mock 机制演示）`
 - base：`main`
 - compare：`feature/core-loop`
-- 标题建议：`项目 A：Coding Agent Harness 完整实现`
-- PR 说明应包含：核心 harness、DeepSeek、WebUI、凭据安全、Basic Auth、Docker 分发、CI 链接和剩余人工事项。
+- 状态：`open`，`mergeable: true`
+- 创建时间：`2026-08-06T13:05:24Z`
+- PR 触发的 `unit-test` workflow：`https://github.com/15532/AI4SE/actions/runs/31104305686`，结果 `success`
+
+合并前检查：
+
+- 最新 `unit-test` workflow 必须为 `success`（push 与 pull_request 两次触发均已通过）。
+- PR 页面应展示完整 commit 历史。
+- 不应包含 `.env`、SQLite 数据库、加密凭据文件、日志或真实 secret。
+- Docker build 已在 GitHub Actions workflow 中执行；目标服务器 Docker/compose 验证按用户决定暂缓，systemd + Nginx 部署记录见 `docs/DISTRIBUTION.md`。
 
 合并前检查：
 
@@ -70,6 +73,6 @@ git -C D:\Projects\AI4SE\.worktrees\feature-core-loop push origin feature/core-l
 
 ## 最新证据待补清单
 
-- 创建 PR 后，补 PR 链接、base/compare 分支和最终合并状态。
+- PR 合并后，补最终合并状态（merged 时间与 merge commit）。
 - 若课程要求容器分发，服务器或 registry 验证后补 `docker pull` 或 `docker compose up --build` 的真实记录。
 - 若将本次 WebUI 机制演示修复同步到服务器，补服务器重新发布后的公网验证记录。
