@@ -720,3 +720,4 @@
   - `vitest run tests/web/server.test.ts`：56 个测试通过（含新的机制演示端到端测试）。
   - `vitest run tests/cli/demo.test.ts`：8 个测试通过。
 - 安全记录：演示在临时 workspace 中运行，不修改用户真实 workspace；无新增密钥或敏感信息。
+- 后续：用户确认继续下一步后，已 push `2d72daf` 到 `origin/feature/core-loop`，GitHub Actions `unit-test` run `31103992485` 返回 `success`（创建 2026-08-06T13:01:31Z，完成 13:02:24Z），并更新 `docs/CI_CD_RECORD.md`。

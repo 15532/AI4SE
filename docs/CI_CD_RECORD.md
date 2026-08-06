@@ -1,6 +1,6 @@
 # CI/CD 与 PR 工作流记录
 
-更新时间：2026-08-04
+更新时间：2026-08-06
 
 ## CI 配置
 
@@ -27,25 +27,21 @@ GitLab CI：
 - Actions 总览：`https://github.com/15532/AI4SE/actions`
 - 分支：`feature/core-loop`
 - workflow：`unit-test`
-- commit：`fd9117c7e5f1b17a5abbbe6e92a48aad5c935f9f`
-- 提交信息：`交付：补访问控制分发与过程记录`
+- commit：`2d72daf9b2fc53f2dc6dca144f64c30ea21f6602`
+- 提交信息：`功能：WebUI mock 机制演示接入确定性机制复现`
 - 状态：`completed`
 - 结果：`success`
-- 创建时间：`2026-08-03T09:53:46Z`
-- 更新时间：`2026-08-03T09:54:37Z`
-- 链接：`https://github.com/15532/AI4SE/actions/runs/30803331722`
+- 创建时间：`2026-08-06T13:01:31Z`
+- 更新时间：`2026-08-06T13:02:24Z`
+- 链接：`https://github.com/15532/AI4SE/actions/runs/31103992485`
 
 ## 当前本地状态说明
 
-当前本地分支为 `feature/core-loop`。已经确认远端 CI 通过的最新提交：
+当前分支为 `feature/core-loop`，本地与 `origin/feature/core-loop` 已同步。已经确认远端 CI 通过的最新提交：
 
-- `fd9117c 交付：补访问控制分发与过程记录`
+- `2d72daf 功能：WebUI mock 机制演示接入确定性机制复现`
 
-当前本地最新提交已经继续推进到：
-
-- `1927205 界面：修复对话气泡对齐`
-
-`fd9117c` 之后的本地提交包含 DeepSeek 循环收尾、parser 容错、provider 错误恢复、对话式 WebUI 体验、服务器 systemd + Nginx 部署支持和最终文档补全等工作。由于用户采用手动 push 流程，这些提交需要 push 到 GitHub 后再确认最新 GitHub Actions 结果，并在本文件补充新的 run 链接。
+该提交是 2026-08-06 resume 会话的成果：WebUI「mock 机制演示」按钮不再走默认一步 finish，而是接入 `runMechanismDemo` 的确定性复现（护栏拦截危险命令 → `test_failed` 失败反馈 → 模型据此改为 `write_file` 修正动作 → 中文 finish 摘要），并在对话流中展示完整 timeline。本地验证 `npm run typecheck`、`npm run build`、`npm test`（193 个测试）全部通过，push 后 GitHub Actions `unit-test` 成功。
 
 Docker build 已包含在 GitHub Actions workflow 中。当前服务器未安装 Docker，用户决定 Docker/compose 验证暂缓；systemd + Nginx 部署证据已补充到 `docs/DISTRIBUTION.md`。
 
@@ -74,6 +70,6 @@ git -C D:\Projects\AI4SE\.worktrees\feature-core-loop push origin feature/core-l
 
 ## 最新证据待补清单
 
-- 用户 push `1927205` 及之后的部署/文档提交后，补最新 GitHub Actions run 链接。
 - 创建 PR 后，补 PR 链接、base/compare 分支和最终合并状态。
 - 若课程要求容器分发，服务器或 registry 验证后补 `docker pull` 或 `docker compose up --build` 的真实记录。
+- 若将本次 WebUI 机制演示修复同步到服务器，补服务器重新发布后的公网验证记录。
