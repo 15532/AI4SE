@@ -400,6 +400,7 @@ npm run demo:coding-task
 - mock LLM run 不依赖真实 LLM 即可完成。
 - WebUI 默认使用 DeepSeek provider，普通模型选择器不暴露 mock 选项，但提供专门的 mock 机制演示入口。
 - WebUI 的“mock 机制演示”入口能在对话流中确定性复现护栏拦截、失败反馈与修正动作。
+- WebUI 提供“清除历史对话与工作区”入口，可清空历史并重置已注册工作区到初始模板。
 - 危险 action 在执行前被 block。
 - failure feedback event 会改变 mock LLM 的下一步 action。
 - `remember` action 能持久化 scoped memory，context retrieval 有边界。

@@ -192,6 +192,25 @@ export class EventStore {
     return this.getApproval(approvalId);
   }
 
+  clearHistory(): void {
+    const clear = this.db.transaction(() => {
+      for (const table of [
+        "approvals",
+        "events",
+        "session_runs",
+        "runs",
+        "sessions",
+        "actions",
+        "feedback",
+        "memory_items",
+        "workspace_config_snapshots"
+      ]) {
+        this.db.prepare(`DELETE FROM ${table}`).run();
+      }
+    });
+    clear();
+  }
+
   createRun(input: { task: string; workspaceId: string; mode: string; sessionId?: string }): string {
     const id = randomUUID();
     const create = this.db.transaction(() => {

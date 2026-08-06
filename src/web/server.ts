@@ -10,6 +10,7 @@ import { runAgentLoop } from "../core/loop.js";
 import { createProvider, type LLMProvider } from "../core/providers.js";
 import { runMechanismDemo } from "../demo/mechanisms.js";
 import { listWorkspaceChanges, readWorkspaceDiff } from "../runtime/diff-inspector.js";
+import { resetWorkspaceToTemplate } from "../runtime/workspace-reset.js";
 import { classifyAction } from "../runtime/guardrails.js";
 import { dispatchTool } from "../runtime/tools.js";
 import { saveWorkspaceTextFile } from "../runtime/workspace-editor.js";
@@ -304,6 +305,7 @@ export function createServer(input: {
   providerFactory?: (provider: string) => LLMProvider;
   webAuth?: WebAuthConfig;
   basePath?: string;
+  workspaceTemplateRoot?: string;
 }): {
   inject(input: InjectInput): Promise<InjectResponse>;
   listen(port: number, host?: string): Promise<{ close(): Promise<void> }>;
@@ -324,6 +326,7 @@ export function createServer(input: {
       }
     ]
   });
+  const workspaceTemplateRoot = input.workspaceTemplateRoot ?? resolve(process.cwd(), "workspaces");
   const eventStore = new EventStore(input.dbPath ?? ":memory:");
   const memoryStore = new MemoryStore(input.dbPath ?? ":memory:");
   const credentials = createDefaultCredentialManager(process.env);
@@ -782,6 +785,20 @@ export function createServer(input: {
         return redirect(appendSavedFlag(returnTo ?? `/workspaces/${encodeURIComponent(workspace.id)}/files/${encodeURIComponent(result.path)}`));
       }
       return response(200, { path: result.path, saved: true });
+    }
+    if (method === "POST" && url.pathname === "/api/cleanup") {
+      eventStore.clearHistory();
+      const workspaceResults = [];
+      for (const workspace of registry.listWorkspaces()) {
+        workspaceResults.push({
+          workspaceId: workspace.id,
+          ...(await resetWorkspaceToTemplate(workspace, workspaceTemplateRoot))
+        });
+      }
+      if (isFormRequest(headers)) {
+        return redirect("/");
+      }
+      return response(200, { cleared: true, workspaces: workspaceResults });
     }
     if (method === "POST" && url.pathname === "/api/runs/start") {
       if (!isRunRequest(payload)) return response(400, { error: "Invalid run request" });

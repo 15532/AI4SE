@@ -51,6 +51,29 @@ describe("EventStore", () => {
     ]);
   });
 
+  it("clears all history tables", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
+    const store = new EventStore(join(dir, "test.sqlite"));
+    const runId = store.createRun({ task: "inspect", workspaceId: "demo", mode: "default" });
+    store.appendEvent(runId, "first", { order: 1 });
+    store.createSession({ workspaceId: "demo", provider: "mock", title: "session" });
+    store.createApproval({
+      runId,
+      workspaceId: "demo",
+      action: { type: "write_file", path: "a.txt", content: "x", reason: "demo" },
+      ruleId: "command.publish_or_deploy",
+      reason: "needs approval"
+    });
+
+    store.clearHistory();
+
+    expect(store.listEvents(runId)).toEqual([]);
+    expect(store.getRun(runId)).toBeUndefined();
+    expect(store.listRecentRuns("demo", 10)).toEqual([]);
+    expect(store.listSessions({ workspaceId: "demo" })).toEqual([]);
+    expect(store.listPendingApprovals(runId)).toEqual([]);
+  });
+
   it("redacts secret assignments in run tasks before persistence", async () => {
     const dir = await mkdtemp(join(tmpdir(), "harness-events-"));
     const store = new EventStore(join(dir, "test.sqlite"));

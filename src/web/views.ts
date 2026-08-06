@@ -1194,6 +1194,13 @@ export function renderIndex(
             <div class="chat-nav-title">工具</div>
             <a class="chat-nav-item" href="/"><span>+</span><span>新对话</span></a>
             ${mockDemoForm}
+            <form class="mock-demo-form" method="post" action="/api/cleanup" aria-label="清除历史对话与工作区" title="清除历史对话与工作区" onsubmit="return confirm('确定要清除全部历史对话并将工作区恢复为初始模板吗？此操作不可撤销。');">
+              <button class="chat-nav-button" type="submit">
+                <span aria-hidden="true">✕</span>
+                <span>清除历史对话与工作区</span>
+              </button>
+              <span class="mock-demo-hint">清空历史并重置工作区</span>
+            </form>
             ${fileLinks}
           </section>
           <section class="chat-nav-section" data-nav-section="sessions">

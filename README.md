@@ -310,7 +310,7 @@ $env:PORT = "3100"
 node dist/src/web/server.js
 ```
 
-WebUI 首页是对话式智能代码助手：左侧是 workspace、历史对话与文件入口，中间是对话流和底部输入框，右侧是运行状态、文件预览、diff、允许命令和 memory 面板。普通对话入口默认使用 `deepseek`，模型下拉框不显示 `mock`；提交任务后会在同一对话流中创建 session/run，并由后台触发真实 harness run。若需要离线机制演示，可以点击左侧工具区的“mock 机制演示”按钮：它会确定性复现护栏拦截危险命令、失败测试反馈和据此修正动作三项机制，并在对话流中展示完整 timeline；也可以继续通过 CLI/API 显式使用 `mock` provider。
+WebUI 首页是对话式智能代码助手：左侧是 workspace、历史对话与文件入口，中间是对话流和底部输入框，右侧是运行状态、文件预览、diff、允许命令和 memory 面板。普通对话入口默认使用 `deepseek`，模型下拉框不显示 `mock`；提交任务后会在同一对话流中创建 session/run，并由后台触发真实 harness run。若需要离线机制演示，可以点击左侧工具区的“mock 机制演示”按钮：它会确定性复现护栏拦截危险命令、失败测试反馈和据此修正动作三项机制，并在对话流中展示完整 timeline；也可以继续通过 CLI/API 显式使用 `mock` provider。 左侧工具区还提供“清除历史对话与工作区”按钮：点击后会清空所有历史会话/运行/memory，并把已注册工作区重置为初始模板（`workspaces/<id>`），便于测试后恢复干净环境。
 
 如果模型请求执行 `git push`、`npm publish`、`docker push`、`kubectl apply` 等发布/部署命令，且该命令已被当前 workspace 的 `allowedCommands` 显式允许，run 会停在 `pending_approval`。WebUI 会在对话流和右侧 Inspector 中展示待审批动作；点击“批准执行”才会真正调用工具，点击“拒绝”只记录拒绝事件，不执行命令。未出现在 allowlist 的命令不会进入审批，而是直接按 `command.not_allowlisted` 拦截。
 

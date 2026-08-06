@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -720,6 +720,75 @@ workspaces:
     expect(stop?.payload.reason).toBe("finish");
     expect(String(stop?.payload.summary)).toContain("write_file");
     expect(String(stop?.payload.summary)).toContain("护栏");
+  });
+
+  it("clears history and resets the workspace to its template", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-cleanup-"));
+    const templateRoot = join(dir, "templates");
+    const workspaceRoot = join(dir, "workspace");
+    await mkdir(join(templateRoot, "demo", "src"), { recursive: true });
+    await writeFile(join(templateRoot, "demo", "README.md"), "# Template\n", "utf8");
+    await writeFile(join(templateRoot, "demo", "src", "main.js"), "// template\n", "utf8");
+    await mkdir(join(workspaceRoot, "src"), { recursive: true });
+    await writeFile(join(workspaceRoot, "README.md"), "# Dirty\n", "utf8");
+    await writeFile(join(workspaceRoot, "junk.txt"), "leftover\n", "utf8");
+
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: workspaceRoot, allowedCommands: [] }],
+      dbPath: join(dir, "harness.sqlite"),
+      workspaceTemplateRoot: templateRoot
+    });
+
+    const sessionResponse = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: { workspaceId: "demo", provider: "mock", task: "cleanup me" }
+    });
+    expect(sessionResponse.statusCode).toBe(201);
+
+    const response = await app.inject({ method: "POST", url: "/api/cleanup" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ cleared: true, workspaces: [{ workspaceId: "demo", ok: true, action: "reset" }] });
+
+    const files = await readdir(workspaceRoot, { recursive: true });
+    expect(files.map((f) => String(f).split(String.fromCharCode(92)).join("/")).sort()).toEqual([
+      "README.md",
+      "src",
+      "src/main.js"
+    ]);
+    expect(await readFile(join(workspaceRoot, "README.md"), "utf8")).toBe("# Template\n");
+
+    const index = await app.inject({ method: "GET", url: "/" });
+    expect(index.body).not.toContain("cleanup me");
+  });
+
+  it("skips resetting workspaces without a template directory", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-cleanup-missing-template-"));
+    const workspaceRoot = join(dir, "workspace");
+    await mkdir(workspaceRoot, { recursive: true });
+    await writeFile(join(workspaceRoot, "keep.txt"), "keep\n", "utf8");
+
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: workspaceRoot, allowedCommands: [] }],
+      dbPath: join(dir, "harness.sqlite"),
+      workspaceTemplateRoot: join(dir, "templates")
+    });
+
+    const response = await app.inject({ method: "POST", url: "/api/cleanup" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      cleared: true,
+      workspaces: [{ workspaceId: "demo", ok: false, error: expect.stringContaining("Template directory does not exist") }]
+    });
+    expect(await readFile(join(workspaceRoot, "keep.txt"), "utf8")).toBe("keep\n");
+  });
+
+  it("renders the cleanup button in the sidebar tools", async () => {
+    const app = createServer({ workspaces });
+    const index = await app.inject({ method: "GET", url: "/" });
+    expect(index.body).toContain('action="/api/cleanup"');
+    expect(index.body).toContain("清除历史对话与工作区");
+    expect(index.body).toContain("清空历史并重置工作区");
   });
 
   it("renders recent run links in the chat sidebar without leaving the conversation page", async () => {

@@ -727,3 +727,5 @@
 - 线上缺陷修复：用户反馈线上机制演示页面只显示 9 个事件、停在「护栏」处。根因：`runMechanismDemo` 原来用两个独立 `runAgentLoop` 写入同一 run，phase 1 结束写入 `stop(guardrail_blocked)`，导致 phase 2 期间 `statusFromTimeline` 判定为 `blocked`；前端 live 轮询在非 `running` 状态停止并 reload，页面冻结在中间状态（后端 timeline 其实已完整 finished）。
   - 修复：把 WebUI 机制演示改为**单个 `runAgentLoop`**（护栏拦截 → 测试失败反馈 → 修正动作 → finish），全程只有最后一个 `stop(finish)`，状态从 `running` 直接到 `finished`，前端轮询不再中断。
   - 验证：`npm run typecheck`、`npm run build`、`vitest run tests/cli/demo.test.ts tests/web/server.test.ts`（64 个测试）全部通过；`npm run demo:mechanisms` 输出单 loop 完整事件且 `correctionContextObserved: true`。
+- 新功能：WebUI 左侧工具区新增「清除历史对话与工作区」按钮。后端新增 `EventStore.clearHistory()`（清空 sessions/runs/events/approvals/actions/feedback/memory_items/快照）与 `POST /api/cleanup`（清历史 + 逐个重置已注册工作区到 `workspaces/<id>` 模板）；`src/runtime/workspace-reset.ts` 保证模板缺失时不动工作区、root 即模板时为 no-op。前端按钮带确认提示。
+  - 验证：`npm run typecheck`、`npm run build`、`npm test`（197 个测试）全部通过；新增 EventStore 清空测试、cleanup 重置/模板缺失/按钮渲染测试。
