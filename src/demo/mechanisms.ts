@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAgentLoop } from "../core/loop.js";
 import type { EventStore } from "../store/event-store.js";
-import { MockLLMProvider, type LLMProvider } from "../core/providers.js";
+import type { LLMProvider } from "../core/providers.js";
 
 type DemoEvent = Record<string, unknown>;
 
@@ -48,47 +48,40 @@ export async function runMechanismDemo(options: {
       root,
       allowedCommands: defaultAllowedCommands
     };
-    const guardrailPhase = await runAgentLoop({
-      task: "Demonstrate guardrail blocking",
-      workspace,
-      provider: new MockLLMProvider([
-        JSON.stringify({ type: "run_command", command: "rm -rf .", reason: "dangerous command demonstration" })
-      ]),
-      maxIterations: 1,
-      eventStore,
-      existingRunId,
-      sessionId
-    });
 
     let providerCall = 0;
     let correctionContextObserved = false;
-    const correctionProvider: LLMProvider = {
+    const provider: LLMProvider = {
       async complete(input) {
         providerCall += 1;
         if (providerCall === 1) {
-          return JSON.stringify({ type: "run_command", command: "npm test", reason: "run tests" });
+          return JSON.stringify({ type: "run_command", command: "rm -rf .", reason: "dangerous command demonstration" });
         }
         if (providerCall === 2) {
+          return JSON.stringify({ type: "run_command", command: "npm test", reason: "run tests" });
+        }
+        if (providerCall === 3) {
           correctionContextObserved = input.context.includes("test_failed");
           return correctionContextObserved
             ? JSON.stringify({ type: "write_file", path: "fixed.txt", content: "fixed", reason: "apply correction from test feedback" })
-            : JSON.stringify({ type: "finish", summary: "No test failure feedback was available" });
+            : JSON.stringify({ type: "finish", summary: "未检测到 test_failed 反馈，机制演示未完成" });
         }
         return JSON.stringify({ type: "finish", summary: "机制演示完成：护栏拦截了危险命令 rm -rf .，npm test 失败产生 test_failed 反馈，模型据此改为 write_file 修正动作；三项机制均已确定性复现。" });
       }
     };
-    const correctionPhase = await runAgentLoop({
-      task: "Run tests and correct the failure",
+
+    const result = await runAgentLoop({
+      task: "机制演示：护栏拦截、失败反馈与修正动作",
       workspace,
-      provider: correctionProvider,
-      maxIterations: 3,
+      provider,
+      maxIterations: 5,
       eventStore,
       existingRunId,
       sessionId
     });
 
     return {
-      events: timelineFrom([...guardrailPhase.events, ...correctionPhase.events]),
+      events: timelineFrom(result.events),
       correctionContextObserved
     };
   } finally {

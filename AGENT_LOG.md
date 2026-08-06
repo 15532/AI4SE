@@ -724,3 +724,6 @@
 - PR：创建 `https://github.com/15532/AI4SE/pull/1`（base `main`，compare `feature/core-loop`，标题「项目 A：Coding Agent Harness 完整实现（含 WebUI mock 机制演示）」），`mergeable: true`；PR 触发 run `31104305686` 返回 `success`。
 - 文档：更新 `docs/CI_CD_RECORD.md` 记录最新 CI 与 PR 链接。
 - 服务器同步：用户确认后，将含 WebUI mock 机制演示修复的代码发布到服务器 `/opt/ai4se/releases/20260806211130` 并切换 `current`，重启 `ai4se-harness.service` 后 `active`；公网 `https://20230722.top/ai4se/` 端到端验证通过（timeline 含 guardrail block、test_failed feedback、write_file 修正动作与中文 finish 摘要），记录补入 `docs/DISTRIBUTION.md`。
+- 线上缺陷修复：用户反馈线上机制演示页面只显示 9 个事件、停在「护栏」处。根因：`runMechanismDemo` 原来用两个独立 `runAgentLoop` 写入同一 run，phase 1 结束写入 `stop(guardrail_blocked)`，导致 phase 2 期间 `statusFromTimeline` 判定为 `blocked`；前端 live 轮询在非 `running` 状态停止并 reload，页面冻结在中间状态（后端 timeline 其实已完整 finished）。
+  - 修复：把 WebUI 机制演示改为**单个 `runAgentLoop`**（护栏拦截 → 测试失败反馈 → 修正动作 → finish），全程只有最后一个 `stop(finish)`，状态从 `running` 直接到 `finished`，前端轮询不再中断。
+  - 验证：`npm run typecheck`、`npm run build`、`vitest run tests/cli/demo.test.ts tests/web/server.test.ts`（64 个测试）全部通过；`npm run demo:mechanisms` 输出单 loop 完整事件且 `correctionContextObserved: true`。
