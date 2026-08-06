@@ -115,6 +115,14 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 新 release 目录：`/opt/ai4se/releases/20260806212800`（构建通过，切换 `current` 并重启服务，`active`）
 - 线上验证：新 run `326f34f7` 轮询过程 `running → finished`（18 个事件），页面包含护栏拦截、测试失败反馈、修正动作（write_file）与中文 finish 摘要。
 
+## 2026-08-06 第三轮部署：WebUI 清除历史对话与工作区
+
+新功能：WebUI 左侧工具区新增「清除历史对话与工作区」按钮。后端新增 `EventStore.clearHistory()` 与 `POST /api/cleanup`（清空 sessions/runs/events/approvals/actions/feedback/memory_items/快照，并逐个重置已注册工作区到 `workspaces/<id>` 模板）；`src/runtime/workspace-reset.ts` 保证模板缺失时不动工作区、root 即模板时为 no-op。
+
+- 提交：`1a5c07a 功能：WebUI 增加清除历史对话与工作区按钮`
+- 新 release 目录：`/opt/ai4se/releases/20260806214200`（构建通过，切换 `current` 并重启服务，`active`）
+- 线上端到端验证：清理前 6 sessions/6 runs/97 events、工作区 4 个文件；POST `/ai4se/api/cleanup` 后 0 sessions/0 runs/0 events，工作区恢复为模板 5 个文件（含 `src/bubble_sort.js`）；首页侧栏显示「暂无对话」。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。

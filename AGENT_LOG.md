@@ -729,3 +729,4 @@
   - 验证：`npm run typecheck`、`npm run build`、`vitest run tests/cli/demo.test.ts tests/web/server.test.ts`（64 个测试）全部通过；`npm run demo:mechanisms` 输出单 loop 完整事件且 `correctionContextObserved: true`。
 - 新功能：WebUI 左侧工具区新增「清除历史对话与工作区」按钮。后端新增 `EventStore.clearHistory()`（清空 sessions/runs/events/approvals/actions/feedback/memory_items/快照）与 `POST /api/cleanup`（清历史 + 逐个重置已注册工作区到 `workspaces/<id>` 模板）；`src/runtime/workspace-reset.ts` 保证模板缺失时不动工作区、root 即模板时为 no-op。前端按钮带确认提示。
   - 验证：`npm run typecheck`、`npm run build`、`npm test`（197 个测试）全部通过；新增 EventStore 清空测试、cleanup 重置/模板缺失/按钮渲染测试。
+  - 服务器同步：发布到 `/opt/ai4se/releases/20260806214200` 并切换 `current`、重启服务后 `active`；线上端到端验证清理前 6 sessions/6 runs/97 events、工作区 4 个文件，`POST /ai4se/api/cleanup` 后 0/0/0、工作区恢复模板 5 个文件，记录补入 `docs/DISTRIBUTION.md`。
