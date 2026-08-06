@@ -723,3 +723,4 @@
 - 后续：用户确认继续下一步后，已 push `2d72daf` 与文档提交 `6a29bd3` 到 `origin/feature/core-loop`，GitHub Actions `unit-test` push run `31103992485`/`31104135906` 均返回 `success`。
 - PR：创建 `https://github.com/15532/AI4SE/pull/1`（base `main`，compare `feature/core-loop`，标题「项目 A：Coding Agent Harness 完整实现（含 WebUI mock 机制演示）」），`mergeable: true`；PR 触发 run `31104305686` 返回 `success`。
 - 文档：更新 `docs/CI_CD_RECORD.md` 记录最新 CI 与 PR 链接。
+- 服务器同步：用户确认后，将含 WebUI mock 机制演示修复的代码发布到服务器 `/opt/ai4se/releases/20260806211130` 并切换 `current`，重启 `ai4se-harness.service` 后 `active`；公网 `https://20230722.top/ai4se/` 端到端验证通过（timeline 含 guardrail block、test_failed feedback、write_file 修正动作与中文 finish 摘要），记录补入 `docs/DISTRIBUTION.md`。

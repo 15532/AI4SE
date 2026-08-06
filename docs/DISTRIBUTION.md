@@ -95,6 +95,16 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - DeepSeek API key 不写入仓库、不写入本文档、不写入对话记录中的命令；需要在服务器 `/opt/ai4se/.env` 中由用户本地手动配置，并建议先轮换已经误发到对话中的旧 key。
 - `npm audit` 在服务器依赖安装后提示 5 个依赖漏洞，后续可单独评估升级；当前构建和运行验证通过。
 
+## 2026-08-06 服务器版本更新记录
+
+更新内容：将 WebUI「mock 机制演示」接入确定性机制复现（`2d72daf`、`6a29bd3`、`cbc09a4` 后的代码），并同步到服务器。
+
+- 新 release 目录：`/opt/ai4se/releases/20260806211130`
+- 更新方式：本地 `npm run build` 通过后，打包源码上传（排除 node_modules/.git/dist/data），复制上一 release 的 node_modules，服务器 `npm run build` 通过，切换 `/opt/ai4se/current` 符号链接，重启 `ai4se-harness.service`。
+- 服务状态：`systemctl is-active ai4se-harness.service` 返回 `active`，日志显示 `WebUI is listening on http://127.0.0.1:3100`。
+- 公网回归：`https://20230722.top/ai4se/api/workspaces` 返回 `deepseek-sandbox`，首页包含 `mock-demo-form` 与「mock 机制演示」入口。
+- 公网端到端验证：通过 `/ai4se/api/runs/start` 提交 `provider=mock` + 「mock 机制演示」任务，run 状态 `finished`，timeline 含 19 个事件：`guardrail` decision=block（拦截 `rm -rf .`）、`feedback` source=test_failed、`tool_result` action=write_file（修正动作，出现在 test_failed 之后）、`stop` reason=finish，摘要为中文「机制演示完成：护栏拦截了危险命令 rm -rf .，npm test 失败产生 test_failed 反馈，模型据此改为 write_file 修正动作；三项机制均已确定性复现。」
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
