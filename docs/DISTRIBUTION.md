@@ -105,6 +105,16 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 公网回归：`https://20230722.top/ai4se/api/workspaces` 返回 `deepseek-sandbox`，首页包含 `mock-demo-form` 与「mock 机制演示」入口。
 - 公网端到端验证：通过 `/ai4se/api/runs/start` 提交 `provider=mock` + 「mock 机制演示」任务，run 状态 `finished`，timeline 含 19 个事件：`guardrail` decision=block（拦截 `rm -rf .`）、`feedback` source=test_failed、`tool_result` action=write_file（修正动作，出现在 test_failed 之后）、`stop` reason=finish，摘要为中文「机制演示完成：护栏拦截了危险命令 rm -rf .，npm test 失败产生 test_failed 反馈，模型据此改为 write_file 修正动作；三项机制均已确定性复现。」
 
+## 2026-08-06 第二轮部署：修复机制演示前端轮询中断
+
+背景：第一轮部署后，用户反馈线上机制演示页面只显示 9 个事件、停在「护栏」处。根因是旧版 `runMechanismDemo` 用两个独立 `runAgentLoop` 写入同一 run，phase 1 结束写入 `stop(guardrail_blocked)`，导致 phase 2 期间 `statusFromTimeline` 判定为 `blocked`；前端 live 轮询在非 `running` 状态停止并 reload，页面冻结在中间状态（后端 timeline 完整）。
+
+修复：将 WebUI 机制演示改为单个 `runAgentLoop`（护栏拦截 → 测试失败反馈 → 修正动作 → finish），全程只有一个 `stop(finish)`，状态从 `running` 直接到 `finished`。
+
+- 提交：`e7fd439 修复：机制演示改为单次循环避免前端轮询中断`
+- 新 release 目录：`/opt/ai4se/releases/20260806212800`（构建通过，切换 `current` 并重启服务，`active`）
+- 线上验证：新 run `326f34f7` 轮询过程 `running → finished`（18 个事件），页面包含护栏拦截、测试失败反馈、修正动作（write_file）与中文 finish 摘要。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
