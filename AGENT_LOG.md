@@ -704,3 +704,19 @@
 - 安全记录：
   - DeepSeek key 未写入仓库、命令或部署记录；用户需在服务器本地手动配置，并建议轮换误发到对话中的旧 key。
   - 本次不启用登录界面是用户确认的短期课程演示取舍。
+### 2026-08-06 - WebUI mock 机制演示接入确定性机制复现
+
+- 主 agent：Codex App（resume 019fa1a9-c7ec-7e81-ab95-92178011a2a0）
+- 背景：
+  - 用户询问 WebUI 左侧“mock 机制演示”按钮是否真的展示了课程要求的机制演示。
+  - 复查发现按钮只触发默认 mock provider 的一步 finish（`Mock run completed`），timeline 仅 4 个事件，没有展示护栏拦截、失败反馈和修正动作。
+- Agent 动作：
+  - `src/demo/mechanisms.ts`：`runMechanismDemo` 支持可选 `eventStore/existingRunId/sessionId`，把确定性演示事件写入 WebUI run 的 timeline；finish 摘要改为中文并明确三项机制。
+  - `src/web/server.ts`：识别 `provider=mock` 且 task 包含“mock 机制演示”的请求，改走 `runMechanismDemo`，替代默认一步 finish。
+  - `src/web/views.ts`：事件标签按 payload 增强，护栏拦截/测试失败反馈/修正动作在对话流中可读。
+  - `tests/web/server.test.ts`：新增端到端测试，断言 timeline 含 guardrail block、test_failed feedback、write_file 修正动作且修正晚于失败反馈。
+- 验证证据：
+  - `npm run typecheck` 通过。
+  - `vitest run tests/web/server.test.ts`：56 个测试通过（含新的机制演示端到端测试）。
+  - `vitest run tests/cli/demo.test.ts`：8 个测试通过。
+- 安全记录：演示在临时 workspace 中运行，不修改用户真实 workspace；无新增密钥或敏感信息。

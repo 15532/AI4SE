@@ -8,6 +8,7 @@ import { HarnessRegistry, loadHarnessRegistry } from "../config/harness-config.j
 import { createDefaultCredentialManager } from "../credentials/default-credential-manager.js";
 import { runAgentLoop } from "../core/loop.js";
 import { createProvider, type LLMProvider } from "../core/providers.js";
+import { runMechanismDemo } from "../demo/mechanisms.js";
 import { listWorkspaceChanges, readWorkspaceDiff } from "../runtime/diff-inspector.js";
 import { classifyAction } from "../runtime/guardrails.js";
 import { dispatchTool } from "../runtime/tools.js";
@@ -97,6 +98,12 @@ function publicWorkspace(
     ...(recentRuns.length === 0 ? {} : { recentRuns }),
     ...(recentSessions.length === 0 ? {} : { recentSessions })
   }) as PublicWorkspace;
+}
+
+const mockMechanismDemoTaskPrefix = "mock 机制演示";
+
+function isMockMechanismDemoRequest(request: { provider: string; task: string }): boolean {
+  return request.provider === "mock" && request.task.includes(mockMechanismDemoTaskPrefix);
 }
 
 function isRunRequest(value: unknown): value is { workspaceId: string; provider: string; task: string } {
@@ -414,9 +421,6 @@ export function createServer(input: {
   }): string => {
     const providerConfig = registry.getProvider(start.provider);
     if (providerConfig === undefined) throw new Error("Unsupported provider");
-    const provider = input.providerFactory?.(start.provider) ?? createProvider(providerConfig, {
-      credentialResolver: (providerId, envName) => credentials.resolve(providerId, envName)
-    });
     const runId = eventStore.createRun({
       task: start.task,
       workspaceId: start.workspace.id,
@@ -429,17 +433,22 @@ export function createServer(input: {
       workspaceId: start.workspace.id,
       provider: start.provider
     });
-    void runAgentLoop({
-      task: start.task,
-      workspace: start.workspace,
-      provider,
-      maxIterations: registry.maxIterations,
-      mode: registry.mode,
-      eventStore,
-      memoryStore,
-      sessionId: start.sessionId,
-      existingRunId: runId
-    }).catch((error: unknown) => {
+    const runPromise = isMockMechanismDemoRequest(start)
+      ? runMechanismDemo({ eventStore, existingRunId: runId, sessionId: start.sessionId })
+      : runAgentLoop({
+        task: start.task,
+        workspace: start.workspace,
+        provider: input.providerFactory?.(start.provider) ?? createProvider(providerConfig, {
+          credentialResolver: (providerId, envName) => credentials.resolve(providerId, envName)
+        }),
+        maxIterations: registry.maxIterations,
+        mode: registry.mode,
+        eventStore,
+        memoryStore,
+        sessionId: start.sessionId,
+        existingRunId: runId
+      });
+    void runPromise.catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Provider request failed";
       eventStore.appendEvent(runId, "feedback", {
         kind: "feedback",

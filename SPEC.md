@@ -249,7 +249,7 @@ WebUI v1 能力：
 - 展示每个 workspace 的 allowlist commands
 - 选择 workspace id
 - 输入 task 描述
-- 普通 WebUI 入口默认使用 DeepSeek provider profile 触发 run；mock provider 不在页面中暴露，仅保留给离线测试、机制演示和 CLI/API 调试
+- 普通 WebUI 对话入口默认使用 DeepSeek provider profile 触发 run；mock provider 不在普通模型选择器中暴露，但左侧工具区提供专门的 mock 机制演示入口，用于课程要求的离线复现
 - 触发 harness run
 - 展示 run timeline
 - 展示 action JSON、guardrail decision、tool result、feedback、memory event 和 stop reason
@@ -398,7 +398,8 @@ npm run demo:coding-task
 - `npm test` 能在无网络情况下运行全部核心机制测试。
 - harness main loop 是项目自有代码。
 - mock LLM run 不依赖真实 LLM 即可完成。
-- WebUI 默认使用 DeepSeek provider，且不在普通用户入口暴露 mock 选项。
+- WebUI 默认使用 DeepSeek provider，普通模型选择器不暴露 mock 选项，但提供专门的 mock 机制演示入口。
+- WebUI 的“mock 机制演示”入口能在对话流中确定性复现护栏拦截、失败反馈与修正动作。
 - 危险 action 在执行前被 block。
 - failure feedback event 会改变 mock LLM 的下一步 action。
 - `remember` action 能持久化 scoped memory，context retrieval 有边界。

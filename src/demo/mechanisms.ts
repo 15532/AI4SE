@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAgentLoop } from "../core/loop.js";
+import type { EventStore } from "../store/event-store.js";
 import { MockLLMProvider, type LLMProvider } from "../core/providers.js";
 
 type DemoEvent = Record<string, unknown>;
@@ -24,10 +25,15 @@ function timelineFrom(events: DemoEvent[]): DemoEvent[] {
   });
 }
 
-export async function runMechanismDemo(): Promise<{
+export async function runMechanismDemo(options: {
+  eventStore?: EventStore;
+  existingRunId?: string;
+  sessionId?: string;
+} = {}): Promise<{
   events: Array<Record<string, unknown>>;
   correctionContextObserved: boolean;
 }> {
+  const { eventStore, existingRunId, sessionId } = options;
   const root = await mkdtemp(path.join(tmpdir(), "harness-mechanisms-"));
   try {
     await writeFile(
@@ -48,7 +54,10 @@ export async function runMechanismDemo(): Promise<{
       provider: new MockLLMProvider([
         JSON.stringify({ type: "run_command", command: "rm -rf .", reason: "dangerous command demonstration" })
       ]),
-      maxIterations: 1
+      maxIterations: 1,
+      eventStore,
+      existingRunId,
+      sessionId
     });
 
     let providerCall = 0;
@@ -65,14 +74,17 @@ export async function runMechanismDemo(): Promise<{
             ? JSON.stringify({ type: "write_file", path: "fixed.txt", content: "fixed", reason: "apply correction from test feedback" })
             : JSON.stringify({ type: "finish", summary: "No test failure feedback was available" });
         }
-        return JSON.stringify({ type: "finish", summary: "Correction completed" });
+        return JSON.stringify({ type: "finish", summary: "机制演示完成：护栏拦截了危险命令 rm -rf .，npm test 失败产生 test_failed 反馈，模型据此改为 write_file 修正动作；三项机制均已确定性复现。" });
       }
     };
     const correctionPhase = await runAgentLoop({
       task: "Run tests and correct the failure",
       workspace,
       provider: correctionProvider,
-      maxIterations: 3
+      maxIterations: 3,
+      eventStore,
+      existingRunId,
+      sessionId
     });
 
     return {

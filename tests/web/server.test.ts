@@ -45,13 +45,15 @@ function deferred<T>() {
 async function waitForRunStatus(
   app: ReturnType<typeof createServer>,
   runId: string,
-  status: string
+  status: string,
+  attempts = 30,
+  delayMs = 10
 ): Promise<Record<string, unknown>> {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     const response = await app.inject({ method: "GET", url: `/api/runs/${runId}/timeline` });
     const payload = response.json() as Record<string, unknown>;
     if (payload.status === status) return payload;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   throw new Error(`Timed out waiting for run ${runId} to reach ${status}`);
 }
@@ -154,7 +156,9 @@ workspaces:
 
     const index = await app.inject({ method: "GET", url: "/" });
     expect(index.body).toContain('<option value="web-mock" selected>web-mock</option>');
-    expect(index.body).not.toContain('name="provider" value="mock"');
+    expect(index.body).not.toContain('<option value="mock">mock</option>');
+    expect(index.body).toContain("mock-demo-form");
+    expect(index.body).toContain('name="provider" value="mock"');
   });
 
   it("rejects unregistered workspace ids", async () => {
@@ -649,6 +653,11 @@ workspaces:
     expect(response.body).toContain("chat-composer");
     expect(response.body).toContain("chat-inspector");
     expect(response.body).toContain("task-composer");
+    expect(response.body).toContain("mock-demo-form");
+    expect(response.body).toContain('aria-label="运行 mock 机制演示"');
+    expect(response.body).toContain('name="provider" value="mock"');
+    expect(response.body).toContain("mock 机制演示");
+    expect(response.body).toContain("护栏拦截、失败反馈和修正动作");
     expect(response.body).toContain('data-panel-toggle="sidebar"');
     expect(response.body).toContain('data-panel-toggle="inspector"');
     expect(response.body).toContain('data-close-icon="&lt;&lt;"');
@@ -670,6 +679,47 @@ workspaces:
     expect(response.body).toContain('<option value="deepseek" selected>deepseek</option>');
     expect(response.body).not.toContain('<option value="mock">mock</option>');
     expect(response.body).not.toContain("registered-docs");
+  });
+
+  it("runs the mock mechanism demo and persists the guardrail/feedback/correction timeline", async () => {
+    const app = createServer({ workspaces });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/runs/start",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "workspaceId=demo-ts&provider=mock&task=mock+%E6%9C%BA%E5%88%B6%E6%BC%94%E7%A4%BA%EF%BC%9A%E5%B1%95%E7%A4%BA%E6%8A%A4%E6%A0%8F%E6%8B%A6%E6%88%AA%E3%80%81%E5%A4%B1%E8%B4%A5%E5%8F%8D%E9%A6%88%E5%92%8C%E4%BF%AE%E6%AD%A3%E5%8A%A8%E4%BD%9C"
+    });
+
+    expect(response.statusCode).toBe(303);
+    const location = new URL(response.headers.location, "http://localhost");
+    const runId = location.searchParams.get("runId");
+    expect(runId).toBeTruthy();
+
+    const finished = await waitForRunStatus(app, runId!, "finished", 300, 50);
+    const events = (finished.timeline as Array<{ kind: string; payload: Record<string, unknown> }>);
+    const guardrailBlocked = events.some((event) =>
+      event.kind === "guardrail"
+      && (event.payload.decision as { decision?: string } | undefined)?.decision === "block"
+    );
+    expect(guardrailBlocked).toBe(true);
+
+    const testFailureIndex = events.findIndex((event) =>
+      event.kind === "feedback"
+      && (event.payload.feedback as { source?: string } | undefined)?.source === "test_failed"
+    );
+    expect(testFailureIndex).toBeGreaterThan(-1);
+
+    const correctionIndex = events.findIndex((event) =>
+      event.kind === "tool_result"
+      && (event.payload.action as { type?: string } | undefined)?.type === "write_file"
+    );
+    expect(correctionIndex).toBeGreaterThan(testFailureIndex);
+
+    const stop = [...events].reverse().find((event) => event.kind === "stop");
+    expect(stop?.payload.reason).toBe("finish");
+    expect(String(stop?.payload.summary)).toContain("write_file");
+    expect(String(stop?.payload.summary)).toContain("护栏");
   });
 
   it("renders recent run links in the chat sidebar without leaving the conversation page", async () => {

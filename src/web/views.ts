@@ -227,6 +227,12 @@ const baseStyles = `
       .chat-nav-item { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: center; min-height: 34px; padding: 7px 8px; border-radius: 8px; color: #374151; text-decoration: none; font-size: 14px; }
       .chat-nav-item[aria-current="page"], .chat-nav-item:hover { background: #eceef2; color: #111827; }
       .chat-nav-item span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .mock-demo-form { display: grid; gap: 2px; margin: 0; }
+      .mock-demo-form input[type="hidden"] { display: none; }
+      .chat-nav-button { width: 100%; min-height: 34px; display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: center; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: #374151; font: inherit; font-size: 14px; font-weight: 400; text-align: left; }
+      .chat-nav-button:hover { background: #eceef2; color: #111827; }
+      .chat-nav-button span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .mock-demo-hint { padding: 0 8px 4px 38px; color: #9ca3af; font-size: 11px; line-height: 1.35; }
       .chat-file-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
       .chat-file-list a, .chat-file-list span { display: grid; grid-template-columns: 18px 1fr; gap: 6px; align-items: center; min-height: 28px; padding: 5px 8px; border-radius: 8px; color: #4b5563; text-decoration: none; font-size: 13px; line-height: 1.25; }
       .chat-file-list a:hover, .chat-file-list a[aria-current="page"] { background: #eceef2; color: #111827; }
@@ -376,7 +382,16 @@ const baseStyles = `
       @media (max-width: 760px) { main { padding: 16px; } .topbar, .ide-shell, .composer-grid, .run-layout, .run-meta, .session-panels, .session-dashboard, .workspace-editor-layout { grid-template-columns: 1fr; display: grid; } .status-strip { justify-content: start; } .timeline-navigator { position: static; } .codex-app-shell { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(520px, 1fr); padding: 0; } .codex-app-bar, .codex-sidebar, .codex-editor-main { grid-column: 1; grid-row: auto; } .codex-agent-panel { display: grid; grid-column: 1; grid-row: auto; } .codex-sidebar { max-height: 240px; border-right: 0; border-bottom: 1px solid #d9dee7; } .chat-app-shell { grid-template-columns: 1fr; height: 100vh; min-height: 0; padding: 0; overflow: hidden; } .chat-sidebar, .chat-inspector { display: none; } .chat-thread, .chat-composer-wrap { padding-left: 16px; padding-right: 16px; } .chat-main { min-height: 0; } .chat-message { grid-template-columns: 28px minmax(0, 1fr); } .chat-message-user { grid-template-columns: minmax(0, 1fr) 28px; } .chat-context-attachments { margin-left: 40px; grid-template-columns: minmax(0, 1fr); } .chat-run-meta { grid-template-columns: 1fr; } }
 `;
 
-function eventLabel(kind: string): string {
+function eventLabel(kind: string, payload?: Record<string, unknown>): string {
+  if (kind === "guardrail" && isRecord(payload?.decision) && payload.decision.decision === "block") {
+    return "护栏拦截";
+  }
+  if (kind === "feedback" && isRecord(payload?.feedback) && payload.feedback.source === "test_failed") {
+    return "测试失败反馈";
+  }
+  if (kind === "tool_result" && isRecord(payload?.action) && payload.action.type === "write_file") {
+    return "修正动作（write_file）";
+  }
   switch (kind) {
     case "parsed_action": return "动作";
     case "guardrail": return "护栏";
@@ -601,7 +616,7 @@ function renderChatEventSummary(timeline: PublicChatRun["timeline"]): string {
   const items = timeline.map((event) => `
                   <li data-event-kind="${escapeHtml(event.kind)}">
                     <span class="chat-event-sequence">${event.sequence}</span>
-                    <span>${escapeHtml(eventLabel(event.kind))}</span>
+                    <span>${escapeHtml(eventLabel(event.kind, event.payload))}</span>
                   </li>`).join("");
   return items === ""
     ? ""
@@ -651,7 +666,7 @@ function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?:
   const approvalItems = compact ? "" : renderChatApprovals(run.approvals);
   const timelineItems = run.timeline.map((event) => `
                 <li>
-                  <strong>${event.sequence}. ${escapeHtml(eventLabel(event.kind))}</strong>
+                  <strong>${event.sequence}. ${escapeHtml(eventLabel(event.kind, event.payload))}</strong>
                   <pre>${escapeHtml(JSON.stringify(event.payload, null, 2))}</pre>
                 </li>`).join("");
   const toolCards = compact ? "" : renderChatToolCards(run, sessionId);
@@ -1022,6 +1037,20 @@ export function renderIndex(
   const fileLinks = firstWorkspace === undefined
     ? ""
     : `<a class="chat-nav-item" href="/workspaces/${escapeHtml(encodeURIComponent(firstWorkspace.id))}/files"><span>⌁</span><span>文件浏览</span></a>`;
+  const mockDemoWorkspaceId = activeWorkspaceId ?? firstWorkspace?.id;
+  const mockDemoTask = "mock 机制演示：展示护栏拦截、失败反馈和修正动作";
+  const mockDemoForm = mockDemoWorkspaceId === undefined
+    ? ""
+    : `<form class="mock-demo-form" method="post" action="/api/runs/start" aria-label="运行 mock 机制演示" title="运行 mock 机制演示">
+              <input type="hidden" name="workspaceId" value="${escapeHtml(mockDemoWorkspaceId)}">
+              <input type="hidden" name="provider" value="mock">
+              <input type="hidden" name="task" value="${escapeHtml(mockDemoTask)}">
+              <button class="chat-nav-button" type="submit">
+                <span aria-hidden="true">▷</span>
+                <span>mock 机制演示</span>
+              </button>
+              <span class="mock-demo-hint">护栏拦截、失败反馈和修正动作</span>
+            </form>`;
   const sessionQuery = fileContext?.activeSessionId === undefined ? "" : `&sessionId=${encodeURIComponent(fileContext.activeSessionId)}`;
   const activeRunId = activeRun?.id ?? fileContext?.activeRunId;
   const runQuery = activeRunId === undefined ? "" : `&runId=${encodeURIComponent(activeRunId)}`;
@@ -1164,6 +1193,7 @@ export function renderIndex(
           <section class="chat-nav-section">
             <div class="chat-nav-title">工具</div>
             <a class="chat-nav-item" href="/"><span>+</span><span>新对话</span></a>
+            ${mockDemoForm}
             ${fileLinks}
           </section>
           <section class="chat-nav-section" data-nav-section="sessions">
@@ -1465,10 +1495,10 @@ export function renderRun(input: {
   timeline: Array<{ sequence: number; kind: string; payload: Record<string, unknown> }>;
 }): string {
   const nav = input.timeline.map((event) => `
-            <li><a href="#event-${event.sequence}"><span>${event.sequence}</span>${escapeHtml(eventLabel(event.kind))}</a></li>`).join("");
+            <li><a href="#event-${event.sequence}"><span>${event.sequence}</span>${escapeHtml(eventLabel(event.kind, event.payload))}</a></li>`).join("");
   const events = input.timeline.map((event) => `
         <li class="event" id="event-${event.sequence}">
-          <h2><span class="sequence">${event.sequence}</span>${escapeHtml(eventLabel(event.kind))}</h2>
+          <h2><span class="sequence">${event.sequence}</span>${escapeHtml(eventLabel(event.kind, event.payload))}</h2>
           <pre>${escapeHtml(JSON.stringify(event.payload, null, 2))}</pre>
         </li>`).join("");
   const changes = input.changes ?? [];

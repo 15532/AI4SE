@@ -310,7 +310,7 @@ $env:PORT = "3100"
 node dist/src/web/server.js
 ```
 
-WebUI 首页是对话式智能代码助手：左侧是 workspace、历史对话与文件入口，中间是对话流和底部输入框，右侧是运行状态、文件预览、diff、允许命令和 memory 面板。普通页面入口默认使用 `deepseek`，不显示 `mock`；提交任务后会在同一对话流中创建 session/run，并由后台触发真实 harness run。若需要离线机制演示或测试，可以继续通过 CLI/API 显式使用 `mock` provider。
+WebUI 首页是对话式智能代码助手：左侧是 workspace、历史对话与文件入口，中间是对话流和底部输入框，右侧是运行状态、文件预览、diff、允许命令和 memory 面板。普通对话入口默认使用 `deepseek`，模型下拉框不显示 `mock`；提交任务后会在同一对话流中创建 session/run，并由后台触发真实 harness run。若需要离线机制演示，可以点击左侧工具区的“mock 机制演示”按钮：它会确定性复现护栏拦截危险命令、失败测试反馈和据此修正动作三项机制，并在对话流中展示完整 timeline；也可以继续通过 CLI/API 显式使用 `mock` provider。
 
 如果模型请求执行 `git push`、`npm publish`、`docker push`、`kubectl apply` 等发布/部署命令，且该命令已被当前 workspace 的 `allowedCommands` 显式允许，run 会停在 `pending_approval`。WebUI 会在对话流和右侧 Inspector 中展示待审批动作；点击“批准执行”才会真正调用工具，点击“拒绝”只记录拒绝事件，不执行命令。未出现在 allowlist 的命令不会进入审批，而是直接按 `command.not_allowlisted` 拦截。
 
@@ -348,9 +348,9 @@ Invoke-RestMethod -Uri "http://127.0.0.1:3100/api/workspaces/deepseek-sandbox/ch
 
 ## WebUI 模型选择
 
-WebUI 面向真实对话式开发体验，默认展示并选中 `deepseek` provider；页面不再显示 `mock` 选项，避免误以为浏览器主流程仍在走离线演示。
+WebUI 面向真实对话式开发体验，默认展示并选中 `deepseek` provider；普通模型选择器不显示 `mock` 选项，避免误以为浏览器主流程仍在走离线演示。
 
-`mock` 仍然是项目必需能力：课程要求中的确定性测试、机制演示、CLI/API 调试都依赖它在无网络、无真实 API key 的情况下复现 action parsing、guardrail、feedback 和 finish 流程。因此不要从配置和测试链路中删除 `mock`；只是在 WebUI 的用户入口中隐藏它。
+`mock` 仍然是项目必需能力：课程要求中的确定性测试、机制演示、CLI/API 调试都依赖它在无网络、无真实 API key 的情况下复现 action parsing、guardrail、feedback 和 finish 流程。因此不要从配置和测试链路中删除 `mock`。WebUI 左侧工具区提供专门的“mock 机制演示”入口，使用隐藏字段提交 `provider=mock`，与真实 DeepSeek 对话入口分离。
 
 ## API 调试
 
