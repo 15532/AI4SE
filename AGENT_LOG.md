@@ -734,3 +734,7 @@
     - `src/core/providers.ts`：加强 system prompt——finish.summary 要求 4-8 句详细中文（列出修改文件、逐文件关键改动、真实执行的验证命令及结果、跳过项），并明确禁止编造未实际执行的验证命令。
     - `src/web/server.ts`：新增 `changesForRun`，将本次 run timeline 中 `write_file` 实际写入的文件合并进 run 的文件变更列表，使非 git 工作区也能展示本次改动。
     - 验证：`npm run typecheck`、`npm run build`、`npm test`（198 个测试）全部通过；新增非 git 工作区 write_file 变更测试与 provider prompt 断言更新。
+  - 迭代浪费修复：用户询问为何简单任务也会迭代很多次。根因：loop 只拦截「连续重复」动作，模型穿插其他动作后再次写相同文件/读相同文件不会被拦截，导致每个重复动作都消耗一次迭代。
+    - `src/core/loop.ts`：新增历史去重——write_file（同路径同内容）与 list_files（同路径）一旦执行过，后续再次出现直接给出 `duplicate_action` 反馈并跳过；read_file 在同路径未被后续 write 修改时也拦截重复读；写后重读允许。
+    - `src/core/context.ts`：Operating rules 增加「不要用相同路径/相同内容重复执行 read/list/write」「简单任务应在少数动作内 finish」。
+    - 验证：`npm run typecheck`、`npm run build`、`npm test`（200 个测试）全部通过；新增历史重复拦截与「写后重读允许」测试。

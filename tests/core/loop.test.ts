@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -141,6 +141,74 @@ describe("runAgentLoop", () => {
     expect(inputs[2].context).toContain("duplicate_action");
     expect(inputs[2].context).toContain("不要连续重复同一个动作");
     expect(result.events.filter((event) => event.kind === "tool_result")).toHaveLength(1);
+  });
+
+  it("flags historical repeats even when another action happened in between", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-historical-repeat-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src", "index.js"), "export const a = 1;\n", "utf8");
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        if (inputs.length === 1) {
+          return JSON.stringify({ type: "write_file", path: "src/index.js", content: "export const a = 2;\n", reason: "first write" });
+        }
+        if (inputs.length === 2) {
+          return JSON.stringify({ type: "read_file", path: "package.json", reason: "inspect package" });
+        }
+        if (inputs.length === 3) {
+          return JSON.stringify({ type: "write_file", path: "src/index.js", content: "export const a = 2;\n", reason: "repeat same content" });
+        }
+        return JSON.stringify({ type: "finish", summary: "done" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "avoid historical repeats",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: ["npm test"] },
+      provider,
+      maxIterations: 4
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(4);
+    expect(inputs[3].context).toContain("duplicate_action");
+    expect(inputs[3].context).toContain("你之前已经执行过完全相同的动作");
+    expect(result.events.filter((event) => event.kind === "tool_result" && (event.action as { type?: string })?.type === "write_file"))
+      .toHaveLength(1);
+  });
+
+  it("allows re-reading a file after it was written", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-read-after-write-"));
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src", "index.js"), "export const a = 1;\n", "utf8");
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        if (inputs.length === 1) {
+          return JSON.stringify({ type: "write_file", path: "src/index.js", content: "export const a = 2;\n", reason: "update" });
+        }
+        if (inputs.length === 2) {
+          return JSON.stringify({ type: "read_file", path: "src/index.js", reason: "verify after write" });
+        }
+        return JSON.stringify({ type: "finish", summary: "done" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "read after write",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: [] },
+      provider,
+      maxIterations: 3
+    });
+
+    expect(result.status).toBe("finished");
+    expect(result.events.filter((event) => event.kind === "tool_result" && (event.action as { type?: string })?.type === "read_file"))
+      .toHaveLength(1);
+    expect(result.events.filter((event) => event.kind === "feedback" && (event.feedback as { source?: string })?.source === "duplicate_action"))
+      .toHaveLength(0);
   });
 
   it("includes recent run summaries from the same workspace in provider context", async () => {

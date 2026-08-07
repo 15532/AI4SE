@@ -402,6 +402,7 @@ npm run demo:coding-task
 - WebUI 的“mock 机制演示”入口能在对话流中确定性复现护栏拦截、失败反馈与修正动作。
 - WebUI 提供“清除历史对话与工作区”入口，可清空历史并重置已注册工作区到初始模板。
 - DeepSeek finish.summary 要求详细（4-8 句）并只能陈述真实执行的验证命令；WebUI 文件变更合并本次 run 写入的文件，不依赖 git 仓库。
+- agent loop 对 read_file/list_files/write_file 做历史去重：相同路径/相同内容不会重复执行工具，避免简单任务因重复动作消耗过多迭代。
 - 危险 action 在执行前被 block。
 - failure feedback event 会改变 mock LLM 的下一步 action。
 - `remember` action 能持久化 scoped memory，context retrieval 有边界。

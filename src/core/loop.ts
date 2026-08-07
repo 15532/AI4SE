@@ -84,12 +84,14 @@ function buildLoopControl(input: { iteration: number; maxIterations: number }): 
   return lines.join("\n");
 }
 
-function duplicateActionFeedback(action: Action): Feedback {
+function duplicateActionFeedback(action: Action, historical = false): Feedback {
   return {
     source: "duplicate_action",
     severity: "warning",
-    message: "不要连续重复同一个动作；请根据已有工具结果选择下一步，若信息足够则返回 finish。",
-    payload: { actionType: action.type }
+    message: historical
+      ? "你之前已经执行过完全相同的动作（相同路径/相同内容），不要重复执行；请基于已有工具结果继续，若信息足够则返回 finish。"
+      : "不要连续重复同一个动作；请根据已有工具结果选择下一步，若信息足够则返回 finish。",
+    payload: { actionType: action.type, ...(historical ? { repeated: true } : {}) }
   };
 }
 
@@ -138,6 +140,8 @@ export async function runAgentLoop(input: {
         return `${status}: ${run.task}${suffix}`;
       });
   let lastActionSignature: string | undefined;
+  const executedSignatures = new Set<string>();
+  const writtenPaths = new Set<string>();
   let consecutiveProviderErrors = 0;
 
   const record = (event: AgentEvent): void => {
@@ -209,8 +213,17 @@ export async function runAgentLoop(input: {
       return { runId, status: "finished", events };
     }
 
-    if (currentActionSignature === lastActionSignature) {
-      const repeatFeedback = redactFeedback(duplicateActionFeedback(action));
+    const isConsecutiveRepeat = currentActionSignature === lastActionSignature;
+    const isHistoricalRepeat = (
+      (action.type === "write_file" || action.type === "list_files")
+      && executedSignatures.has(currentActionSignature)
+    ) || (
+      action.type === "read_file"
+      && executedSignatures.has(currentActionSignature)
+      && !writtenPaths.has(action.path)
+    );
+    if (isConsecutiveRepeat || isHistoricalRepeat) {
+      const repeatFeedback = redactFeedback(duplicateActionFeedback(action, !isConsecutiveRepeat));
       feedback.push(repeatFeedback);
       record({ kind: "feedback", iteration, feedback: repeatFeedback });
       continue;
@@ -262,6 +275,7 @@ export async function runAgentLoop(input: {
       const nextFeedback = redactFeedback(feedbackFromCommandResult(result));
       feedback.push(nextFeedback);
       record({ kind: "feedback", iteration, feedback: nextFeedback });
+      executedSignatures.add(currentActionSignature);
       lastActionSignature = currentActionSignature;
       continue;
     }
@@ -271,6 +285,8 @@ export async function runAgentLoop(input: {
     const nextFeedback = redactFeedback(feedbackFromCommandResult(result));
     feedback.push(nextFeedback);
     record({ kind: "feedback", iteration, feedback: nextFeedback });
+    executedSignatures.add(currentActionSignature);
+    if (action.type === "write_file") writtenPaths.add(action.path);
     lastActionSignature = currentActionSignature;
   }
 

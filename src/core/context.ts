@@ -60,6 +60,8 @@ export function buildContext(input: {
     "- Recent runs are background context only; if the current task asks for verification, you must verify it in this run instead of relying on previous summaries.",
     "- Write finish.summary in Chinese with 2-4 sentences, including changed files, implementation result, and verification result.",
     "- After successful verification, return finish instead of repeating read_file, list_files, or write_file.",
+    "- Do not re-run a read_file, list_files, or write_file with the same path and same content that you already executed; reuse the earlier result.",
+    "- For a simple task, finish within a few actions instead of repeatedly inspecting the same file or rewriting identical content.",
     "- If feedback reports invalid_action, return a corrected JSON action with the exact required shape.",
     "- If feedback reports safety_blocked, choose a safer allowed action instead of repeating the blocked action.",
     "- Do not finish before you have either verified the requested change or explained why verification is impossible."
