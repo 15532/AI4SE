@@ -123,6 +123,17 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 新 release 目录：`/opt/ai4se/releases/20260806214200`（构建通过，切换 `current` 并重启服务，`active`）
 - 线上端到端验证：清理前 6 sessions/6 runs/97 events、工作区 4 个文件；POST `/ai4se/api/cleanup` 后 0 sessions/0 runs/0 events，工作区恢复为模板 5 个文件（含 `src/bubble_sort.js`）；首页侧栏显示「暂无对话」。
 
+## 2026-08-07 第四轮部署：详细摘要与文件变更修复
+
+背景：用户反馈 DeepSeek 摘要过于简短、模型声称「node --check / npm test 通过」但 timeline 无对应 run_command（模型幻觉），以及工作区不是 git 仓库导致 WebUI「文件变更」恒为 0。
+
+- 提交：`522dde0 优化：DeepSeek 摘要更详细并禁止编造验证，文件变更合并本次写入`
+- 修复内容：
+  - `src/core/providers.ts`：system prompt 要求 finish.summary 为 4-8 句详细中文（列出修改文件、逐文件关键改动、真实执行的验证命令及结果、跳过项），并禁止编造未执行的验证。
+  - `src/web/server.ts`：`changesForRun` 将 run timeline 中 `write_file` 实际写入的文件合并进 run 文件变更列表，非 git 工作区也能展示。
+- 新 release 目录：`/opt/ai4se/releases/20260807112200`（构建通过，切换 `current`、重启服务后 `active`）。
+- 线上验证：用户 run `4532279e` 页面现在显示「文件变更 (1)」与 `src/index.js` 变更卡片，摘要含 bubbleSort 详情。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
