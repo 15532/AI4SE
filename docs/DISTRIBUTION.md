@@ -157,6 +157,16 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 线上验证：session `b20e521e` 聊天线程内「请你写一个堆排序」位于「你可以进行验证吗?」上方（旧在上、新在下）。
 - 本地验证：`npm run typecheck`、`npm run build`、`npm test`（201 个测试）全部通过。
 
+## 2026-08-07 第七轮部署：有效迭代预算与重复空转分离
+
+背景：用户反馈 run `caaebd00` timeline 有 35 个事件，其中 12 个是重复空转（模型连续 6 次重复 `list_files .`，每次被历史去重拦截但仍消耗一次迭代预算）。
+
+- 提交：`acd71e6 优化：重复空转不再消耗有效迭代预算`
+- 修复内容：
+  - `src/core/loop.ts`：把「有效迭代预算」与「总轮次上限」分离——被拦截的重复/无效/护栏拦截/解析失败轮次只计入总轮次（上限 `maxIterations * 3`），不再消耗有效预算；只有真正执行工具的动作才消耗有效预算。重复反馈给出明确下一步建议。
+- 新 release 目录：`/opt/ai4se/releases/20260807115200`（构建通过，切换 `current`、重启服务后 `active`）。
+- 本地验证：`npm run typecheck`、`npm run build`、`npm test`（202 个测试）全部通过；新增「重复动作不消耗有效预算」测试。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
