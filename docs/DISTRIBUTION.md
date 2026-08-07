@@ -167,6 +167,17 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 新 release 目录：`/opt/ai4se/releases/20260807115200`（构建通过，切换 `current`、重启服务后 `active`）。
 - 本地验证：`npm run typecheck`、`npm run build`、`npm test`（202 个测试）全部通过；新增「重复动作不消耗有效预算」测试。
 
+## 2026-08-07 第八轮部署：多 JSON 拼接与目录误判修复
+
+背景：用户反馈 run `8f4b4141` timeline 有 65 个事件，模型声称「已运行 npm run build 成功」但 timeline 无 run_command（幻觉），并断言「没有测试文件」（实际有 test/sort.test.js）。
+
+- 提交：`4902fdc 修复：检测多 JSON 拼接，目录读取失败引导 list_files`
+- 修复内容：
+  - `src/core/actions.ts`：检测「多个 JSON 对象拼接」并返回 `invalid_action` 明确反馈，不再静默丢弃后续动作。
+  - `src/core/context.ts` + `src/core/providers.ts`：提示一次只返回一个 JSON；目录读取失败（EISDIR）时改用 list_files。
+- 新 release 目录：`/opt/ai4se/releases/20260807115830`（构建通过，切换 `current`、重启服务后 `active`）。
+- 本地验证：`npm run typecheck`、`npm run build`、`npm test`（204 个测试）全部通过；新增多 JSON 检测测试（actions + loop）。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
