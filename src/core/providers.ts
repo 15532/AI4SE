@@ -80,6 +80,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
               "A good finish.summary is 4-8 Chinese sentences, not a short English phrase and not a single summary line.",
               "Never claim that a verification command (for example npm test, node --check, npm run build) succeeded unless you actually ran that exact command in this run via the run_command action and observed its result.",
               "If you did not run a verification command, say so honestly in finish.summary instead of inventing a successful verification.",
+              "The Allowed commands in the harness context are executable as-is via run_command (for example npm test, npm run build). When the task asks for verification, run one of them instead of claiming verification is impossible; if unsure whether a script exists, read package.json first and then run the command.",
               "As a coding agent, inspect the workspace before editing.",
               "after writing code, run an allowed verification command.",
               "When the task asks for a new small program or algorithm, create or update files in the current workspace.",

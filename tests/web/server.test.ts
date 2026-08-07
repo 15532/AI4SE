@@ -897,6 +897,50 @@ workspaces:
     expect(page.body).not.toContain(dir);
   });
 
+  it("renders session runs in chronological order (oldest first)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-thread-order-"));
+    const dbPath = join(dir, "harness.sqlite");
+    let call = 0;
+    const app = createServer({
+      workspaces,
+      dbPath,
+      providerFactory: () => ({
+        async complete() {
+          call += 1;
+          return JSON.stringify({ type: "finish", summary: `done ${call}` });
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { workspaceId: "demo-ts", provider: "mock", title: "Thread order" }
+    });
+    const { id: sessionId } = created.json() as { id: string };
+
+    await app.inject({
+      method: "POST",
+      url: `/api/sessions/${sessionId}/runs`,
+      payload: { task: "第一个任务" }
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: `/api/sessions/${sessionId}/runs`,
+      payload: { task: "第二个任务" }
+    });
+    const secondRunId = (second.json() as { id: string }).id;
+
+    const page = await app.inject({ method: "GET", url: `/?sessionId=${sessionId}&runId=${secondRunId}` });
+    expect(page.statusCode).toBe(200);
+    const thread = page.body.slice(page.body.indexOf('<section class="chat-thread">'));
+    const firstIndex = thread.indexOf("第一个任务");
+    const secondIndex = thread.indexOf("第二个任务");
+    expect(firstIndex).toBeGreaterThan(-1);
+    expect(secondIndex).toBeGreaterThan(-1);
+    expect(firstIndex).toBeLessThan(secondIndex);
+  });
+
   it("renders live polling hooks on the active chat run", async () => {
     const release = deferred<string>();
     const app = createServer({

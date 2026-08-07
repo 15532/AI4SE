@@ -718,8 +718,9 @@ function renderChatRunMessages(run?: PublicChatRun, compact = false, sessionId?:
 
 function renderChatSessionThread(session?: PublicChatSession, activeRun?: PublicChatRun): string {
   if (session === undefined) return renderChatRunMessages(activeRun);
-  const activeRunId = activeRun?.id ?? session.runs.at(-1)?.id;
-  const messages = session.runs.map((run) => renderChatRunMessages(
+  const chronologicalRuns = [...session.runs].reverse();
+  const activeRunId = activeRun?.id ?? chronologicalRuns.at(-1)?.id;
+  const messages = chronologicalRuns.map((run) => renderChatRunMessages(
     run.id === activeRunId && activeRun !== undefined ? activeRun : run,
     run.id !== activeRunId,
     session.id

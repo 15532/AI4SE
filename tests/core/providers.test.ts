@@ -83,6 +83,7 @@ describe("OpenAICompatibleProvider", () => {
     expect(messages[0].content).toContain("list every file created or modified");
     expect(messages[0].content).toContain("4-8 Chinese sentences");
     expect(messages[0].content).toContain("Never claim that a verification command");
+    expect(messages[0].content).toContain("The Allowed commands in the harness context are executable as-is");
   });
 
   it("instructs real models to behave like a coding agent instead of a chat bot", async () => {

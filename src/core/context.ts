@@ -62,6 +62,7 @@ export function buildContext(input: {
     "- After successful verification, return finish instead of repeating read_file, list_files, or write_file.",
     "- Do not re-run a read_file, list_files, or write_file with the same path and same content that you already executed; reuse the earlier result.",
     "- For a simple task, finish within a few actions instead of repeatedly inspecting the same file or rewriting identical content.",
+    "- When the task asks for verification, run one of the Allowed commands directly (for example npm test or npm run build) via run_command; do not claim the workspace has no verification scripts unless you have actually read package.json and confirmed the scripts are missing.",
     "- If feedback reports invalid_action, return a corrected JSON action with the exact required shape.",
     "- If feedback reports safety_blocked, choose a safer allowed action instead of repeating the blocked action.",
     "- Do not finish before you have either verified the requested change or explained why verification is impossible."

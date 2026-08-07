@@ -738,3 +738,7 @@
     - `src/core/loop.ts`：新增历史去重——write_file（同路径同内容）与 list_files（同路径）一旦执行过，后续再次出现直接给出 `duplicate_action` 反馈并跳过；read_file 在同路径未被后续 write 修改时也拦截重复读；写后重读允许。
     - `src/core/context.ts`：Operating rules 增加「不要用相同路径/相同内容重复执行 read/list/write」「简单任务应在少数动作内 finish」。
     - 验证：`npm run typecheck`、`npm run build`、`npm test`（200 个测试）全部通过；新增历史重复拦截与「写后重读允许」测试。
+  - 聊天顺序与验证命令修复：用户反馈 ① 会话中新的用户要求显示在旧要求上方；② 模型声称「没有可用验证命令」但工作区 package.json 明明有 npm test/npm run build；③ 简单任务迭代仍偏长。
+    - `src/web/views.ts`：`renderChatSessionThread` 先按时间正序（旧在上、新在下）再渲染，修复新要求显示在旧要求上方。
+    - `src/core/context.ts` + `src/core/providers.ts`：明确「验证任务直接运行 Allowed commands（npm test / npm run build），不要臆断脚本缺失；拿不准先 read package.json 再运行」。
+    - 验证：`npm run typecheck`、`npm run build`、`npm test`（201 个测试）全部通过；新增聊天线程顺序断言与 provider prompt 断言更新。
