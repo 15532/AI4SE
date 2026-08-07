@@ -801,3 +801,14 @@
   - `src/core/context.ts`：Operating rules 增加「验证失败时先读实际测试文件和命令输出找到真正原因，再决定改哪个文件；不要反复用不同风格重写同一源文件猜测」。
 - 验证证据：
   - `npm run typecheck`、`npm run build`、`npm test`（208 个测试）全部通过；新增「如实报告失败/未验证不误判」测试；原有「声称验证但未运行 → 被拒并补跑」测试仍通过。
+
+### 2026-08-07 - 收尾：对照课程要求全量核查
+
+- 主 agent：Codex App
+- 动作：
+  - 通读 `AI4SE_Final_Project_通用要求.md` 与 `AI4SE_Final_Project_A_Coding_Agent_Harness(1).md`，逐条核对交付物。
+  - 验证：`npm test`（208 个测试）、`npm run build`、`npm run demo:mechanisms`、`npm run demo:coding-task`、`npm run check:acceptance` 全部通过。
+  - 确认核心机制（主循环/工具分发/护栏/反馈/记忆/配置）均为自有代码，且有 mock-LLM 确定性单元测试；依赖无 LangChain/AutoGen/CrewAI/LlamaIndex 等现成 agent 框架。
+  - 确认 SPEC 含「领域与机制设计」，README 补齐「获取方式」与「已知限制」章节（通用要求 §3.2/§4.10 要求）。
+  - 确认凭据安全（加密凭据文件、脱敏、不硬编码）、CI（GitHub Actions + GitLab unit-test job）、线上部署 `https://20230722.top/ai4se/` 可访问，最新 run 已验证。
+  - 仓库凭据泄漏自查：未发现真实 key。

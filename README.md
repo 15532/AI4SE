@@ -69,6 +69,17 @@ http://127.0.0.1:3100/?workspaceId=deepseek-sandbox
 
 它不是完整 VS Code 替代品，也不包含成熟代码编辑器、调试器或插件系统。课程文档推荐的 Open Design 已作为方案 B 的设计参考写入 SPEC；本轮选择低依赖、可测试的 server-rendered IDE 壳层，后续若继续增强视觉系统或交互原型，再正式引入 Open Design 生成/审查设计系统。
 
+## 获取方式
+
+从 GitHub 克隆仓库（公开）：
+
+```powershell
+git clone https://github.com/15532/AI4SE.git
+cd AI4SE
+```
+
+也支持容器分发：`docker build -t coding-agent-harness .` 或 `docker compose up --build`（详见下方「Docker 分发」）。本地与容器运行都需要 Node.js 22（Docker 镜像内置），真实 DeepSeek 调用需要你自行配置自己的 API key。
+
 ## 环境准备
 
 需要 Node.js 22 和 npm。建议先确认版本：
@@ -477,6 +488,16 @@ WebUI 默认不启用 password，适合本地开发或短期课程演示；正�
 当前 v1 已支持 DeepSeek OpenAI-compatible provider，并保留 mock provider 用于离线测试。`CredentialManager` 默认使用 AES-256-GCM 加密凭据文件，DeepSeek key 优先从该文件读取，其次才读取 `DEEPSEEK_API_KEY` fallback。真实 API key 绝不能提交、打印、写入 SQLite、写入日志或通过 WebUI 返回。
 
 更多安全边界和发布前检查请见 [SECURITY.md](SECURITY.md)。
+
+## 已知限制
+
+- 当前内置的浏览器文件编辑与 WebUI 对话工作台是轻量 V1，不是完整 VS Code 替代品：没有调试器、插件系统、成熟代码补全或复杂重构能力。
+- 文件变更/差异面板依赖 git 仓库；若某 workspace 不是 git 仓库，WebUI 会改为展示本次 run 实际写入的文件列表，但无法提供逐行 diff。
+- 模型行为（如是否编造验证结果）无法被完全消除：harness 用「验证声明守卫」「写后必须验证」「历史去重」等代码机制兜底，但这些只能约束而无法保证 LLM 始终诚实或高效；对可信度要求极高的场景仍应人工复核。
+- shell 执行仅限 workspace 的 `allowedCommands` 白名单；未列入的命令会被护栏拦截，发布/部署类命令需要人工审批。
+- WebUI 默认不启用登录界面（本地/短期演示）；正式长期公网开放前必须启用 `WEBUI_ADMIN_PASSWORD` 或放在 Nginx/VPN/SSO 等边界之后，否则攻击者可以触发真实 harness run。
+- 当前默认 DeepSeek provider 使用 OpenAI-compatible 补全接口；未接入工具调用（function calling）等更高级协议，动作全部经由 harness 的严格 JSON Action 协议解析。
+- 服务器当前使用 systemd + Nginx 部署，未安装 Docker；Docker 构建已在 GitHub Actions CI 中执行并验证通过。
 
 ## 目录结构
 
