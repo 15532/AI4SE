@@ -207,6 +207,17 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 新 release 目录：`/opt/ai4se/releases/20260807133710`（构建通过，切换 `current`、重启服务后 `active`）。
 - 本地验证：`npm run typecheck`、`npm run build`、`npm test`（207 个测试）全部通过；新增「未验证前重写同一文件被拦、验证后可再写」测试。
 
+## 2026-08-07 第十二轮部署：验证守卫误报修复
+
+背景：用户反馈 run `db79b331`（71 个事件）。模型实际运行 `npm test` 失败后，finish 摘要如实说明「失败/未运行验证」，但验证守卫仍反复给 `verification_missing`（正则只匹配命令名/验证词，不判断上下文），事件 65/68 两次误拦截，直到第 71 个事件才放行。次级原因：模型未读测试文件就反复重写 src 猜测。
+
+- 提交：`64c9110 修复：验证守卫误报与失败后读测试文件引导`
+- 修复内容：
+  - `src/core/loop.ts`：验证守卫改为「命令/验证词 + 通过/成功」且排除「未运行/未执行/失败/未验证/不声明/未实际执行」才触发。
+  - `src/core/context.ts`：失败时先读实际测试文件和命令输出找真正原因，再决定改哪个文件。
+- 新 release 目录：`/opt/ai4se/releases/20260807134420`（构建通过，切换 `current`、重启服务后 `active`）。
+- 本地验证：`npm run typecheck`、`npm run build`、`npm test`（208 个测试）全部通过；新增「如实报告失败/未验证不误判」测试。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
