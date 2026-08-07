@@ -1,0 +1,20 @@
+services:
+  harness:
+    build: .
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HARNESS_CONFIG_PATH: /app/config/harness.example.yaml
+      HARNESS_DB_PATH: /app/data/harness.sqlite
+      HARNESS_CREDENTIAL_STORE_PATH: /app/data/credentials.enc.json
+      HARNESS_MASTER_PASSWORD: ${HARNESS_MASTER_PASSWORD:-}
+      WEBUI_ADMIN_USER: ${WEBUI_ADMIN_USER:-admin}
+      WEBUI_ADMIN_PASSWORD: ${WEBUI_ADMIN_PASSWORD:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    ports:
+      - "3000:3000"
+    volumes:
+      - harness-data:/app/data
+
+volumes:
+  harness-data:

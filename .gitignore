@@ -38,3 +38,6 @@ temp/
 
 # Git worktree 工作区
 .worktrees/
+
+# Superpowers 本地执行记录
+.superpowers/

@@ -1,0 +1,23 @@
+# WebUI v1 不设 password，仅用于受信任网络或短期课程演示。
+mode: default
+maxIterations: 10
+providers:
+  - id: mock
+    type: mock
+  - id: deepseek
+    type: deepseek-compatible
+    baseUrl: https://api.deepseek.com
+    model: deepseek-v4-flash
+    apiKeyEnv: DEEPSEEK_API_KEY
+    thinking: disabled
+workspaces:
+  - id: deepseek-sandbox
+    name: DeepSeek Sandbox
+    root: ../workspaces/deepseek-sandbox
+    allowedCommands:
+      - npm test
+      - npm run build
+  - id: docs
+    name: Documentation Demo
+    root: ../docs
+    allowedCommands: []
