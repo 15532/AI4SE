@@ -134,6 +134,17 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 新 release 目录：`/opt/ai4se/releases/20260807112200`（构建通过，切换 `current`、重启服务后 `active`）。
 - 线上验证：用户 run `4532279e` 页面现在显示「文件变更 (1)」与 `src/index.js` 变更卡片，摘要含 bubbleSort 详情。
 
+## 2026-08-07 第五轮部署：agent loop 历史去重
+
+背景：用户询问为何存在迭代上限、为何简单任务仍迭代很多次。根因是 loop 只拦截「连续重复」动作，模型穿插其他动作后再写相同文件/读相同文件不会触发拦截，每个重复动作都消耗一次迭代。
+
+- 提交：`0ae030c 优化：agent loop 历史去重避免重复动作消耗迭代`
+- 修复内容：
+  - `src/core/loop.ts`：write_file（同路径同内容）与 list_files（同路径）历史重复直接跳过并给 `duplicate_action` 反馈；read_file 在路径未被后续 write 修改时拦截重复读；写后重读允许。
+  - `src/core/context.ts`：Operating rules 增加防重复与「简单任务尽快 finish」约束。
+- 新 release 目录：`/opt/ai4se/releases/20260807113230`（构建通过，切换 `current`、重启服务后 `active`）。
+- 本地验证：`npm run typecheck`、`npm run build`、`npm test`（200 个测试）全部通过。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
