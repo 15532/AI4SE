@@ -178,6 +178,17 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 新 release 目录：`/opt/ai4se/releases/20260807115830`（构建通过，切换 `current`、重启服务后 `active`）。
 - 本地验证：`npm run typecheck`、`npm run build`、`npm test`（204 个测试）全部通过；新增多 JSON 检测测试（actions + loop）。
 
+## 2026-08-07 第九轮部署：验证声明守卫
+
+背景：用户反馈 run `71d27bed`（48 个事件）中模型 finish.summary 声称「已通过 npm run build 验证语法正确」，但 timeline 里根本没有执行任何 run_command——模型编造验证结果，harness 直接接受。
+
+- 提交：`deff9aa 修复：验证声明守卫，拒绝编造未执行的验证成功`
+- 修复内容：
+  - `src/core/loop.ts`：新增验证声明守卫——若 finish.summary 声称验证命令成功（npm test / npm run build / node --check / 验证通过 / 测试通过 / 运行成功），但本次 run 没有成功执行过任何 run_command，则拒绝 finish、记录 `verification_missing` 反馈并让模型真正运行验证（最多提示 2 次）。
+  - `src/core/feedback.ts`：Feedback source 增加 `verification_missing`。
+- 新 release 目录：`/opt/ai4se/releases/20260807124230`（构建通过，切换 `current`、重启服务后 `active`）。
+- 本地验证：`npm run typecheck`、`npm run build`、`npm test`（205 个测试）全部通过；新增「声称验证但未运行 → 被拒并补跑验证」测试。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
