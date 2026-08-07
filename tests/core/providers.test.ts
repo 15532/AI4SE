@@ -80,8 +80,9 @@ describe("OpenAICompatibleProvider", () => {
     expect(messages[0].content).toContain('{"type":"finish","summary":"DeepSeek connected"}');
     expect(messages[0].content).toContain('Do not use "action" as a field name');
     expect(messages[0].content).toContain("finish.summary must be written in Chinese");
-    expect(messages[0].content).toContain("changed files");
-    expect(messages[0].content).toContain("verification result");
+    expect(messages[0].content).toContain("list every file created or modified");
+    expect(messages[0].content).toContain("4-8 Chinese sentences");
+    expect(messages[0].content).toContain("Never claim that a verification command");
   });
 
   it("instructs real models to behave like a coding agent instead of a chat bot", async () => {

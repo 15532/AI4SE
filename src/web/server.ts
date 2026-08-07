@@ -358,6 +358,26 @@ export function createServer(input: {
     return result.ok ? result.changes : [];
   };
 
+  const changesForRun = async (
+    workspaceId: string,
+    timeline: Array<{ kind: string; payload: Record<string, unknown> }>
+  ) => {
+    const workspaceChanges = await changesForWorkspace(workspaceId);
+    const writtenPaths = new Map<string, string>();
+    for (const event of timeline) {
+      if (event.kind !== "tool_result") continue;
+      const action = event.payload.action as { type?: string; path?: string } | undefined;
+      if (action?.type === "write_file" && typeof action.path === "string" && action.path !== "") {
+        writtenPaths.set(action.path, "modified");
+      }
+    }
+    const seen = new Set(workspaceChanges.map((change) => change.path));
+    const writtenOnly = [...writtenPaths.entries()]
+      .filter(([path]) => !seen.has(path))
+      .map(([path, status]) => ({ path, status }));
+    return [...workspaceChanges, ...writtenOnly];
+  };
+
   const publicSession = (sessionId: string) => {
     const session = eventStore.getSession(sessionId);
     if (session === undefined) return undefined;
@@ -489,7 +509,7 @@ export function createServer(input: {
         ? undefined
         : {
           ...activeRun,
-          changes: await changesForWorkspace(activeRun.workspaceId)
+          changes: await changesForRun(activeRun.workspaceId, activeRun.timeline)
         };
       const activeWorkspaceId = url.searchParams.get("workspaceId")
         ?? chatSession?.workspaceId
@@ -900,7 +920,7 @@ export function createServer(input: {
       const run = storedRun(id);
       return run === undefined
         ? response(404, "运行不存在", "text/html; charset=utf-8")
-        : response(200, renderRun({ ...run, changes: await changesForWorkspace(run.workspaceId) }), "text/html; charset=utf-8");
+        : response(200, renderRun({ ...run, changes: await changesForRun(run.workspaceId, run.timeline) }), "text/html; charset=utf-8");
     }
     if (method === "GET" && url.pathname.startsWith("/sessions/")) {
       const sessionId = decodeURIComponent(url.pathname.slice("/sessions/".length));

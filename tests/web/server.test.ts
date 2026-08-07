@@ -791,6 +791,48 @@ workspaces:
     expect(index.body).toContain("清空历史并重置工作区");
   });
 
+  it("shows files written by a run even when the workspace is not a git repository", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "harness-web-non-git-changes-"));
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "src", "index.js"), "export const version = 1;\n", "utf8");
+    const responses = [
+      JSON.stringify({ type: "write_file", path: "src/index.js", content: "export const version = 2;\n", reason: "update version" }),
+      JSON.stringify({ type: "finish", summary: "changed index" })
+    ];
+    let responseIndex = 0;
+    const app = createServer({
+      workspaces: [{ id: "demo", name: "Demo", root: dir, allowedCommands: [] }],
+      providerFactory: () => ({
+        async complete() {
+          const response = responses[responseIndex];
+          responseIndex += 1;
+          return response;
+        }
+      })
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/runs",
+      payload: {
+        workspaceId: "demo",
+        provider: "mock",
+        task: "modify src/index.js"
+      }
+    });
+    const { id: runId } = created.json() as { id: string };
+
+    const timeline = await app.inject({ method: "GET", url: `/api/runs/${runId}/timeline` });
+    const payload = timeline.json() as { status: string; timeline: Array<{ kind: string; payload: Record<string, unknown> }> };
+    expect(payload.status).toBe("finished");
+
+    const page = await app.inject({ method: "GET", url: `/?runId=${runId}` });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("<summary>文件变更 (1)</summary>");
+    expect(page.body).toContain("chat-change-card");
+    expect(page.body).toContain("src/index.js");
+  });
+
   it("renders recent run links in the chat sidebar without leaving the conversation page", async () => {
     const dir = await mkdtemp(join(tmpdir(), "harness-web-recent-runs-"));
     const app = createServer({
