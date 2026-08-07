@@ -35,6 +35,23 @@ describe("parseAction", () => {
     });
   });
 
+  it("rejects a concatenated second action even when prose is between the JSON objects", () => {
+    const raw = JSON.stringify({ type: "run_command", command: "npm test", reason: "verify" })
+      + "\n\nLet me think about this. I need to update the test file first.\n\n"
+      + JSON.stringify({ type: "write_file", path: "test/sort.test.js", content: "import x", reason: "update test" });
+    const result = parseAction(raw);
+
+    expect(result).toEqual({
+      ok: false,
+      feedback: {
+        source: "invalid_action",
+        severity: "error",
+        message: "一次只能返回一个 JSON action；不要把多个动作拼接在同一个响应里。请先完成当前动作，再在下一轮返回下一个动作。",
+        payload: { raw }
+      }
+    });
+  });
+
   it("parses a valid run_command action", () => {
     const result = parseAction(JSON.stringify({
       type: "run_command",

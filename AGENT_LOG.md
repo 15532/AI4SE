@@ -769,3 +769,13 @@
   - `src/core/feedback.ts`：Feedback source 增加 `verification_missing`。
 - 验证证据：
   - `npm run typecheck`、`npm run build`、`npm test`（205 个测试）全部通过；新增「声称验证但未运行 → 被拒并补跑验证」测试。
+
+### 2026-08-07 - 多 JSON 检测强化（修复「JSON + 文字 + JSON」被静默丢弃）
+
+- 主 agent：Codex App
+- 背景：用户反馈 run `1a0d0b43`（68 个事件）。检查发现事件 61 的模型响应是「第一个 JSON（run_command npm test）+ 大段思维链文本 + 第二个 JSON（write_file test/sort.test.js）」。
+- 根因：上一轮的多 JSON 检测只检查 `remainder.startsWith("{")`，只覆盖「两个 JSON 紧邻拼接」；当中间隔着大段文字时不会触发，parser 只提取第一个动作、静默丢弃第二个 → 模型以为更新了测试文件，但 `test/sort.test.js` 实际仍是旧的 bubbleSort 测试，摘要与真实操作不符。
+- Agent 动作：
+  - `src/core/actions.ts`：提取第一个 JSON 后，在剩余文本中再次提取 JSON；若存在第二个带 `"type"` 的 action 对象，判定为「Multiple JSON objects found」并返回 `invalid_action` 反馈。同时保留对「JSON + 纯中文解释（无第二个 JSON）」的兼容。
+- 验证证据：
+  - `npm run typecheck`、`npm run build`、`npm test`（206 个测试）全部通过；新增「JSON + 文字 + JSON」拼接检测测试。

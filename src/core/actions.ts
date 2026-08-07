@@ -137,9 +137,19 @@ function parseJsonActionCandidate(raw: string): unknown {
     if (first === undefined) {
       throw new Error("No JSON object found");
     }
-    const remainder = candidate.slice(firstStart + first.length).trim();
-    if (remainder.startsWith("{")) {
-      throw new Error("Multiple JSON objects found");
+    const remainder = candidate.slice(firstStart + first.length);
+    const second = extractFirstJsonObject(remainder);
+    if (second !== undefined) {
+      try {
+        const secondValue = JSON.parse(second) as Record<string, unknown>;
+        if (typeof secondValue?.type === "string") {
+          throw new Error("Multiple JSON objects found");
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message === "Multiple JSON objects found") {
+          throw error;
+        }
+      }
     }
     return JSON.parse(first);
   }
