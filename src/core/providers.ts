@@ -72,6 +72,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
             content: [
               "You are the decision model for a Coding Agent Harness.",
               "Return exactly one strict JSON Action object and no markdown or prose.",
+              "Never concatenate multiple JSON objects in a single response; if you need to perform several steps, return one action now and continue in the next turn.",
               "The discriminator field MUST be named \"type\".",
               "Do not use \"action\" as a field name.",
               "Valid action type values are read_file, write_file, list_files, run_command, remember, and finish.",

@@ -179,6 +179,39 @@ describe("runAgentLoop", () => {
       .toHaveLength(1);
   });
 
+  it("rejects concatenated actions and lets the model retry in the next iteration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-multi-json-"));
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        if (inputs.length === 1) {
+          return JSON.stringify({ type: "write_file", path: "a.txt", content: "x", reason: "write" })
+            + JSON.stringify({ type: "run_command", command: "npm test", reason: "verify" });
+        }
+        return JSON.stringify({ type: "finish", summary: "completed after retry" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "reject concatenated actions",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: [] },
+      provider,
+      maxIterations: 3
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(2);
+    expect(inputs[1].context).toContain("一次只能返回一个 JSON action");
+    expect(result.events).toContainEqual(expect.objectContaining({
+      kind: "feedback",
+      feedback: expect.objectContaining({
+        source: "invalid_action",
+        message: "一次只能返回一个 JSON action；不要把多个动作拼接在同一个响应里。请先完成当前动作，再在下一轮返回下一个动作。"
+      })
+    }));
+  });
+
   it("does not consume the effective iteration budget on repeated actions", async () => {
     const root = await mkdtemp(join(tmpdir(), "harness-loop-budget-repeat-"));
     const inputs: Array<{ task: string; context: string }> = [];

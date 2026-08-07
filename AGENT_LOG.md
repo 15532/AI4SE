@@ -745,3 +745,16 @@
   - 迭代预算修复：用户反馈 run `caaebd00` timeline 有 35 个事件、其中 12 个是重复空转（模型连续 6 次重复 `list_files .`，每次被历史去重拦截但仍消耗一次迭代预算）。
     - `src/core/loop.ts`：把「有效迭代预算」与「总轮次上限」分离——被拦截的重复/无效/护栏拦截/解析失败轮次只计入总轮次（上限为 `maxIterations * 3`），不再消耗有效预算；只有真正执行工具的动作才消耗有效预算。重复反馈也给出明确下一步建议（list_files → 改 read/write/run；read_file → 基于已读内容推进）。
     - 验证：`npm run typecheck`、`npm run build`、`npm test`（202 个测试）全部通过；新增「重复动作不消耗有效预算」测试（maxIterations=2 时 4 次 list_files 后仍能 finish）。
+
+### 2026-08-07 - 多 JSON 拼接与目录误判修复
+
+- 主 agent：Codex App
+- 背景：用户反馈 run `8f4b4141` timeline 有 65 个事件，且模型声称「已运行 npm run build 成功」但 timeline 无 run_command（幻觉），并断言「没有测试文件」（实际有 test/sort.test.js）。
+- 根因：
+  - 模型在一次响应里拼接了两个 JSON（write_file + run_command），旧 parser 只提取第一个、静默丢弃第二个，导致模型以为执行了验证但 harness 没执行。
+  - 模型 `read_file` 目录 `test` 失败（EISDIR）后没有改用 `list_files test`，直接断言没有测试文件。
+- Agent 动作：
+  - `src/core/actions.ts`：检测「多个 JSON 对象拼接」并返回 `invalid_action` 明确反馈，不再静默丢弃。
+  - `src/core/context.ts` + `src/core/providers.ts`：提示一次只返回一个 JSON、目录读取失败改用 list_files。
+- 验证证据：
+  - `npm run typecheck`、`npm run build`、`npm test`（204 个测试）全部通过；新增多 JSON 检测测试（actions + loop）。

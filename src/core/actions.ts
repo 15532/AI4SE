@@ -128,11 +128,20 @@ function parseJsonActionCandidate(raw: string): unknown {
   try {
     return JSON.parse(unwrapMarkdownJson(raw));
   } catch {
-    const extracted = extractFirstJsonObject(raw);
-    if (extracted === undefined) {
+    const candidate = unwrapMarkdownJson(raw);
+    const firstStart = candidate.indexOf("{");
+    if (firstStart === -1) {
       throw new Error("No JSON object found");
     }
-    return JSON.parse(extracted);
+    const first = extractFirstJsonObject(candidate);
+    if (first === undefined) {
+      throw new Error("No JSON object found");
+    }
+    const remainder = candidate.slice(firstStart + first.length).trim();
+    if (remainder.startsWith("{")) {
+      throw new Error("Multiple JSON objects found");
+    }
+    return JSON.parse(first);
   }
 }
 
@@ -148,13 +157,16 @@ export function parseAction(raw: string): ParseActionResult {
   let parsed: unknown;
   try {
     parsed = parseJsonActionCandidate(raw);
-  } catch {
+  } catch (error) {
+    const multipleObjects = error instanceof Error && error.message === "Multiple JSON objects found";
     return {
       ok: false,
       feedback: {
         source: "invalid_action",
         severity: "error",
-        message: "LLM output is not valid JSON",
+        message: multipleObjects
+          ? "一次只能返回一个 JSON action；不要把多个动作拼接在同一个响应里。请先完成当前动作，再在下一轮返回下一个动作。"
+          : "LLM output is not valid JSON",
         payload: { raw }
       }
     };

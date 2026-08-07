@@ -15,6 +15,26 @@ describe("parseAction", () => {
     });
   });
 
+  it("rejects multiple concatenated JSON objects as invalid_action feedback", () => {
+    const result = parseAction(
+      JSON.stringify({ type: "write_file", path: "src/index.js", content: "x", reason: "write" })
+      + JSON.stringify({ type: "run_command", command: "npm test", reason: "verify" })
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      feedback: {
+        source: "invalid_action",
+        severity: "error",
+        message: "一次只能返回一个 JSON action；不要把多个动作拼接在同一个响应里。请先完成当前动作，再在下一轮返回下一个动作。",
+        payload: {
+          raw: JSON.stringify({ type: "write_file", path: "src/index.js", content: "x", reason: "write" })
+            + JSON.stringify({ type: "run_command", command: "npm test", reason: "verify" })
+        }
+      }
+    });
+  });
+
   it("parses a valid run_command action", () => {
     const result = parseAction(JSON.stringify({
       type: "run_command",
