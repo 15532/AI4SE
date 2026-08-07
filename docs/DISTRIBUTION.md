@@ -198,6 +198,15 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 新 release 目录：`/opt/ai4se/releases/20260807125130`（构建通过，切换 `current`、重启服务后 `active`）。
 - 本地验证：`npm run typecheck`、`npm run build`、`npm test`（206 个测试）全部通过；新增「JSON + 文字 + JSON」检测测试。
 
+## 2026-08-07 第十一轮部署：写后必须验证护栏
+
+背景：用户反馈 run `80e7438c`（80 个事件，max_iterations）。模型反复重写同一文件 `src/heap_sort.js` 达 7 次（每次只微调变量名/注释），这些是「真正执行的有效动作」，既绕过历史去重又消耗有效迭代预算；最后写完才被验证守卫拦下补跑 npm test，预算已耗尽。
+
+- 提交：`d99fd5a 修复：写后必须验证，阻止未验证时反复重写同一文件`
+- 修复内容：`src/core/loop.ts` 新增护栏——同一路径已写入过且之后未运行过任何验证命令时，再次 write_file 同一路径被拦截并提示「先运行 npm test / npm run build 验证，再决定是否修改」；运行过验证命令后允许继续修改。
+- 新 release 目录：`/opt/ai4se/releases/20260807133710`（构建通过，切换 `current`、重启服务后 `active`）。
+- 本地验证：`npm run typecheck`、`npm run build`、`npm test`（207 个测试）全部通过；新增「未验证前重写同一文件被拦、验证后可再写」测试。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
