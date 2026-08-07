@@ -212,6 +212,44 @@ describe("runAgentLoop", () => {
     }));
   });
 
+  it("rejects a finish that claims verification without running a verification command", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-verify-claim-"));
+    await writeFile(join(root, "package.json"), JSON.stringify({ scripts: { build: "node --check src/index.js" } }), "utf8");
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src", "index.js"), "export const a = 1;\n", "utf8");
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        if (inputs.length === 1) {
+          return JSON.stringify({ type: "write_file", path: "src/index.js", content: "export const a = 2;\n", reason: "update" });
+        }
+        if (inputs.length === 2) {
+          return JSON.stringify({ type: "finish", summary: "已通过 npm run build 验证，测试通过。" });
+        }
+        if (inputs.length === 3) {
+          return JSON.stringify({ type: "run_command", command: "npm run build", reason: "verify" });
+        }
+        return JSON.stringify({ type: "finish", summary: "已实际运行 npm run build 验证通过。" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "claim verification honestly",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: ["npm run build"] },
+      provider,
+      maxIterations: 4
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(4);
+    expect(inputs[2].context).toContain("verification_missing");
+    expect(result.events.filter((event) => event.kind === "feedback" && (event.feedback as { source?: string })?.source === "verification_missing"))
+      .toHaveLength(1);
+    expect(result.events.filter((event) => event.kind === "tool_result" && (event.action as { type?: string })?.type === "run_command"))
+      .toHaveLength(1);
+  });
+
   it("does not consume the effective iteration budget on repeated actions", async () => {
     const root = await mkdtemp(join(tmpdir(), "harness-loop-budget-repeat-"));
     const inputs: Array<{ task: string; context: string }> = [];

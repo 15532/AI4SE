@@ -8,7 +8,8 @@ export type Feedback = {
     | "tool_succeeded"
     | "duplicate_action"
     | "provider_error"
-    | "credential_missing";
+    | "credential_missing"
+    | "verification_missing";
   severity: "info" | "warning" | "error";
   message: string;
   payload?: Record<string, unknown>;

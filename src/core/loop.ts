@@ -148,7 +148,9 @@ export async function runAgentLoop(input: {
   let lastActionSignature: string | undefined;
   const executedSignatures = new Set<string>();
   const writtenPaths = new Set<string>();
+  const successfulCommands = new Set<string>();
   let consecutiveProviderErrors = 0;
+  let verificationWarnings = 0;
 
   const record = (event: AgentEvent): void => {
     events.push(event);
@@ -219,6 +221,19 @@ export async function runAgentLoop(input: {
     const currentActionSignature = actionSignature(action);
 
     if (action.type === "finish") {
+      const claimsVerification = /npm (?:test|run (?:build|test))|node --check|验证(?:通过|成功)|测试(?:通过|成功)|运行成功/i.test(action.summary);
+      if (claimsVerification && successfulCommands.size === 0 && verificationWarnings < 2) {
+        verificationWarnings += 1;
+        const verificationFeedback = redactFeedback({
+          source: "verification_missing",
+          severity: "error",
+          message: "你的 finish.summary 声称验证命令成功，但本次运行并没有实际执行任何成功的验证命令（run_command）。请先通过 run_command 真正运行 npm test / npm run build / node --check 并观察结果，再 finish；如果没有运行验证，请在摘要中如实说明未验证。",
+          payload: { summary: action.summary }
+        });
+        feedback.push(verificationFeedback);
+        record({ kind: "feedback", iteration, feedback: verificationFeedback });
+        continue;
+      }
       record({ kind: "stop", iteration, reason: "finish", summary: redactString(action.summary) });
       return { runId, status: "finished", events };
     }
@@ -298,6 +313,7 @@ export async function runAgentLoop(input: {
     record({ kind: "feedback", iteration, feedback: nextFeedback });
     executedSignatures.add(currentActionSignature);
     if (action.type === "write_file") writtenPaths.add(action.path);
+    if (action.type === "run_command" && result.ok) successfulCommands.add(action.command);
     lastActionSignature = currentActionSignature;
     effectiveIterations += 1;
   }

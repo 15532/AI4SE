@@ -758,3 +758,14 @@
   - `src/core/context.ts` + `src/core/providers.ts`：提示一次只返回一个 JSON、目录读取失败改用 list_files。
 - 验证证据：
   - `npm run typecheck`、`npm run build`、`npm test`（204 个测试）全部通过；新增多 JSON 检测测试（actions + loop）。
+
+### 2026-08-07 - 验证声明守卫（防模型编造验证成功）
+
+- 主 agent：Codex App
+- 背景：用户反馈 run `71d27bed`（48 个事件）中模型 finish.summary 声称「已通过 npm run build 验证语法正确」，但 timeline 里根本没有执行任何 run_command——模型编造验证结果，harness 直接接受。
+- 根因：loop 在 finish 时只信任模型摘要，没有任何「摘要声称的验证是否真实执行过」的兜底校验。
+- Agent 动作：
+  - `src/core/loop.ts`：新增验证声明守卫——若 finish.summary 声称验证命令成功（npm test / npm run build / node --check / 验证通过 / 测试通过 / 运行成功），但本次 run 没有成功执行过任何 run_command，则拒绝 finish、记录 `verification_missing` 反馈并让模型真正运行验证（最多提示 2 次）。
+  - `src/core/feedback.ts`：Feedback source 增加 `verification_missing`。
+- 验证证据：
+  - `npm run typecheck`、`npm run build`、`npm test`（205 个测试）全部通过；新增「声称验证但未运行 → 被拒并补跑验证」测试。
