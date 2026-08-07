@@ -189,6 +189,15 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 新 release 目录：`/opt/ai4se/releases/20260807124230`（构建通过，切换 `current`、重启服务后 `active`）。
 - 本地验证：`npm run typecheck`、`npm run build`、`npm test`（205 个测试）全部通过；新增「声称验证但未运行 → 被拒并补跑验证」测试。
 
+## 2026-08-07 第十轮部署：多 JSON 检测强化
+
+背景：用户反馈 run `1a0d0b43`（68 个事件）。事件 61 的模型响应是「JSON（run_command）+ 大段思维链文本 + JSON（write_file test）」——上一轮检测只覆盖两个 JSON 紧邻拼接，中间夹文字时不触发，导致第二个动作被静默丢弃，`test/sort.test.js` 未更新而摘要声称已验证。
+
+- 提交：`a42d9a4 修复：强化多 JSON 检测，防止中间夹文字时静默丢弃动作`
+- 修复内容：`src/core/actions.ts` 提取第一个 JSON 后，在剩余文本中再次提取 JSON；若存在第二个带 `"type"` 的 action 则判定为多 JSON 并返回 `invalid_action`；保留「JSON + 纯中文解释」兼容。
+- 新 release 目录：`/opt/ai4se/releases/20260807125130`（构建通过，切换 `current`、重启服务后 `active`）。
+- 本地验证：`npm run typecheck`、`npm run build`、`npm test`（206 个测试）全部通过；新增「JSON + 文字 + JSON」检测测试。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
