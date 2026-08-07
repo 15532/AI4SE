@@ -179,6 +179,34 @@ describe("runAgentLoop", () => {
       .toHaveLength(1);
   });
 
+  it("does not consume the effective iteration budget on repeated actions", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-budget-repeat-"));
+    const inputs: Array<{ task: string; context: string }> = [];
+    const repeatedAction = JSON.stringify({ type: "list_files", path: ".", reason: "inspect" });
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        if (inputs.length <= 4) {
+          return repeatedAction;
+        }
+        return JSON.stringify({ type: "finish", summary: "finished after repeated inspections" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "repeated inspections should not burn the budget",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: [] },
+      provider,
+      maxIterations: 2
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(5);
+    expect(result.events.filter((event) => event.kind === "tool_result")).toHaveLength(1);
+    expect(result.events.filter((event) => event.kind === "feedback" && (event.feedback as { source?: string })?.source === "duplicate_action"))
+      .toHaveLength(3);
+  });
+
   it("allows re-reading a file after it was written", async () => {
     const root = await mkdtemp(join(tmpdir(), "harness-loop-read-after-write-"));
     await mkdir(join(root, "src"), { recursive: true });

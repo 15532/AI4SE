@@ -742,3 +742,6 @@
     - `src/web/views.ts`：`renderChatSessionThread` 先按时间正序（旧在上、新在下）再渲染，修复新要求显示在旧要求上方。
     - `src/core/context.ts` + `src/core/providers.ts`：明确「验证任务直接运行 Allowed commands（npm test / npm run build），不要臆断脚本缺失；拿不准先 read package.json 再运行」。
     - 验证：`npm run typecheck`、`npm run build`、`npm test`（201 个测试）全部通过；新增聊天线程顺序断言与 provider prompt 断言更新。
+  - 迭代预算修复：用户反馈 run `caaebd00` timeline 有 35 个事件、其中 12 个是重复空转（模型连续 6 次重复 `list_files .`，每次被历史去重拦截但仍消耗一次迭代预算）。
+    - `src/core/loop.ts`：把「有效迭代预算」与「总轮次上限」分离——被拦截的重复/无效/护栏拦截/解析失败轮次只计入总轮次（上限为 `maxIterations * 3`），不再消耗有效预算；只有真正执行工具的动作才消耗有效预算。重复反馈也给出明确下一步建议（list_files → 改 read/write/run；read_file → 基于已读内容推进）。
+    - 验证：`npm run typecheck`、`npm run build`、`npm test`（202 个测试）全部通过；新增「重复动作不消耗有效预算」测试（maxIterations=2 时 4 次 list_files 后仍能 finish）。

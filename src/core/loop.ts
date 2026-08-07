@@ -20,6 +20,7 @@ type AgentEvent = Record<string, unknown>;
 const credentialAssignmentPattern = /\b(?:openai_api_key|api[_-]?key|secret|token|password|private[_-]?key)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,}\]]+)/gi;
 const apiKeyPattern = /\bsk-[A-Za-z0-9_-]+\b/g;
 const maxConsecutiveProviderErrors = 3;
+const totalIterationCapMultiplier = 3;
 
 function redactString(value: string): string {
   return value
@@ -85,12 +86,17 @@ function buildLoopControl(input: { iteration: number; maxIterations: number }): 
 }
 
 function duplicateActionFeedback(action: Action, historical = false): Feedback {
+  const nextStep = action.type === "list_files"
+    ? "请改为 read_file 读取具体文件，或直接 write_file / run_command 推进任务，然后 finish。"
+    : action.type === "read_file"
+      ? "请基于已读内容直接 write_file / run_command 推进任务，然后 finish。"
+      : "请基于已有工具结果选择一个新的有效动作，或直接 finish。";
   return {
     source: "duplicate_action",
     severity: "warning",
     message: historical
-      ? "你之前已经执行过完全相同的动作（相同路径/相同内容），不要重复执行；请基于已有工具结果继续，若信息足够则返回 finish。"
-      : "不要连续重复同一个动作；请根据已有工具结果选择下一步，若信息足够则返回 finish。",
+      ? `你之前已经执行过完全相同的动作（相同路径/相同内容），不要重复执行。${nextStep}`
+      : `不要连续重复同一个动作；请根据已有工具结果选择下一步。${nextStep}`,
     payload: { actionType: action.type, ...(historical ? { repeated: true } : {}) }
   };
 }
@@ -151,8 +157,12 @@ export async function runAgentLoop(input: {
     }
   };
 
-  for (let iteration = 0; iteration < input.maxIterations; iteration += 1) {
-    const isLastIteration = iteration === input.maxIterations - 1;
+  const totalIterationCap = input.maxIterations * totalIterationCapMultiplier;
+  let iteration = 0;
+  let effectiveIterations = 0;
+  while (effectiveIterations < input.maxIterations && iteration < totalIterationCap) {
+    iteration += 1;
+    const isLastIteration = effectiveIterations === input.maxIterations - 1;
     const baseContext = buildContext({
       task: input.task,
       feedback,
@@ -164,7 +174,7 @@ export async function runAgentLoop(input: {
     const context = [
       baseContext,
       "",
-      buildLoopControl({ iteration, maxIterations: input.maxIterations })
+      buildLoopControl({ iteration: effectiveIterations, maxIterations: input.maxIterations })
     ].join("\n");
     let response: string;
     try {
@@ -277,6 +287,7 @@ export async function runAgentLoop(input: {
       record({ kind: "feedback", iteration, feedback: nextFeedback });
       executedSignatures.add(currentActionSignature);
       lastActionSignature = currentActionSignature;
+      effectiveIterations += 1;
       continue;
     }
 
@@ -288,8 +299,9 @@ export async function runAgentLoop(input: {
     executedSignatures.add(currentActionSignature);
     if (action.type === "write_file") writtenPaths.add(action.path);
     lastActionSignature = currentActionSignature;
+    effectiveIterations += 1;
   }
 
-  record({ kind: "stop", reason: "max_iterations" });
+  record({ kind: "stop", reason: "max_iterations", iteration });
   return { runId, status: "max_iterations", events };
 }
