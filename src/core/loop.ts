@@ -148,6 +148,7 @@ export async function runAgentLoop(input: {
   let lastActionSignature: string | undefined;
   const executedSignatures = new Set<string>();
   const writtenPaths = new Set<string>();
+  const pathsNeedingVerification = new Set<string>();
   const successfulCommands = new Set<string>();
   let consecutiveProviderErrors = 0;
   let verificationWarnings = 0;
@@ -288,6 +289,22 @@ export async function runAgentLoop(input: {
       return { runId, status: "blocked", events };
     }
 
+    if (
+      action.type === "write_file"
+      && writtenPaths.has(action.path)
+      && pathsNeedingVerification.has(action.path)
+    ) {
+      const verifyFirstFeedback = redactFeedback({
+        source: "duplicate_action",
+        severity: "warning",
+        message: "该文件在本轮已经写入过，并且写入后还没有运行任何验证命令。请先通过 run_command 运行 npm test / npm run build 验证当前实现，再决定是否需要继续修改；不要反复重写同一个文件而不验证。",
+        payload: { actionType: action.type, path: action.path, repeated: true }
+      });
+      feedback.push(verifyFirstFeedback);
+      record({ kind: "feedback", iteration, feedback: verifyFirstFeedback });
+      continue;
+    }
+
     if (action.type === "remember" && input.memoryStore !== undefined) {
       input.memoryStore.remember({
         workspaceId: input.workspace.id,
@@ -312,8 +329,14 @@ export async function runAgentLoop(input: {
     feedback.push(nextFeedback);
     record({ kind: "feedback", iteration, feedback: nextFeedback });
     executedSignatures.add(currentActionSignature);
-    if (action.type === "write_file") writtenPaths.add(action.path);
-    if (action.type === "run_command" && result.ok) successfulCommands.add(action.command);
+    if (action.type === "write_file") {
+      writtenPaths.add(action.path);
+      pathsNeedingVerification.add(action.path);
+    }
+    if (action.type === "run_command") {
+      pathsNeedingVerification.clear();
+      if (result.ok) successfulCommands.add(action.command);
+    }
     lastActionSignature = currentActionSignature;
     effectiveIterations += 1;
   }

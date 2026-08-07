@@ -779,3 +779,13 @@
   - `src/core/actions.ts`：提取第一个 JSON 后，在剩余文本中再次提取 JSON；若存在第二个带 `"type"` 的 action 对象，判定为「Multiple JSON objects found」并返回 `invalid_action` 反馈。同时保留对「JSON + 纯中文解释（无第二个 JSON）」的兼容。
 - 验证证据：
   - `npm run typecheck`、`npm run build`、`npm test`（206 个测试）全部通过；新增「JSON + 文字 + JSON」拼接检测测试。
+
+### 2026-08-07 - 写后必须验证护栏（阻止反复重写同一文件）
+
+- 主 agent：Codex App
+- 背景：用户反馈 run `80e7438c`（80 个事件，max_iterations）。模型反复重写同一个文件 `src/heap_sort.js` 达 7 次（每次只微调变量名/注释），这些是「真正执行的有效动作」，既绕过历史去重（内容不完全相同）又消耗有效迭代预算；最后写完才被验证守卫拦下补跑 npm test，预算已耗尽。
+- 根因：harness 允许「写完文件后不验证就反复重写同一文件」。
+- Agent 动作：
+  - `src/core/loop.ts`：新增写后必须验证护栏——同一路径已写入过且之后未运行过任何验证命令（run_command）时，再次 write_file 同一路径会被拦截并提示「先运行 npm test / npm run build 验证，再决定是否修改」；运行过验证命令后允许继续修改。
+- 验证证据：
+  - `npm run typecheck`、`npm run build`、`npm test`（207 个测试）全部通过；新增「未验证前重写同一文件被拦、验证后可再写」测试。

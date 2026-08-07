@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -248,6 +248,48 @@ describe("runAgentLoop", () => {
       .toHaveLength(1);
     expect(result.events.filter((event) => event.kind === "tool_result" && (event.action as { type?: string })?.type === "run_command"))
       .toHaveLength(1);
+  });
+
+  it("blocks rewriting the same file until a verification command has run", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-write-guard-"));
+    await writeFile(join(root, "package.json"), JSON.stringify({ scripts: { build: "node --check src/index.js" } }), "utf8");
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src", "index.js"), "export const a = 1;\n", "utf8");
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        if (inputs.length === 1) {
+          return JSON.stringify({ type: "write_file", path: "src/index.js", content: "export const a = 2;\n", reason: "first write" });
+        }
+        if (inputs.length === 2) {
+          return JSON.stringify({ type: "write_file", path: "src/index.js", content: "export const a = 3;\n", reason: "rewrite without verifying" });
+        }
+        if (inputs.length === 3) {
+          return JSON.stringify({ type: "run_command", command: "npm run build", reason: "verify" });
+        }
+        if (inputs.length === 4) {
+          return JSON.stringify({ type: "write_file", path: "src/index.js", content: "export const a = 4;\n", reason: "rewrite after verify" });
+        }
+        return JSON.stringify({ type: "finish", summary: "done" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "write-then-verify",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: ["npm run build"] },
+      provider,
+      maxIterations: 5
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(5);
+    expect(inputs[2].context).toContain("还没有运行任何验证命令");
+    expect(result.events.filter((event) => event.kind === "feedback" && String((event.feedback as { message?: unknown })?.message).includes("还没有运行任何验证命令")))
+      .toHaveLength(1);
+    expect(result.events.filter((event) => event.kind === "tool_result" && (event.action as { type?: string })?.type === "write_file"))
+      .toHaveLength(2);
+    expect(await readFile(join(root, "src", "index.js"), "utf8")).toBe("export const a = 4;\n");
   });
 
   it("does not consume the effective iteration budget on repeated actions", async () => {
