@@ -1,6 +1,6 @@
 # 最终交付检查清单
 
-更新时间：2026-08-03
+更新时间：2026-08-07
 
 本清单用于对照 `AI4SE_Final_Project_通用要求.md` 与 `AI4SE_Final_Project_A_Coding_Agent_Harness(1).md`，跟踪当前项目离最终提交还差什么。
 
@@ -27,12 +27,11 @@
 
 ## 待完成
 
-- `REFLECTION.md`：目前只是提纲。最终 1500-2500 字反思报告必须由学生本人撰写；AI 可辅助润色但需要标注。
-- `AGENT_LOG.md`：已补近期关键过程，但在最终提交前还应追加 CI、部署、人工修改和最后审查记录。
-- 线上部署 URL：已通过 systemd + Nginx 部署到 `https://20230722.top/ai4se/`，服务器验证记录见 `docs/DISTRIBUTION.md`。
-- CI/CD 执行记录：已记录最新远端 `unit-test` success 链接：`https://github.com/15532/AI4SE/actions/runs/30803331722`；Actions 总览为 `https://github.com/15532/AI4SE/actions`。
-- GitHub PR 工作流：已记录建议流程；当前 GitHub API 未发现 PR，PR 创建/合并记录需由用户在 GitHub 上完成并补链接。
-- 公网访问控制：当前已有内置 Basic Auth、部署配置与安全说明；本次服务器演示部署按用户选择暂不启用登录界面，作为短期课程演示取舍；如果正式长期开放公网 WebUI，建议设置 `WEBUI_ADMIN_PASSWORD` 或接入反向代理认证。
+- `REFLECTION.md`：目前是 1796 字符的中文初稿，最终 1500-2500 字反思报告必须由学生本人撰写；AI 可辅助润色但需要标注，且按惯例未纳入 git 提交。
+- 线上部署 URL：已通过 systemd + Nginx 部署到 `https://20230722.top/ai4se/`，服务器验证记录见 `docs/DISTRIBUTION.md`（含逐轮发布记录）。
+- CI/CD 执行记录：最新远端 `unit-test` success 链接：`https://github.com/15532/AI4SE/actions/runs/31151926069`；Actions 总览为 `https://github.com/15532/AI4SE/actions`。
+- GitHub PR 工作流：PR #1（`feature/core-loop` → `main`）已创建，`mergeable: true`，CI 全绿；合并操作由用户在 GitHub 完成并补链接。
+- 公网访问控制：本次服务器演示部署按用户选择暂不启用登录界面，作为短期课程演示取舍；如果正式长期开放公网 WebUI，建议设置 `WEBUI_ADMIN_PASSWORD` 或接入反向代理认证。
 - 方案 B / Open Design：当前已完成对话式 WebUI、Workspace Session V1、Diff Inspector V1、Interactive Run V1 和 Approval V1；若继续做浏览器内编辑器或更完整视觉系统，应引入 Open Design，并在 `SPEC.md` 中补充设计系统与 skill。
 
 ## 建议下一步
@@ -69,3 +68,21 @@
 仍待最终交付前确认：
 
 - 正式服务器部署时应通过服务器环境变量、安全密钥管理或部署平台 secret 注入 `HARNESS_MASTER_PASSWORD`，不要把主密码写入镜像或仓库。
+
+
+## 2026-08-07 更新：resume 会话修复与收尾核查
+
+已完成：
+
+- WebUI「mock 机制演示」按钮接入确定性机制复现（护栏拦截 → 失败反馈 → 修正动作 → 中文摘要）。
+- 聊天线程按时间正序渲染；DeepSeek 摘要详细化并禁止编造验证；验证声明守卫 + 守卫误报修复。
+- agent loop 历史去重、有效迭代预算与重复空转分离、多 JSON 拼接检测、写后必须验证护栏。
+- WebUI 清除历史对话与工作区。
+- README 补齐「获取方式」「已知限制」章节；`AGENT_LOG.md`、`SPEC_PROCESS.md`、`PLAN.md`、`docs/CI_CD_RECORD.md` 同步补全。
+- 本地 `npm test` 208 个测试、`npm run build`、`npm run demo:mechanisms`、`npm run demo:coding-task`、`npm run check:acceptance` 全部通过；GitHub Actions `unit-test` success；线上 `https://20230722.top/ai4se/` 可访问且最新 run 验证通过。
+
+仍待用户完成：
+
+- 本人审阅润色 `REFLECTION.md`。
+- 合并 PR #1 并补链接。
+- 公网长期部署前建议启用 `WEBUI_ADMIN_PASSWORD`。

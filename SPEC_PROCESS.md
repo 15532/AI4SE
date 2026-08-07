@@ -381,3 +381,45 @@ TDD 与验证证据：
 
 - 用户应轮换误发到对话中的 DeepSeek key，并在服务器 `/opt/ai4se/.env` 本地手动配置新 key。
 - Docker build/compose 验证按用户决定暂缓到服务器安装 Docker 后再补。
+
+
+### Iteration 25 - resume：WebUI mock 机制演示接入确定性复现
+
+问题：WebUI 左侧「mock 机制演示」按钮只触发默认 mock provider 的一步 finish（`Mock run completed`），timeline 仅 4 个事件，没有展示课程要求的护栏拦截、失败反馈和修正动作。
+
+决策：复用已有的 `runMechanismDemo`，让其支持把确定性演示事件写入 WebUI run 的 timeline；WebUI 请求 `provider=mock` 且 task 含「mock 机制演示」时改走该演示。
+
+实现：`runMechanismDemo` 支持 `eventStore/existingRunId/sessionId`；server 识别演示请求；WebUI 事件标签按 payload 增强（护栏拦截/测试失败反馈/修正动作）。
+
+验证：`npm test`（193 个测试）通过；新增端到端演示测试。提交：`2d72daf`、`6a29bd3`、`cbc09a4`。
+
+### Iteration 26 - resume：聊天顺序、验证命令与迭代轮数修复
+
+问题：用户反馈 ① 会话中新要求显示在旧要求上方；② 模型声称「没有可用验证命令」但 package.json 明明有 npm test/npm run build；③ 简单任务迭代很多次（run `caaebd00` 连续 6 次重复 `list_files .`）。
+
+根因与修复：
+
+- 聊天顺序：`listSessionRuns` 倒序返回，`renderChatSessionThread` 直接渲染 → 新消息在上。改为按时间正序（旧在上、新在下）渲染（`bf669ea`）。
+- 验证命令：模型只 `list_files` 未读 package.json 就臆断脚本缺失；prompt 明确「Allowed commands 可直接运行，拿不准先 read package.json」（`bf669ea`、`522dde0`）。
+- 迭代轮数：历史去重只拦「连续重复」，模型穿插其他动作后再写相同文件不被拦。引入历史去重（`0ae030c`）、有效迭代预算与总轮次分离（`acd71e6`）——重复/无效轮次不再消耗有效预算。
+
+验证：`npm test` 逐步从 193 → 202 个测试通过。
+
+### Iteration 27 - resume：验证守卫、多 JSON 检测、写后必须验证
+
+问题：多轮反馈中模型多次「声称验证成功但未实际运行」（run `8f4b4141`、`71d27bed`），且一次响应拼接多个 JSON 导致第二个动作被静默丢弃（`1a0d0b43`），以及写完文件后反复重写同一文件耗尽预算（`80e7438c`）。
+
+修复：
+
+- 验证声明守卫（`deff9aa`）：finish.summary 声称验证成功但本 run 无成功 run_command 时拒绝 finish 并给 `verification_missing` 反馈。
+- 多 JSON 检测（`4902fdc`、`a42d9a4`）：parser 提取第一个 JSON 后继续扫描剩余文本，存在第二个带 `"type"` 的 action 即判多 JSON，返回 `invalid_action`。
+- 写后必须验证（`d99fd5a`）：同一路径已写入且未运行验证命令时，再次写同一文件被拦截并提示先验证。
+- 验证守卫误报修复（`64c9110`）：守卫只匹配「命令/验证词 + 通过/成功」且排除「未运行/未执行/失败/未验证/不声明」，诚实报告失败/未验证的 finish 不再被误拦。
+
+验证：`npm test`（208 个测试）全部通过；新增对应回归测试；线上逐轮发布并验证（`docs/DISTRIBUTION.md`）。
+
+### Iteration 28 - resume：收尾全量核查
+
+对照《AI4SE 通用要求》与《Project A》逐条核对：自有 harness 内核、mock-LLM 确定性单测、机制演示、凭据安全、CI（GitHub Actions + GitLab unit-test）、云部署 URL、README 必需章节。补齐 README「获取方式」「已知限制」章节（`67258b8`）。仓库凭据泄漏自查未发现真实 key；`npm run check:acceptance` 通过。
+
+仍由用户完成：`REFLECTION.md` 本人审阅润色（未纳入 git）、PR #1 合并、公网长期部署前启用 `WEBUI_ADMIN_PASSWORD`。

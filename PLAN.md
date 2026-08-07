@@ -8,6 +8,23 @@
 
 **技术栈：** TypeScript、Node.js、Vitest、SQLite、OpenAI-compatible API、加密凭据文件、Docker、GitHub Actions、GitLab CI。
 
+
+## 实现完成状态（2026-08-07 收尾）
+
+所有 Task（1-11）与 Task 0 基线均已完成并合并到 `feature/core-loop`，全部机制有 mock-LLM 确定性单元测试，`npm test`（208 个测试）与 `npm run build` 通过。代表性提交（更多见 `AGENT_LOG.md` 与 git log）：
+
+- Task 1 脚手架 / Task 2 类型与 Parser / Task 3 Workspace 与 Guardrail / Task 4 Tool Dispatcher / Task 5 Mock LLM 与 Agent Loop / Task 6 Feedback Sensors / Task 7 SQLite Store / Task 8 Credential Manager：由历史提交 `40a9630`~`fd9117c` 完成（见各 Task 内 commit hash）。
+- Task 9 CLI 与机制演示 / Task 10 WebUI Run Control / Task 11 Docker 与 CI：历史提交 + resume 会话增强。
+- resume 会话增强（2026-08-06~07）：
+  - WebUI mock 机制演示接入确定性复现：`2d72daf`
+  - 聊天线程按时间正序渲染：`bf669ea`
+  - DeepSeek 摘要详细化 + 禁止编造验证：`522dde0`；验证声明守卫：`deff9aa`；守卫误报修复：`64c9110`
+  - agent loop 历史去重：`0ae030c`；有效迭代预算分离：`acd71e6`
+  - 多 JSON 拼接检测（含夹文字）：`4902fdc` / `a42d9a4`
+  - 写后必须验证护栏：`d99fd5a`
+  - WebUI 清除历史对话与工作区：`1a5c07a`
+  - README 补齐获取方式与已知限制、收尾核查：`67258b8`
+
 ## 全局约束
 
 - SPEC/PLAN 与 Cursor 冷启动验证完成前不得写实现代码。
@@ -140,7 +157,7 @@ export type GuardrailDecision =
 
 ---
 
-## Task 1：TypeScript 项目脚手架
+## Task 1：（已完成）TypeScript 项目脚手架
 
 **文件：**
 
@@ -154,7 +171,7 @@ export type GuardrailDecision =
 
 - 产出空导出文件 `src/core/actions.ts`，让后续 task 可以开始补接口。
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 在 `tests/core/actions.test.ts` 写入：
 
@@ -169,13 +186,13 @@ describe("parseAction scaffold", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/core/actions.test.ts`
 
 预期：失败，错误包含 `Cannot find module` 或 `parseAction` 未导出。
 
-- [ ] **Step 3：创建最小脚手架**
+- [x] **Step 3：创建最小脚手架**
 
 `package.json` 必须包含：
 
@@ -217,13 +234,13 @@ export function parseAction(raw: string): unknown {
 }
 ```
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/core/actions.test.ts`
 
 预期：1 个测试通过。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add package.json tsconfig.json vitest.config.ts src/core/actions.ts tests/core/actions.test.ts
@@ -232,7 +249,7 @@ git commit -m "chore: scaffold typescript project via subagent T1"
 
 ---
 
-## Task 2：Action、Feedback、Guardrail 类型与 Parser
+## Task 2：（已完成）Action、Feedback、Guardrail 类型与 Parser
 
 **文件：**
 
@@ -247,7 +264,7 @@ git commit -m "chore: scaffold typescript project via subagent T1"
 - 产出：`Feedback`
 - 产出：`GuardrailDecision`
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 在 `tests/core/actions.test.ts` 增加：
 
@@ -307,23 +324,23 @@ describe("parseAction", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/core/actions.test.ts`
 
 预期：失败，因为 `parseAction` 尚未返回 typed result。
 
-- [ ] **Step 3：实现最小类型与 parser**
+- [x] **Step 3：实现最小类型与 parser**
 
 `src/core/feedback.ts` 导出固定 `Feedback` 类型。`src/core/actions.ts` 导出 `Action` union 和 `parseAction`。非法 JSON message 必须精确为 `LLM output is not valid JSON`。非法 action shape message 必须精确为 `LLM action shape is invalid`，payload 至少包含 `reason` 和 `raw`。v1 拒绝额外字段。
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/core/actions.test.ts`
 
 预期：parser 测试通过。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add src/core/actions.ts src/core/feedback.ts src/runtime/guardrails.ts tests/core/actions.test.ts
@@ -332,7 +349,7 @@ git commit -m "feat: add action protocol and parser via subagent T2"
 
 ---
 
-## Task 3：Workspace Registry 与 Guardrail Engine
+## Task 3：（已完成）Workspace Registry 与 Guardrail Engine
 
 **文件：**
 
@@ -356,7 +373,7 @@ export function resolveWorkspacePath(workspace: WorkspaceConfig, relativePath: s
 export function classifyAction(action: Action, workspace: WorkspaceConfig): GuardrailDecision;
 ```
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 `tests/runtime/guardrails.test.ts`：
 
@@ -429,23 +446,23 @@ describe("resolveWorkspacePath", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/runtime/guardrails.test.ts`
 
 预期：失败，因为 `classifyAction` 尚未实现。
 
-- [ ] **Step 3：实现 workspace 与 guardrail**
+- [x] **Step 3：实现 workspace 与 guardrail**
 
 实现 exact match allowlist、destructive delete block、publish/deploy block、secret access block、sensitive write block、path escape block。Guardrail 规则优先级必须与 `SPEC.md` 一致：destructive delete > secret access/sensitive write > path escape > publish/deploy > not allowlisted > allow。
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/runtime/guardrails.test.ts tests/runtime/workspace.test.ts`
 
 预期：guardrail 与 workspace 测试通过。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add src/runtime/workspace.ts src/runtime/guardrails.ts tests/runtime/workspace.test.ts tests/runtime/guardrails.test.ts
@@ -454,7 +471,7 @@ git commit -m "feat: add workspace registry and guardrails via subagent T3"
 
 ---
 
-## Task 4：Tool Dispatcher
+## Task 4：（已完成）Tool Dispatcher
 
 **文件：**
 
@@ -475,7 +492,7 @@ export type ToolResult = {
 export async function dispatchTool(action: Action, workspace: WorkspaceConfig): Promise<ToolResult>;
 ```
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 `tests/runtime/tools.test.ts`：
 
@@ -503,23 +520,23 @@ describe("dispatchTool", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/runtime/tools.test.ts`
 
 预期：失败，因为 `dispatchTool` 尚未实现。
 
-- [ ] **Step 3：实现最小工具分发**
+- [x] **Step 3：实现最小工具分发**
 
 实现 `read_file`、`write_file`、`list_files`、`run_command`。`remember` 在本 task 中返回“需要 memory store”的结构化结果，实际 SQLite 写入由 Task 7 接入。`finish` 不触发工具执行。`run_command` 只执行 allowlist 命令。
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/runtime/tools.test.ts`
 
 预期：文件工具和路径逃逸测试通过。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add src/runtime/tools.ts tests/runtime/tools.test.ts
@@ -528,7 +545,7 @@ git commit -m "feat: add bounded tool dispatcher via subagent T4"
 
 ---
 
-## Task 5：Mock LLM、Context Builder 与 Agent Loop
+## Task 5：（已完成）Mock LLM、Context Builder 与 Agent Loop
 
 **文件：**
 
@@ -552,7 +569,7 @@ export async function runAgentLoop(input: {
 }): Promise<{ status: "finished" | "blocked" | "max_iterations"; events: Array<Record<string, unknown>> }>;
 ```
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 `tests/core/loop.test.ts`：
 
@@ -591,23 +608,23 @@ describe("runAgentLoop", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/core/loop.test.ts`
 
 预期：失败，因为 provider 与 loop 未实现。
 
-- [ ] **Step 3：实现 mock provider 与主循环**
+- [x] **Step 3：实现 mock provider 与主循环**
 
 `MockLLMProvider` 每次返回 scripted response。`runAgentLoop` 执行 parse -> guardrail -> dispatch -> feedback -> next/stop，并记录 event array。
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/core/loop.test.ts`
 
 预期：loop 测试通过。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add src/core/providers.ts src/core/context.ts src/core/loop.ts tests/core/loop.test.ts
@@ -616,7 +633,7 @@ git commit -m "feat: add mock llm and agent loop via subagent T5"
 
 ---
 
-## Task 6：Feedback Sensors 与自修正机制测试
+## Task 6：（已完成）Feedback Sensors 与自修正机制测试
 
 **文件：**
 
@@ -633,7 +650,7 @@ export function feedbackFromGuardrail(decision: Exclude<GuardrailDecision, { dec
 export function buildContext(input: { task: string; feedback: Feedback[]; memories: string[] }): string;
 ```
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 `tests/core/feedback.test.ts`：
 
@@ -666,23 +683,23 @@ describe("feedback sensors", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/core/feedback.test.ts`
 
 预期：失败，因为 feedback helpers 未实现。
 
-- [ ] **Step 3：实现 feedback sensor**
+- [x] **Step 3：实现 feedback sensor**
 
 实现命令失败、测试失败、static check 失败、guardrail block、tool success、credential missing 的分类。
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/core/feedback.test.ts tests/core/loop.test.ts`
 
 预期：feedback 与 loop 测试通过。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add src/core/feedback.ts src/core/context.ts src/core/loop.ts tests/core/feedback.test.ts
@@ -691,7 +708,7 @@ git commit -m "feat: add feedback sensors via subagent T6"
 
 ---
 
-## Task 7：SQLite Event Store 与 Memory
+## Task 7：（已完成）SQLite Event Store 与 Memory
 
 **文件：**
 
@@ -719,7 +736,7 @@ export class MemoryStore {
 }
 ```
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 `tests/store/memory-store.test.ts`：
 
@@ -742,23 +759,23 @@ describe("MemoryStore", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/store/memory-store.test.ts`
 
 预期：失败，因为 store 未实现。
 
-- [ ] **Step 3：实现 SQLite schema 与 store**
+- [x] **Step 3：实现 SQLite schema 与 store**
 
 创建表：`runs`、`events`、`actions`、`feedback`、`memory_items`、`workspace_config_snapshots`。写入 payload 前调用 redaction helper，移除 key 名含 `secret`、`token`、`apiKey` 的值。
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/store/event-store.test.ts tests/store/memory-store.test.ts`
 
 预期：SQLite store 测试通过。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add src/store/schema.ts src/store/event-store.ts src/store/memory-store.ts src/core/loop.ts tests/store/event-store.test.ts tests/store/memory-store.test.ts
@@ -767,7 +784,7 @@ git commit -m "feat: add sqlite event and memory stores via subagent T7"
 
 ---
 
-## Task 8：Credential Manager
+## Task 8：（已完成）Credential Manager
 
 **文件：**
 
@@ -792,7 +809,7 @@ export class CredentialManager {
 }
 ```
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 `tests/credentials/credential-manager.test.ts`：
 
@@ -826,23 +843,23 @@ describe("CredentialManager", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/credentials/credential-manager.test.ts`
 
 预期：失败，因为 credential manager 未实现。
 
-- [ ] **Step 3：实现 fake adapter 与 manager**
+- [x] **Step 3：实现 fake adapter 与 manager**
 
 实现 `InMemoryKeychainAdapter` 用于测试；当前交付版本已补 `EncryptedFileKeychainAdapter`，使用 `HARNESS_MASTER_PASSWORD` 和加密凭据文件，不依赖真实系统 keychain。
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/credentials/credential-manager.test.ts`
 
 预期：credential 测试通过。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add src/credentials/keychain-adapter.ts src/credentials/credential-manager.ts tests/credentials/credential-manager.test.ts
@@ -851,7 +868,7 @@ git commit -m "feat: add credential manager via subagent T8"
 
 ---
 
-## Task 9：CLI 与机制演示
+## Task 9：（已完成）CLI 与机制演示
 
 **文件：**
 
@@ -870,7 +887,7 @@ git commit -m "feat: add credential manager via subagent T8"
   - `harness credentials clear --provider <name>`
 - npm script：`npm run demo:mechanisms`
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 `tests/cli/demo.test.ts`：
 
@@ -888,23 +905,23 @@ describe("mechanism demo", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/cli/demo.test.ts`
 
 预期：失败，因为 demo 未实现。
 
-- [ ] **Step 3：实现 CLI 与 demo**
+- [x] **Step 3：实现 CLI 与 demo**
 
 `runMechanismDemo()` 使用 `MockLLMProvider` scripted responses：先输出危险 `rm -rf .`，再运行 `npm test` 并注入失败 feedback，再输出 `write_file`，最后 `finish`。
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/cli/demo.test.ts && npm run demo:mechanisms`
 
 预期：测试通过，demo 输出 timeline JSON。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add src/cli/main.ts src/demo/mechanisms.ts package.json tests/cli/demo.test.ts
@@ -913,7 +930,7 @@ git commit -m "feat: add cli and mechanism demo via subagent T9"
 
 ---
 
-## Task 10：WebUI Run Control
+## Task 10：（已完成）WebUI Run Control
 
 **文件：**
 
@@ -943,7 +960,7 @@ git commit -m "feat: add cli and mechanism demo via subagent T9"
 - API key 从 `DEEPSEEK_API_KEY` 读取，不写入 Git、SQLite、日志或 WebUI response。
 - Provider 请求格式用 fake fetch 测试，不能让一键测试依赖真实 DeepSeek 网络。
 
-- [ ] **Step 1：写失败测试**
+- [x] **Step 1：写失败测试**
 
 `tests/web/server.test.ts`：
 
@@ -967,23 +984,23 @@ describe("web server", () => {
 });
 ```
 
-- [ ] **Step 2：运行并确认失败**
+- [x] **Step 2：运行并确认失败**
 
 运行：`npm test -- tests/web/server.test.ts`
 
 预期：失败，因为 WebUI server 未实现。
 
-- [ ] **Step 3：实现最小 server**
+- [x] **Step 3：实现最小 server**
 
 使用 Node HTTP 或轻量 server library。若使用 Fastify，需要在 `package.json` 加入 `fastify` 并保持测试中的 `app.inject`；若不用 Fastify，测试要改为 Node HTTP request helper。选择 Fastify 时 `createServer()` 返回 Fastify instance。
 
-- [ ] **Step 4：运行并确认通过**
+- [x] **Step 4：运行并确认通过**
 
 运行：`npm test -- tests/web/server.test.ts`
 
 预期：WebUI API 边界测试通过。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add src/web/server.ts src/web/views.ts config/harness.example.yaml package.json tests/web/server.test.ts
@@ -992,7 +1009,7 @@ git commit -m "feat: add webui run control via subagent T10"
 
 ---
 
-## Task 11：Docker、CI 与最终文档
+## Task 11：（已完成）Docker、CI 与最终文档
 
 **文件：**
 
@@ -1009,17 +1026,17 @@ git commit -m "feat: add webui run control via subagent T10"
 - Docker run：`docker run --rm -p 3000:3000 coding-agent-harness`
 - CI job 名称：`unit-test`
 
-- [ ] **Step 1：写失败验证**
+- [x] **Step 1：写失败验证**
 
 运行：`npm test && npm run build`
 
 预期：在 Docker/CI 文件尚未补全前，build 或文档检查步骤缺失。
 
-- [ ] **Step 2：补 Dockerfile 与 compose**
+- [x] **Step 2：补 Dockerfile 与 compose**
 
 `Dockerfile` 使用 Node LTS，安装依赖，运行 `npm run build`，启动 WebUI server。`docker-compose.yml` 暴露 `3000:3000`，挂载 SQLite data volume。
 
-- [ ] **Step 3：更新 CI**
+- [x] **Step 3：更新 CI**
 
 GitHub Actions：
 
@@ -1041,17 +1058,17 @@ jobs:
 
 `.gitlab-ci.yml` 保持 job 名为 `unit-test`，执行 `npm ci`、`npm test`、`npm run build`。
 
-- [ ] **Step 4：更新 README 与 SECURITY**
+- [x] **Step 4：更新 README 与 SECURITY**
 
 README 必须包含：项目简介、安装、运行、分发命令、目录结构、key 安全配置、WebUI Basic Auth、公网部署边界、Docker + Nginx/反向代理部署说明。
 
-- [ ] **Step 5：运行并确认通过**
+- [x] **Step 5：运行并确认通过**
 
 运行：`npm test && npm run build`
 
 预期：测试与构建通过。若本机可用 Docker，再运行 `docker build -t coding-agent-harness .`。
 
-- [ ] **Step 6：提交**
+- [x] **Step 6：提交**
 
 ```bash
 git add Dockerfile docker-compose.yml .github/workflows/unit-test.yml .gitlab-ci.yml README.md SECURITY.md
