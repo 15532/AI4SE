@@ -250,6 +250,33 @@ describe("runAgentLoop", () => {
       .toHaveLength(1);
   });
 
+  it("does not reject an honest finish that reports failed or skipped verification", async () => {
+    const root = await mkdtemp(join(tmpdir(), "harness-loop-honest-verify-"));
+    await writeFile(join(root, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }), "utf8");
+    const inputs: Array<{ task: string; context: string }> = [];
+    const provider: LLMProvider = {
+      async complete(input) {
+        inputs.push(input);
+        if (inputs.length === 1) {
+          return JSON.stringify({ type: "run_command", command: "npm test", reason: "verify" });
+        }
+        return JSON.stringify({ type: "finish", summary: "npm test 运行失败，测试未通过；未运行 npm run build，因此不声明验证成功。" });
+      }
+    };
+
+    const result = await runAgentLoop({
+      task: "report verification honestly",
+      workspace: { id: "demo", name: "Demo", root, allowedCommands: ["npm test"] },
+      provider,
+      maxIterations: 3
+    });
+
+    expect(result.status).toBe("finished");
+    expect(inputs).toHaveLength(2);
+    expect(result.events.filter((event) => event.kind === "feedback" && (event.feedback as { source?: string })?.source === "verification_missing"))
+      .toHaveLength(0);
+  });
+
   it("blocks rewriting the same file until a verification command has run", async () => {
     const root = await mkdtemp(join(tmpdir(), "harness-loop-write-guard-"));
     await writeFile(join(root, "package.json"), JSON.stringify({ scripts: { build: "node --check src/index.js" } }), "utf8");

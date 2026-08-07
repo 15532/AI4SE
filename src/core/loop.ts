@@ -222,7 +222,11 @@ export async function runAgentLoop(input: {
     const currentActionSignature = actionSignature(action);
 
     if (action.type === "finish") {
-      const claimsVerification = /npm (?:test|run (?:build|test))|node --check|验证(?:通过|成功)|测试(?:通过|成功)|运行成功/i.test(action.summary);
+      const claimsVerification = (
+        /(?:npm test|npm run build|node --check).{0,16}(?:通过|成功)/i.test(action.summary)
+        || /(?:验证|测试).{0,10}(?:通过|成功)/i.test(action.summary)
+        || /运行(?:已)?成功/.test(action.summary)
+      ) && !/(?:未运行|未执行|失败|未验证|不声明|未实际执行)/.test(action.summary);
       if (claimsVerification && successfulCommands.size === 0 && verificationWarnings < 2) {
         verificationWarnings += 1;
         const verificationFeedback = redactFeedback({

@@ -66,6 +66,7 @@ export function buildContext(input: {
     "- If feedback reports invalid_action, return a corrected JSON action with the exact required shape.",
     "- Return exactly one JSON action per response; never concatenate multiple JSON objects. If you need to run a command after writing a file, finish the write first and run the command in the next response.",
     "- If read_file fails because the path is a directory, use list_files on that directory to see its contents instead of concluding that files are missing.",
+    "- When a verification command (for example npm test) fails, read the actual test file and the command output to find the real cause, then decide which file to fix; do not keep rewriting the same source file in different styles hoping it will pass.",
     "- If feedback reports safety_blocked, choose a safer allowed action instead of repeating the blocked action.",
     "- Do not finish before you have either verified the requested change or explained why verification is impossible."
   ].join("\n");

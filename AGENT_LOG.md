@@ -789,3 +789,15 @@
   - `src/core/loop.ts`：新增写后必须验证护栏——同一路径已写入过且之后未运行过任何验证命令（run_command）时，再次 write_file 同一路径会被拦截并提示「先运行 npm test / npm run build 验证，再决定是否修改」；运行过验证命令后允许继续修改。
 - 验证证据：
   - `npm run typecheck`、`npm run build`、`npm test`（207 个测试）全部通过；新增「未验证前重写同一文件被拦、验证后可再写」测试。
+
+### 2026-08-07 - 验证守卫误报修复 + 失败后读测试文件引导
+
+- 主 agent：Codex App
+- 背景：用户反馈 run `db79b331`（71 个事件，finished）。检查发现模型事件 53-57 实际运行了 `npm test` 且失败，之后 finish 摘要如实说明「npm test 运行失败、npm run build 未运行、不声明验证成功」，但验证守卫仍给出 `verification_missing` 反馈（事件 65/68），反复拦截到第 71 个事件才放行。
+- 根因：验证守卫正则为 `/npm (?:test|run (?:build|test))|node --check|验证(?:通过|成功)|测试(?:通过|成功)|运行成功/`，只要摘要出现命令名或「验证/测试」字样就触发，不判断上下文——「npm test 运行失败」「未运行 npm run build」也被当成「声称验证成功」。
+- 次级原因：模型从 npm test 报错推断测试文件导入旧导出，但从未 `read_file test/sort.test.js` 确认，反复重写 src 文件猜测。
+- Agent 动作：
+  - `src/core/loop.ts`：验证守卫改为「命令/验证词 + 通过/成功」且排除「未运行/未执行/失败/未验证/不声明/未实际执行」才触发。
+  - `src/core/context.ts`：Operating rules 增加「验证失败时先读实际测试文件和命令输出找到真正原因，再决定改哪个文件；不要反复用不同风格重写同一源文件猜测」。
+- 验证证据：
+  - `npm run typecheck`、`npm run build`、`npm test`（208 个测试）全部通过；新增「如实报告失败/未验证不误判」测试；原有「声称验证但未运行 → 被拒并补跑」测试仍通过。
