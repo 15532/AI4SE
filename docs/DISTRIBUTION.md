@@ -145,6 +145,18 @@ README 中不写死 registry，是为了避免伪造不可访问的镜像地址�
 - 新 release 目录：`/opt/ai4se/releases/20260807113230`（构建通过，切换 `current`、重启服务后 `active`）。
 - 本地验证：`npm run typecheck`、`npm run build`、`npm test`（200 个测试）全部通过。
 
+## 2026-08-07 第六轮部署：聊天顺序与验证命令修复
+
+背景：用户反馈 ① 会话中新的用户要求显示在旧要求上方；② 模型声称「没有可用验证命令」但工作区 package.json 明明有 npm test/npm run build；③ 简单任务迭代仍偏长。
+
+- 提交：`bf669ea 修复：聊天线程按时间正序渲染，强化验证命令执行`
+- 修复内容：
+  - `src/web/views.ts`：`renderChatSessionThread` 按时间正序渲染（旧在上、新在下）。
+  - `src/core/context.ts` + `src/core/providers.ts`：明确「验证任务直接运行 Allowed commands（npm test / npm run build），不要臆断脚本缺失；拿不准先 read package.json 再运行」。
+- 新 release 目录：`/opt/ai4se/releases/20260807114430`（构建通过，切换 `current`、重启服务后 `active`）。
+- 线上验证：session `b20e521e` 聊天线程内「请你写一个堆排序」位于「你可以进行验证吗?」上方（旧在上、新在下）。
+- 本地验证：`npm run typecheck`、`npm run build`、`npm test`（201 个测试）全部通过。
+
 ## 最终交付前待补证据
 
 - Docker 服务器验证因当前服务器未安装 Docker，按用户决定暂缓到后续服务器部署阶段；若之后安装 Docker，可补跑 `docker build -t ai4se-coding-agent-harness:local .` 或 `docker compose up --build` 并记录结果。
