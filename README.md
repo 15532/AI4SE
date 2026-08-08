@@ -2,7 +2,7 @@
 
 ## Chat-first WebUI
 
-> **线上已部署，可直接访问：https://20230722.top/ai4se/**（完整部署说明见「Docker 分发」→「线上部署」）。
+> **线上已部署，可直接访问：https://20230722.top/ai4se/** （完整部署说明见「Docker 分发」→「线上部署」）。
 
 当前 WebUI 首页已经调整为对话优先的 AI coding agent 工作台。启动后访问 `/`，主体区域是类似 Codex 桌面端的对话流和底部输入框；用户选择 workspace/provider 并输入任务后，浏览器表单会提交到 `/api/runs/start`，先在当前对话创建 session/run，再由后台触发真实 harness run。左侧用于工作区和工具入口，右侧 Inspector 展示运行机制、允许命令、memory 和文件入口。
 
