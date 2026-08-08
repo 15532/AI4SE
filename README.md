@@ -2,6 +2,8 @@
 
 ## Chat-first WebUI
 
+> **线上已部署，可直接访问：https://20230722.top/ai4se/**（完整部署说明见「Docker 分发」→「线上部署」）。
+
 当前 WebUI 首页已经调整为对话优先的 AI coding agent 工作台。启动后访问 `/`，主体区域是类似 Codex 桌面端的对话流和底部输入框；用户选择 workspace/provider 并输入任务后，浏览器表单会提交到 `/api/runs/start`，先在当前对话创建 session/run，再由后台触发真实 harness run。左侧用于工作区和工具入口，右侧 Inspector 展示运行机制、允许命令、memory 和文件入口。
 
 文件浏览与编辑器仍然保留，但定位为从对话工作台打开的辅助工具，而不是默认主体页面。
@@ -471,9 +473,15 @@ Compose 设置 `HARNESS_DB_PATH=/app/data/harness.sqlite`，并将 `/app/data` �
 - 修改 `config/harness.example.yaml` 或使用独立配置文件注册服务器上的 workspace；WebUI 只能选择已注册 workspace id。
 - 只把经过 HTTPS、反向代理或等价网络边界保护的入口暴露给访问者；不建议直接暴露容器 `3000` 端口。
 
-当前课程演示服务器采用 systemd + Nginx，不使用 Docker：
+### 线上部署（已上线，可直接访问）
 
-- WebUI：`https://20230722.top/ai4se/`
+本项目已实现并部署线上服务，公网可直接访问：
+
+- **线上 WebUI：https://20230722.top/ai4se/**
+- 已验证功能：对话式 harness 工作台、真实 DeepSeek run、mock 机制演示、文件浏览/编辑、diff、审批、清除历史对话与工作区。
+
+部署方式为服务器 systemd + Nginx（不使用 Docker）：
+
 - systemd：`ai4se-harness.service`
 - 应用目录：`/opt/ai4se/current`
 - 持久配置：`/opt/ai4se/config/harness.server.yaml`
